@@ -1,0 +1,204 @@
+[
+  {
+    "model": "help.helpcategory",
+    "pk": 1,
+    "fields": {
+      "name": "User Guide",
+      "slug": "user-guide",
+      "description": "Comprehensive guide for using the Yakkum platform",
+      "icon": "BookOpen01Icon",
+      "order": 1,
+      "is_active": true,
+      "created_at": "2025-01-01T00:00:00Z",
+      "updated_at": "2025-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helpcategory",
+    "pk": 2,
+    "fields": {
+      "name": "DESDE-LTC Reference",
+      "slug": "desde-ltc",
+      "description": "Documentation about DESDE-LTC classification system",
+      "icon": "FileAttachmentIcon",
+      "order": 2,
+      "is_active": true,
+      "created_at": "2025-01-01T00:00:00Z",
+      "updated_at": "2025-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helpcategory",
+    "pk": 3,
+    "fields": {
+      "name": "Enumerator Resources",
+      "slug": "enumerator",
+      "description": "Resources and guidelines for enumerators",
+      "icon": "ClipboardIcon",
+      "order": 3,
+      "is_active": true,
+      "created_at": "2025-01-01T00:00:00Z",
+      "updated_at": "2025-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helpcategory",
+    "pk": 4,
+    "fields": {
+      "name": "Technical Support",
+      "slug": "support",
+      "description": "Technical support and troubleshooting",
+      "icon": "Settings01Icon",
+      "order": 4,
+      "is_active": true,
+      "created_at": "2025-01-01T00:00:00Z",
+      "updated_at": "2025-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helparticle",
+    "pk": 1,
+    "fields": {
+      "category": 1,
+      "title": "Getting Started with Yakkum",
+      "slug": "getting-started",
+      "summary": "Learn the basics of navigating and using the Yakkum mental health service directory platform.",
+      "content": "# Getting Started with Yakkum\\n\\n## Introduction\\n\\nWelcome to Yakkum! This guide will help you get started with our mental health service directory platform.\\n\\n## Dashboard Overview\\n\\nThe dashboard provides an overview of:\\n- Key indicators and statistics\\n- Recent submissions\\n- Verification queue\\n- Service distribution map\\n\\n## Navigation\\n\\nUse the sidebar to access:\\n- Dashboard\\n- Services Management\\n- Survey Management\\n- Verification & QC\\n- User Management\\n- System Settings\\n- Reports & Analytics\\n- Logs & Monitoring\\n- Help & Documentation\\n\\n## Next Steps\\n\\n1. Familiarize yourself with the dashboard\\n2. Learn about service management\\n3. Understand the verification process\\n4. Explore reporting capabilities",
+      "status": "published",
+      "order": 1,
+      "views_count": 0,
+      "is_featured": true,
+      "author": null,
+      "tags": "getting-started, basics, introduction",
+      "created_at": "2025-01-01T00:00:00Z",
+      "updated_at": "2025-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helparticle",
+    "pk": 2,
+    "fields": {
+      "category": 1,
+      "title": "Managing Services",
+      "slug": "managing-services",
+      "summary": "Learn how to add, edit, and manage mental health services in the directory.",
+      "content": "# Managing Services\\n\\n## Adding a New Service\\n\\n1. Navigate to **Services Management** > **Add New Service**\\n2. Fill in the required information:\\n   - Service name\\n   - Location and address\\n   - Contact information\\n   - Service types (MTC/BSIC)\\n   - Operating hours\\n   - Available resources\\n\\n## Editing Services\\n\\n1. Go to **Services Management** > **All Services**\\n2. Click on the service you want to edit\\n3. Make your changes\\n4. Click **Save**\\n\\n## Service Categories\\n\\n### Main Types of Care (MTC)\\n- Residential care\\n- Day care\\n- Outpatient care\\n- Accessibility\\n- Information\\n- Work and training\\n- Self-help and voluntary work\\n\\n### Basic Service Identification Codes (BSIC)\\nDetailed classification of services based on DESDE-LTC standards.",
+      "status": "published",
+      "order": 2,
+      "views_count": 0,
+      "is_featured": true,
+      "author": null,
+      "tags": "services, management, mtc, bsic",
+      "created_at": "2025-01-01T00:00:00Z",
+      "updated_at": "2025-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helparticle",
+    "pk": 3,
+    "fields": {
+      "category": 2,
+      "title": "Understanding DESDE-LTC Classification",
+      "slug": "desde-ltc-classification",
+      "summary": "Comprehensive guide to the DESDE-LTC (Description and Evaluation of Services and DirectoriEs for Long Term Care) classification system.",
+      "content": "# DESDE-LTC Classification System\\n\\n## Overview\\n\\nDESDE-LTC is a standardized instrument for describing and classifying services for mental health and long-term care.\\n\\n## Main Types of Care (MTC)\\n\\n### R - Residential Care\\nServices providing accommodation and 24-hour care.\\n\\n### D - Day Care\\nServices providing structured daytime activities.\\n\\n### O - Outpatient Care\\nServices providing scheduled consultations and treatments.\\n\\n### A - Accessibility to Care\\nServices facilitating access to care.\\n\\n### I - Information\\nServices providing information about available care.\\n\\n### W - Work and Training\\nServices for vocational rehabilitation.\\n\\n### S - Self-help and Voluntary Work\\nUser-led and peer support services.\\n\\n## Classification Codes\\n\\nEach service is assigned a code like R2.1, D3.2, etc.\\n- First letter: Main type of care\\n- Number after dot: Specific service type\\n\\nFor detailed classification, refer to the official DESDE-LTC manual.",
+      "status": "published",
+      "order": 1,
+      "views_count": 0,
+      "is_featured": false,
+      "author": null,
+      "tags": "desde-ltc, classification, mtc, standards",
+      "created_at": "2025-01-01T00:00:00Z",
+      "updated_at": "2025-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.helparticle",
+    "pk": 4,
+    "fields": {
+      "category": 3,
+      "title": "Enumerator Quick Reference Guide",
+      "slug": "enumerator-quick-reference",
+      "summary": "Quick reference guide for enumerators conducting mental health service surveys.",
+      "content": "# Enumerator Quick Reference Guide\\n\\n## Before Starting\\n\\n- [ ] Review the survey form\\n- [ ] Prepare necessary documents\\n- [ ] Charge your device\\n- [ ] Test internet connection\\n\\n## During the Survey\\n\\n### 1. Introduction\\n- Introduce yourself\\n- Explain the purpose\\n- Request consent\\n\\n### 2. Data Collection\\n- Follow the survey flow\\n- Ask clarifying questions\\n- Document evidence (photos, documents)\\n- Verify information\\n\\n### 3. Service Details\\n- Name and location\\n- Contact information\\n- Services provided (MTC/BSIC)\\n- Operating hours\\n- Available resources\\n- Target populations\\n\\n### 4. Quality Checks\\n- Verify GPS coordinates\\n- Check contact details\\n- Validate service classifications\\n- Ensure all required fields are complete\\n\\n## After the Survey\\n\\n- Submit the survey\\n- Upload supporting documents\\n- Note any issues or concerns\\n- Follow up if additional information is needed\\n\\n## Common Issues\\n\\n### GPS Not Working\\n- Enable location services\\n- Move to an open area\\n- Manually enter coordinates\\n\\n### Service Not in Database\\n- Add as new service\\n- Use Add New Service form\\n- Provide detailed information\\n\\n### Respondent Unavailable\\n- Schedule a callback\\n- Leave contact information\\n- Document the attempt",
+      "status": "published",
+      "order": 1,
+      "views_count": 0,
+      "is_featured": true,
+      "author": null,
+      "tags": "enumerator, quick-reference, survey, guide",
+      "created_at": "2025-01-01T00:00:00Z",
+      "updated_at": "2025-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.faq",
+    "pk": 1,
+    "fields": {
+      "question": "How do I reset my password?",
+      "answer": "To reset your password:\\n\\n1. Click on Forgot Password on the login page\\n2. Enter your email address\\n3. Check your email for a reset link\\n4. Click the link and enter your new password\\n\\nIf you don't receive the email within 5 minutes, check your spam folder or contact support.",
+      "category": 4,
+      "order": 1,
+      "views_count": 0,
+      "is_active": true,
+      "created_at": "2025-01-01T00:00:00Z",
+      "updated_at": "2025-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.faq",
+    "pk": 2,
+    "fields": {
+      "question": "What are the different user roles?",
+      "answer": "Yakkum has several user roles:\\n\\n**Administrator**: Full system access, can manage all users and settings\\n\\n**Data Manager**: Can manage services, surveys, and perform verification\\n\\n**Verifier**: Can verify and approve/reject survey submissions\\n\\n**Enumerator**: Can submit surveys and manage own submissions\\n\\n**Viewer**: Read-only access to view data and reports",
+      "category": 1,
+      "order": 2,
+      "views_count": 0,
+      "is_active": true,
+      "created_at": "2025-01-01T00:00:00Z",
+      "updated_at": "2025-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.faq",
+    "pk": 3,
+    "fields": {
+      "question": "How do I classify a service using DESDE-LTC?",
+      "answer": "To classify a service:\\n\\n1. Identify the **Main Type of Care (MTC)**:\\n   - R: Residential\\n   - D: Day care\\n   - O: Outpatient\\n   - A: Accessibility\\n   - I: Information\\n   - W: Work/training\\n   - S: Self-help\\n\\n2. Determine the **specific service type** using the BSIC code\\n\\n3. Combine them (e.g., R2.1 for psychiatric hospital)\\n\\nRefer to the DESDE-LTC Reference guide for detailed codes.",
+      "category": 2,
+      "order": 1,
+      "views_count": 0,
+      "is_active": true,
+      "created_at": "2025-01-01T00:00:00Z",
+      "updated_at": "2025-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.faq",
+    "pk": 4,
+    "fields": {
+      "question": "How long does the verification process take?",
+      "answer": "The verification process typically takes:\\n\\n- **Standard submissions**: 2-3 business days\\n- **Complex submissions**: 5-7 business days\\n- **Submissions with issues**: Until issues are resolved\\n\\nYou'll receive email notifications about the status of your submission.",
+      "category": 1,
+      "order": 3,
+      "views_count": 0,
+      "is_active": true,
+      "created_at": "2025-01-01T00:00:00Z",
+      "updated_at": "2025-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.faq",
+    "pk": 5,
+    "fields": {
+      "question": "Can I export data from the system?",
+      "answer": "Yes! You can export data in several formats:\\n\\n**Available formats**:\\n- PDF reports\\n- Excel spreadsheets (.xlsx)\\n- CSV files\\n\\n**To export**:\\n1. Navigate to the data you want to export\\n2. Click the Export button\\n3. Select your preferred format\\n4. Choose the data range and filters\\n5. Click Download\\n\\nExport permissions depend on your user role.",
+      "category": 1,
+      "order": 4,
+      "views_count": 0,
+      "is_active": true,
+      "created_at": "2025-01-01T00:00:00Z",
+      "updated_at": "2025-01-01T00:00:00Z"
+    }
+  }
+]

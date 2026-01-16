@@ -1,0 +1,310 @@
+from rest_framework import viewsets, filters
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from django_filters.rest_framework import DjangoFilterBackend
+from django.db.models import Count, Q
+from django.utils import timezone
+from datetime import timedelta
+
+from .models import (
+    ActivityLog, VerificationLog, DataChangeLog,
+    SystemError, ImportExportLog
+)
+from .serializers import (
+    ActivityLogSerializer, VerificationLogSerializer,
+    DataChangeLogSerializer, SystemErrorSerializer,
+    ImportExportLogSerializer
+)
+from apps.accounts.permissions import IsAdmin
+
+
+class ActivityLogViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for ActivityLog (read-only)
+    """
+    queryset = ActivityLog.objects.select_related('user', 'content_type')
+    serializer_class = ActivityLogSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+
+    filterset_fields = {
+        'user': ['exact'],
+        'username': ['exact', 'icontains'],
+        'action': ['exact'],
+        'severity': ['exact'],
+        'success': ['exact'],
+        'timestamp': ['gte', 'lte'],
+    }
+
+    search_fields = ['username', 'description', 'ip_address', 'model_name']
+    ordering_fields = ['timestamp', 'action', 'severity']
+    ordering = ['-timestamp']
+
+    def get_queryset(self):
+        """Filter logs based on user role"""
+        user = self.request.user
+        queryset = super().get_queryset()
+
+        if user.role != 'ADMIN':
+            # Non-admins see only their own activity
+            queryset = queryset.filter(user=user)
+
+        return queryset
+
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        """Get activity log statistics"""
+        queryset = self.get_queryset()
+
+        # Total activities
+        total_activities = queryset.count()
+
+        # Action distribution
+        action_distribution = queryset.values('action').annotate(
+            count=Count('id')
+        ).order_by('-count')
+
+        # Severity distribution
+        severity_distribution = queryset.values('severity').annotate(
+            count=Count('id')
+        )
+
+        # Recent activities (last 24 hours)
+        yesterday = timezone.now() - timedelta(hours=24)
+        recent_activities = queryset.filter(timestamp__gte=yesterday).count()
+
+        # Most active users
+        active_users = queryset.values(
+            'username', 'user__email'
+        ).annotate(count=Count('id')).order_by('-count')
+
+        return Response({
+            'total_activities': total_activities,
+            'action_distribution': list(action_distribution)[:10],
+            'severity_distribution': list(severity_distribution),
+            'recent_activities': recent_activities,
+            'most_active_users': list(active_users)[:10]
+        })
+
+
+class VerificationLogViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for VerificationLog (read-only)
+    """
+    queryset = VerificationLog.objects.select_related('survey', 'verifier')
+    serializer_class = VerificationLogSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+
+    filterset_fields = {
+        'survey': ['exact'],
+        'verifier': ['exact'],
+        'action': ['exact'],
+        'previous_status': ['exact'],
+        'new_status': ['exact'],
+        'timestamp': ['gte', 'lte'],
+    }
+
+    ordering_fields = ['timestamp']
+    ordering = ['-timestamp']
+
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        """Get verification log statistics"""
+        queryset = self.get_queryset()
+
+        total_verifications = queryset.count()
+
+        # Action distribution
+        action_distribution = queryset.values('action').annotate(
+            count=Count('id')
+        )
+
+        # Most active verifiers
+        active_verifiers = queryset.values(
+            'verifier__email', 'verifier__first_name', 'verifier__last_name'
+        ).annotate(count=Count('id')).order_by('-count')
+
+        return Response({
+            'total_verifications': total_verifications,
+            'action_distribution': list(action_distribution),
+            'most_active_verifiers': list(active_verifiers)[:10]
+        })
+
+
+class DataChangeLogViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for DataChangeLog (read-only)
+    """
+    queryset = DataChangeLog.objects.select_related('user', 'content_type')
+    serializer_class = DataChangeLogSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+
+    filterset_fields = {
+        'user': ['exact'],
+        'model_name': ['exact'],
+        'action': ['exact'],
+        'timestamp': ['gte', 'lte'],
+    }
+
+    search_fields = ['model_name', 'field_name', 'user__email']
+    ordering_fields = ['timestamp']
+    ordering = ['-timestamp']
+
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        """Get data change log statistics"""
+        queryset = self.get_queryset()
+
+        total_changes = queryset.count()
+
+        # Changes by model
+        model_distribution = queryset.values('model_name').annotate(
+            count=Count('id')
+        ).order_by('-count')
+
+        # Changes by action
+        action_distribution = queryset.values('action').annotate(
+            count=Count('id')
+        )
+
+        # Recent changes (last 24 hours)
+        yesterday = timezone.now() - timedelta(hours=24)
+        recent_changes = queryset.filter(timestamp__gte=yesterday).count()
+
+        return Response({
+            'total_changes': total_changes,
+            'model_distribution': list(model_distribution),
+            'action_distribution': list(action_distribution),
+            'recent_changes': recent_changes
+        })
+
+
+class SystemErrorViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for SystemError (read-only for non-admins)
+    """
+    queryset = SystemError.objects.all()
+    serializer_class = SystemErrorSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+
+    filterset_fields = {
+        'severity': ['exact'],
+        'error_type': ['exact'],
+        'is_resolved': ['exact'],
+        'timestamp': ['gte', 'lte'],
+    }
+
+    search_fields = ['error_message', 'error_code', 'endpoint']
+    ordering_fields = ['timestamp', 'severity', 'occurrence_count']
+    ordering = ['-timestamp']
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAdmin])
+    def resolve(self, request, pk=None):
+        """Mark error as resolved (admin only)"""
+        error = self.get_object()
+
+        error.is_resolved = True
+        error.resolved_by = request.user
+        error.resolved_at = timezone.now()
+        error.resolution_notes = request.data.get('resolution_notes', '')
+        error.save()
+
+        return Response(self.get_serializer(error).data)
+
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        """Get system error statistics"""
+        queryset = self.get_queryset()
+
+        total_errors = queryset.count()
+        unresolved_errors = queryset.filter(is_resolved=False).count()
+
+        # Severity distribution
+        severity_distribution = queryset.values('severity').annotate(
+            count=Count('id')
+        )
+
+        # Error type distribution
+        type_distribution = queryset.values('error_type').annotate(
+            count=Count('id')
+        ).order_by('-count')
+
+        # Recent errors (last 24 hours)
+        yesterday = timezone.now() - timedelta(hours=24)
+        recent_errors = queryset.filter(timestamp__gte=yesterday).count()
+
+        # Most common errors
+        common_errors = queryset.values('error_code', 'error_message').annotate(
+            count=Count('id')
+        ).order_by('-count')
+
+        return Response({
+            'total_errors': total_errors,
+            'unresolved_errors': unresolved_errors,
+            'resolved_errors': total_errors - unresolved_errors,
+            'severity_distribution': list(severity_distribution),
+            'type_distribution': list(type_distribution),
+            'recent_errors': recent_errors,
+            'most_common_errors': list(common_errors)[:10]
+        })
+
+
+class ImportExportLogViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for ImportExportLog (read-only)
+    """
+    queryset = ImportExportLog.objects.select_related('user')
+    serializer_class = ImportExportLogSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+
+    filterset_fields = {
+        'user': ['exact'],
+        'operation_type': ['exact'],
+        'file_format': ['exact'],
+        'status': ['exact'],
+        'timestamp': ['gte', 'lte'],
+    }
+
+    search_fields = ['file_name', 'model_name', 'error_message']
+    ordering_fields = ['timestamp', 'records_processed']
+    ordering = ['-timestamp']
+
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        """Get import/export log statistics"""
+        queryset = self.get_queryset()
+
+        total_operations = queryset.count()
+
+        # Operation type distribution
+        operation_distribution = queryset.values('operation_type').annotate(
+            count=Count('id')
+        )
+
+        # Status distribution
+        status_distribution = queryset.values('status').annotate(
+            count=Count('id')
+        )
+
+        # Recent operations (last 7 days)
+        week_ago = timezone.now() - timedelta(days=7)
+        recent_operations = queryset.filter(timestamp__gte=week_ago).count()
+
+        # Total records processed
+        from django.db.models import Sum
+        total_records = queryset.aggregate(
+            total=Sum('records_processed')
+        )['total'] or 0
+
+        return Response({
+            'total_operations': total_operations,
+            'operation_distribution': list(operation_distribution),
+            'status_distribution': list(status_distribution),
+            'recent_operations': recent_operations,
+            'total_records_processed': total_records
+        })

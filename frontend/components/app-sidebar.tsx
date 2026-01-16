@@ -1,0 +1,465 @@
+"use client"
+
+import * as React from "react"
+import Image from "next/image"
+import { usePathname } from "next/navigation"
+import { HugeiconsIcon } from "@hugeicons/react"
+import {
+  DashboardSquare01Icon,
+  Hospital01Icon,
+  ClipboardIcon,
+  ShieldUserIcon,
+  UserIcon,
+  Settings01Icon,
+  Database01Icon,
+  Location01Icon,
+  Analytics01Icon,
+  FileAttachmentIcon,
+  HelpCircleIcon,
+  CommandIcon,
+  Mail01Icon,
+  BookOpen01Icon,
+} from "@hugeicons/core-free-icons"
+
+import { NavUser } from "@/components/nav-user"
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInput,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  useSidebar,
+} from "@/components/ui/sidebar"
+import { useStore } from "@tanstack/react-store"
+import { authStore } from "@/store/auth-store"
+
+// Application data
+const data = {
+  user: {
+    name: "Admin User",
+    email: "admin@atlaskeswa.id",
+    avatar: "/avatars/admin.jpg",
+  },
+  navMain: [
+    {
+      title: "Dasbor",
+      url: "/dashboard",
+      icon: DashboardSquare01Icon,
+      isActive: true,
+      submenus: [
+        { title: "Ringkasan", url: "/dashboard/overview" },
+        { title: "Indikator Utama", url: "/dashboard/indicators" },
+        { title: "Peta Distribusi Layanan", url: "/dashboard/map" },
+        { title: "Pengajuan Terbaru", url: "/dashboard/submissions" },
+        { title: "Antrian Verifikasi", url: "/dashboard/queue" },
+      ],
+    },
+    {
+      title: "Manajemen Layanan",
+      url: "/dashboard/services",
+      icon: Hospital01Icon,
+      isActive: false,
+      submenus: [
+        { title: "Semua Layanan", url: "/dashboard/services" },
+        { title: "Tambah Layanan Baru", url: "/dashboard/services/new" },
+        { title: "Kategori Layanan (BSIC)", url: "/dashboard/services/categories" },
+        { title: "Jenis Perawatan Utama (MTC)", url: "/dashboard/services/mtc" },
+        { title: "Populasi Sasaran", url: "/dashboard/services/target-populations" },
+        { title: "Jenis Layanan", url: "/dashboard/services/service-types" },
+      ],
+    },
+    {
+      title: "Manajemen Survei",
+      url: "/dashboard/survey",
+      icon: ClipboardIcon,
+      isActive: false,
+      submenus: [
+        { title: "Semua Catatan Survei", url: "/dashboard/survey" },
+        { title: "Entri Survei Baru", url: "/dashboard/survey/new" },
+        { title: "Pengajuan Tertunda", url: "/dashboard/survey/pending" },
+        { title: "Survei Disetujui", url: "/dashboard/survey/approved" },
+        { title: "Survei Ditolak", url: "/dashboard/survey/rejected" },
+        { title: "Unggah Massal", url: "/dashboard/survey/bulk-upload" },
+        { title: "Log Audit Survei", url: "/dashboard/survey/audit" },
+      ],
+    },
+    {
+      title: "Verifikasi & QC",
+      url: "/verification",
+      icon: ShieldUserIcon,
+      isActive: false,
+      submenus: [
+        { title: "Antrian Verifikasi", url: "/verification/queue" },
+        { title: "Verifikasi Detail Layanan", url: "/verification/services" },
+        { title: "Validasi MTC", url: "/verification/mtc" },
+        { title: "Tinjauan Bukti Lapangan", url: "/verification/evidence" },
+        { title: "Laporan Ketidaksesuaian", url: "/verification/discrepancies" },
+        { title: "Riwayat Verifikasi", url: "/verification/history" },
+      ],
+    },
+    {
+      title: "Manajemen Enumerator",
+      url: "/enumerators",
+      icon: UserIcon,
+      isActive: false,
+      submenus: [
+        { title: "Semua Enumerator", url: "/enumerators" },
+        { title: "Tambah Enumerator", url: "/enumerators/new" },
+        { title: "Log Aktivitas Enumerator", url: "/enumerators/activity" },
+        { title: "Daftar Penugasan", url: "/enumerators/assignments" },
+        { title: "Laporan Kinerja", url: "/enumerators/performance" },
+      ],
+    },
+    {
+      title: "Pengguna & Peran",
+      url: "/dashboard/users",
+      icon: UserIcon,
+      isActive: false,
+      submenus: [
+        { title: "Semua Pengguna", url: "/dashboard/users" },
+        { title: "Tambah Pengguna", url: "/dashboard/users/new" },
+        { title: "Peran & Izin", url: "/dashboard/users/roles" },
+        { title: "Riwayat Login", url: "/dashboard/users/login-history" },
+      ],
+    },
+    {
+      title: "Penjelajah Data",
+      url: "/data",
+      icon: Database01Icon,
+      isActive: false,
+      submenus: [
+        { title: "Tabel Layanan", url: "/data/services" },
+        { title: "Tampilan Matriks MTC", url: "/data/mtc-matrix" },
+        { title: "Analisis Cakupan Populasi", url: "/data/coverage" },
+        { title: "Kesenjangan & Kebutuhan Layanan", url: "/data/gaps" },
+        { title: "Unduh Data", url: "/data/download" },
+      ],
+    },
+    {
+      title: "Peta & Geospasial",
+      url: "/map",
+      icon: Location01Icon,
+      isActive: false,
+      submenus: [
+        { title: "Peta Lokasi Layanan", url: "/map" },
+        { title: "Peta Panas", url: "/map/heatmap" },
+        { title: "Tampilan Lapisan MTC", url: "/map/mtc-layers" },
+        { title: "Perbandingan Wilayah", url: "/map/regions" },
+        { title: "Unggah Data Geospasial", url: "/map/upload" },
+      ],
+    },
+    {
+      title: "Laporan & Analitik",
+      url: "/reports",
+      icon: Analytics01Icon,
+      isActive: false,
+      submenus: [
+        { title: "Laporan Ketersediaan Layanan", url: "/reports/availability" },
+        { title: "Distribusi MTC", url: "/reports/mtc" },
+        { title: "Perbandingan Regional", url: "/reports/regions" },
+        { title: "Laporan Tenaga Kerja & Kapasitas", url: "/reports/workforce" },
+        { title: "Laporan Profil Fasilitas", url: "/reports/facilities" },
+        { title: "Ekspor PDF / Unduh", url: "/reports/export" },
+      ],
+    },
+    {
+      title: "Konfigurasi Sistem",
+      url: "/dashboard/settings",
+      icon: Settings01Icon,
+      isActive: false,
+      submenus: [
+        { title: "Pengaturan Umum", url: "/dashboard/settings" },
+        { title: "Pembangun Formulir Survei", url: "/settings/form-builder" },
+        { title: "Aturan Validasi Data", url: "/settings/validation" },
+        { title: "Kunci API", url: "/settings/api-keys" },
+        { title: "Cadangan & Pemulihan", url: "/settings/backup" },
+        { title: "Notifikasi Email", url: "/settings/notifications" },
+      ],
+    },
+    {
+      title: "Log & Pemantauan",
+      url: "/dashboard/logs",
+      icon: FileAttachmentIcon,
+      isActive: false,
+      submenus: [
+        { title: "Log Aktivitas", url: "/dashboard/logs/activity" },
+        { title: "Log Verifikasi", url: "/dashboard/logs/verification" },
+        { title: "Log Perubahan Data", url: "/dashboard/logs/changes" },
+        { title: "Error Sistem", url: "/dashboard/logs/errors" },
+        { title: "Log Impor/Ekspor", url: "/dashboard/logs/import-export" },
+      ],
+    },
+    {
+      title: "Bantuan & Dokumentasi",
+      url: "/dashboard/help",
+      icon: HelpCircleIcon,
+      isActive: false,
+      submenus: [
+        { title: "Panduan Pengguna", url: "/dashboard/help/user-guide" },
+        { title: "Referensi Klasifikasi DESDE-LTC", url: "/dashboard/help/desde-ltc" },
+        { title: "Buku Panduan Enumerator", url: "/dashboard/help/enumerator" },
+        { title: "FAQ", url: "/dashboard/help/faq" },
+        { title: "Hubungi Dukungan", url: "/dashboard/help/support" },
+      ],
+    },
+  ],
+}
+
+// Filter menu items based on user role
+function filterMenuByRole(menuItems: typeof data.navMain, userRole?: string) {
+  if (!userRole) return []
+
+  return menuItems.filter(item => {
+    // User Management - ADMIN only
+    if (item.title === 'Manajemen Pengguna') {
+      return userRole === 'ADMIN'
+    }
+
+    // Verification & QC - ADMIN and VERIFIER only
+    if (item.title === 'Verifikasi & QC') {
+      return ['ADMIN', 'VERIFIER'].includes(userRole)
+    }
+
+    // Reports & Analytics - All except SURVEYOR
+    if (item.title === 'Laporan & Analitik' || item.title === 'Penjelajah Data') {
+      return ['ADMIN', 'VERIFIER', 'VIEWER'].includes(userRole)
+    }
+
+    // Logs & Monitoring - ADMIN only
+    if (item.title === 'Log & Pemantauan') {
+      return userRole === 'ADMIN'
+    }
+
+    // System Configuration - ADMIN only
+    if (item.title === 'Konfigurasi Sistem') {
+      return userRole === 'ADMIN'
+    }
+
+    // Filter submenus based on role
+    if (item.submenus) {
+      const filteredSubmenus = item.submenus.filter(submenu => {
+        // Add New Service/Survey - ADMIN and SURVEYOR only
+        if (submenu.title.includes('Tambah') || submenu.title.includes('Baru')) {
+          return ['ADMIN', 'SURVEYOR'].includes(userRole)
+        }
+
+        // Bulk Upload - ADMIN and SURVEYOR only
+        if (submenu.title.includes('Unggah Massal')) {
+          return ['ADMIN', 'SURVEYOR'].includes(userRole)
+        }
+
+        // Pending/Rejected/Audit - ADMIN and VERIFIER only
+        if (submenu.title.includes('Tertunda') || submenu.title.includes('Ditolak') || submenu.title.includes('Audit')) {
+          return ['ADMIN', 'VERIFIER'].includes(userRole)
+        }
+
+        return true
+      })
+
+      if (filteredSubmenus.length === 0) return false
+
+      item.submenus = filteredSubmenus
+    }
+
+    return true
+  })
+}
+
+export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const pathname = usePathname()
+  const { setOpen } = useSidebar()
+  const authState = useStore(authStore)
+
+  // Filter menu items based on user role
+  const filteredNavMain = React.useMemo(() => {
+    return filterMenuByRole(data.navMain, authState.user?.role)
+  }, [authState.user?.role])
+
+  // Determine active item based on current pathname
+  const defaultActiveItem = React.useMemo(() => {
+    // First, try to find an exact submenu match
+    const itemWithSubmenuMatch = filteredNavMain.find(item =>
+      item.submenus?.some(submenu => pathname === submenu.url || pathname.startsWith(submenu.url + '/'))
+    )
+
+    if (itemWithSubmenuMatch) return itemWithSubmenuMatch
+
+    // Then try to match the main url (exact match or starts with)
+    const itemWithMainMatch = filteredNavMain.find(item =>
+      pathname === item.url || pathname.startsWith(item.url + '/')
+    )
+
+    return itemWithMainMatch || filteredNavMain[0]
+  }, [pathname, filteredNavMain])
+
+  const [manualActiveItem, setManualActiveItem] = React.useState<typeof data.navMain[0] | null>(null)
+  const activeItem = manualActiveItem || defaultActiveItem
+
+  // Reset manual selection when pathname changes
+  React.useEffect(() => {
+    setManualActiveItem(null)
+  }, [pathname])
+
+  return (
+    <Sidebar
+      collapsible="icon"
+      className="overflow-hidden *:data-[sidebar=sidebar]:flex-row"
+      {...props}
+    >
+      {/* This is the first sidebar */}
+      {/* We disable collapsible and adjust width to icon. */}
+      {/* This will make the sidebar appear as icons. */}
+      <Sidebar
+        collapsible="none"
+        className="w-[calc(var(--sidebar-width-icon)+1px)]! border-r"
+      >
+        <SidebarHeader>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton size="lg" asChild className="md:h-8 md:p-0">
+                <a href="/dashboard" className="flex items-center gap-2">
+                  <div className="flex size-8 shrink-0 items-center justify-center rounded-lg overflow-hidden relative">
+                    <Image
+                      src="/logo.png"
+                      alt="Logo Atlas Keswa"
+                      fill
+                      className="object-contain"
+                    />
+                  </div>
+                  <div className="grid flex-1 text-left text-sm leading-tight">
+                    <span className="truncate font-medium">Atlas Keswa</span>
+                    <span className="truncate text-xs">DESDE-LTC</span>
+                  </div>
+                </a>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarHeader>
+        <SidebarContent>
+          <SidebarGroup>
+            <SidebarGroupContent className="px-1.5 md:px-0">
+              <SidebarMenu>
+                {filteredNavMain.slice(0, 9).map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      tooltip={{
+                        children: item.title,
+                        hidden: false,
+                      }}
+                      onClick={() => {
+                        setManualActiveItem(item)
+                        setOpen(true)
+                      }}
+                      isActive={activeItem?.title === item.title}
+                      className="px-2.5 md:px-2"
+                    >
+                      <HugeiconsIcon icon={item.icon} size={20} />
+                      <span>{item.title}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
+        <SidebarFooter>
+          <SidebarMenu>
+            {filteredNavMain.slice(9).map((item) => (
+              <SidebarMenuItem key={item.title}>
+                <SidebarMenuButton
+                  tooltip={{
+                    children: item.title,
+                    hidden: false,
+                  }}
+                  onClick={() => {
+                    setManualActiveItem(item)
+                    setOpen(true)
+                  }}
+                  isActive={activeItem?.title === item.title}
+                  className="px-2.5 md:px-2"
+                >
+                  <HugeiconsIcon icon={item.icon} size={20} />
+                  <span>{item.title}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            ))}
+          </SidebarMenu>
+          <NavUser user={data.user} />
+        </SidebarFooter>
+      </Sidebar>
+
+      {/* This is the second sidebar */}
+      {/* We disable collapsible and let it fill remaining space */}
+      <Sidebar collapsible="none" className="hidden flex-1 md:flex">
+        <SidebarHeader className="gap-3.5 border-b p-4">
+          <div className="flex w-full items-center justify-between">
+            <div className="text-foreground text-base font-medium">
+              {activeItem?.title}
+            </div>
+          </div>
+          <SidebarInput placeholder="Cari submenu..." />
+        </SidebarHeader>
+        <SidebarContent>
+          <SidebarGroup className="px-0">
+            <SidebarGroupContent className="px-2">
+              <SidebarMenu>
+                {activeItem?.submenus?.map((submenu) => (
+                  <SidebarMenuItem key={submenu.url}>
+                    <SidebarMenuButton asChild isActive={pathname === submenu.url}>
+                      <a
+                        href={submenu.url}
+                        className="hover:bg-sidebar-accent hover:text-sidebar-accent-foreground flex items-center gap-2 px-3 py-2.5 text-sm"
+                      >
+                        {submenu.title}
+                      </a>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
+        <SidebarFooter className="p-4 border-t">
+          <div className="rounded-lg border bg-card p-4">
+            <div className="flex items-start gap-3 mb-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                <HugeiconsIcon icon={HelpCircleIcon} size={20} className="text-primary" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-sm mb-1">Butuh Bantuan?</h3>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Dapatkan dukungan dan pelajari lebih lanjut tentang sistem
+                </p>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <a
+                href="/help/faq"
+                className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <HugeiconsIcon icon={BookOpen01Icon} size={14} />
+                <span>Lihat FAQ</span>
+              </a>
+              <a
+                href="/help/support"
+                className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <HugeiconsIcon icon={Mail01Icon} size={14} />
+                <span>Hubungi Dukungan</span>
+              </a>
+            </div>
+            <div className="mt-3 pt-3 border-t text-xs text-muted-foreground">
+              <span className="font-medium">Email:</span> support@atlaskeswa.id
+            </div>
+          </div>
+        </SidebarFooter>
+      </Sidebar>
+    </Sidebar>
+  )
+}
