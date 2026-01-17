@@ -6,19 +6,20 @@ import { usePathname } from "next/navigation"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
   DashboardSquare01Icon,
-  Hospital01Icon,
+  ServiceIcon,
   ClipboardIcon,
   ShieldUserIcon,
   UserIcon,
+  UserMultiple02Icon,
   Settings01Icon,
   Database01Icon,
   Location01Icon,
   Analytics01Icon,
   FileAttachmentIcon,
   HelpCircleIcon,
-  CommandIcon,
   Mail01Icon,
   BookOpen01Icon,
+  ArrowRight01Icon,
 } from "@hugeicons/core-free-icons"
 
 import { NavUser } from "@/components/nav-user"
@@ -28,16 +29,24 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarInput,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   useSidebar,
 } from "@/components/ui/sidebar"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
 import { useStore } from "@tanstack/react-store"
 import { authStore } from "@/store/auth-store"
+import { useIsMobile } from "@/hooks/use-mobile"
 
 // Application data
 const data = {
@@ -53,7 +62,7 @@ const data = {
       icon: DashboardSquare01Icon,
       isActive: true,
       submenus: [
-        { title: "Ringkasan", url: "/dashboard/overview" },
+        { title: "Ringkasan", url: "/dashboard" },
         { title: "Indikator Utama", url: "/dashboard/indicators" },
         { title: "Peta Distribusi Layanan", url: "/dashboard/map" },
         { title: "Pengajuan Terbaru", url: "/dashboard/submissions" },
@@ -63,7 +72,7 @@ const data = {
     {
       title: "Manajemen Layanan",
       url: "/dashboard/services",
-      icon: Hospital01Icon,
+      icon: ServiceIcon,
       isActive: false,
       submenus: [
         { title: "Semua Layanan", url: "/dashboard/services" },
@@ -119,7 +128,7 @@ const data = {
     {
       title: "Pengguna & Peran",
       url: "/dashboard/users",
-      icon: UserIcon,
+      icon: UserMultiple02Icon,
       isActive: false,
       submenus: [
         { title: "Semua Pengguna", url: "/dashboard/users" },
@@ -271,46 +280,106 @@ function filterMenuByRole(menuItems: typeof data.navMain, userRole?: string) {
   })
 }
 
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const pathname = usePathname()
-  const { setOpen } = useSidebar()
-  const authState = useStore(authStore)
+// Mobile Sidebar Component
+function MobileSidebar({ filteredNavMain, pathname }: { filteredNavMain: typeof data.navMain, pathname: string }) {
+  return (
+    <Sidebar collapsible="offcanvas" className="flex-1">
+      <SidebarHeader className="border-b p-4">
+        <a href="/dashboard" className="flex items-center gap-3">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-lg overflow-hidden relative">
+            <Image
+              src="/logo.png"
+              alt="Logo Atlas Keswa"
+              fill
+              className="object-contain"
+            />
+          </div>
+          <div className="grid flex-1 text-left text-sm leading-tight">
+            <span className="truncate font-semibold text-base">Atlas Keswa</span>
+            <span className="truncate text-xs text-muted-foreground">DESDE-LTC</span>
+          </div>
+        </a>
+      </SidebarHeader>
+      <SidebarContent className="overflow-y-auto">
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {filteredNavMain.map((item) => {
+                const isActive = pathname === item.url || pathname.startsWith(item.url + '/')
+                const hasActiveSubmenu = item.submenus?.some(
+                  submenu => pathname === submenu.url || pathname.startsWith(submenu.url + '/')
+                )
 
-  // Filter menu items based on user role
-  const filteredNavMain = React.useMemo(() => {
-    return filterMenuByRole(data.navMain, authState.user?.role)
-  }, [authState.user?.role])
+                return (
+                  <Collapsible
+                    key={item.title}
+                    asChild
+                    defaultOpen={isActive || hasActiveSubmenu}
+                    className="group/collapsible"
+                  >
+                    <SidebarMenuItem>
+                      <CollapsibleTrigger asChild>
+                        <SidebarMenuButton
+                          isActive={isActive || hasActiveSubmenu}
+                          className="w-full justify-between"
+                        >
+                          <span className="flex items-center gap-3">
+                            <HugeiconsIcon icon={item.icon} size={20} />
+                            <span>{item.title}</span>
+                          </span>
+                          <HugeiconsIcon
+                            icon={ArrowRight01Icon}
+                            size={16}
+                            className="transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90"
+                          />
+                        </SidebarMenuButton>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <SidebarMenuSub>
+                          {item.submenus?.map((submenu) => (
+                            <SidebarMenuSubItem key={submenu.url}>
+                              <SidebarMenuSubButton asChild isActive={pathname === submenu.url}>
+                                <a href={submenu.url}>
+                                  {submenu.title}
+                                </a>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          ))}
+                        </SidebarMenuSub>
+                      </CollapsibleContent>
+                    </SidebarMenuItem>
+                  </Collapsible>
+                )
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
+      <SidebarFooter className="border-t p-2">
+        <NavUser user={data.user} />
+      </SidebarFooter>
+    </Sidebar>
+  )
+}
 
-  // Determine active item based on current pathname
-  const defaultActiveItem = React.useMemo(() => {
-    // First, try to find an exact submenu match
-    const itemWithSubmenuMatch = filteredNavMain.find(item =>
-      item.submenus?.some(submenu => pathname === submenu.url || pathname.startsWith(submenu.url + '/'))
-    )
-
-    if (itemWithSubmenuMatch) return itemWithSubmenuMatch
-
-    // Then try to match the main url (exact match or starts with)
-    const itemWithMainMatch = filteredNavMain.find(item =>
-      pathname === item.url || pathname.startsWith(item.url + '/')
-    )
-
-    return itemWithMainMatch || filteredNavMain[0]
-  }, [pathname, filteredNavMain])
-
-  const [manualActiveItem, setManualActiveItem] = React.useState<typeof data.navMain[0] | null>(null)
-  const activeItem = manualActiveItem || defaultActiveItem
-
-  // Reset manual selection when pathname changes
-  React.useEffect(() => {
-    setManualActiveItem(null)
-  }, [pathname])
-
+// Desktop Sidebar Component (dual panel)
+function DesktopSidebar({
+  filteredNavMain,
+  pathname,
+  activeItem,
+  setManualActiveItem,
+  setOpen
+}: {
+  filteredNavMain: typeof data.navMain
+  pathname: string
+  activeItem: typeof data.navMain[0] | undefined
+  setManualActiveItem: (item: typeof data.navMain[0] | null) => void
+  setOpen: (open: boolean) => void
+}) {
   return (
     <Sidebar
       collapsible="icon"
       className="overflow-hidden *:data-[sidebar=sidebar]:flex-row"
-      {...props}
     >
       {/* This is the first sidebar */}
       {/* We disable collapsible and adjust width to icon. */}
@@ -461,5 +530,58 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarFooter>
       </Sidebar>
     </Sidebar>
+  )
+}
+
+export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const pathname = usePathname()
+  const { setOpen } = useSidebar()
+  const authState = useStore(authStore)
+  const isMobile = useIsMobile()
+
+  // Filter menu items based on user role
+  const filteredNavMain = React.useMemo(() => {
+    return filterMenuByRole(data.navMain, authState.user?.role)
+  }, [authState.user?.role])
+
+  // Determine active item based on current pathname
+  const defaultActiveItem = React.useMemo(() => {
+    // First, try to find an exact submenu match
+    const itemWithSubmenuMatch = filteredNavMain.find(item =>
+      item.submenus?.some(submenu => pathname === submenu.url || pathname.startsWith(submenu.url + '/'))
+    )
+
+    if (itemWithSubmenuMatch) return itemWithSubmenuMatch
+
+    // Then try to match the main url (exact match or starts with)
+    const itemWithMainMatch = filteredNavMain.find(item =>
+      pathname === item.url || pathname.startsWith(item.url + '/')
+    )
+
+    return itemWithMainMatch || filteredNavMain[0]
+  }, [pathname, filteredNavMain])
+
+  const [manualActiveItem, setManualActiveItem] = React.useState<typeof data.navMain[0] | null>(null)
+  const activeItem = manualActiveItem || defaultActiveItem
+
+  // Reset manual selection when pathname changes
+  React.useEffect(() => {
+    setManualActiveItem(null)
+  }, [pathname])
+
+  // Render mobile or desktop sidebar based on screen size
+  if (isMobile) {
+    return <MobileSidebar filteredNavMain={filteredNavMain} pathname={pathname} {...props} />
+  }
+
+  return (
+    <DesktopSidebar
+      filteredNavMain={filteredNavMain}
+      pathname={pathname}
+      activeItem={activeItem}
+      setManualActiveItem={setManualActiveItem}
+      setOpen={setOpen}
+      {...props}
+    />
   )
 }

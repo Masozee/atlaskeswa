@@ -177,7 +177,7 @@ export default function HomePage() {
             </CardHeader>
             <CardContent>
               <Button asChild variant="link" className="p-0 h-auto gap-1 text-sm font-medium">
-                <Link href="/dashboard/overview" className="inline-flex items-center hover:gap-2 transition-all">
+                <Link href="/dashboard" className="inline-flex items-center hover:gap-2 transition-all">
                   Lihat Dasbor
                   <HugeiconsIcon icon={ArrowRight01Icon} size={16} />
                 </Link>

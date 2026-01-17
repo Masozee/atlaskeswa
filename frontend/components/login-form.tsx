@@ -45,7 +45,7 @@ export function LoginForm({
         role: userData.role,
       })
 
-      router.push('/dashboard/overview')
+      router.push('/dashboard')
     } catch (err: any) {
       setError(err?.message || 'Email atau kata sandi tidak valid')
     } finally {

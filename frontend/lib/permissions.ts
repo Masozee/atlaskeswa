@@ -16,7 +16,7 @@ export interface Permission {
 export const PERMISSIONS = {
   // Dashboard
   DASHBOARD_OVERVIEW: {
-    path: '/dashboard/overview',
+    path: '/dashboard',
     roles: ['ADMIN', 'SURVEYOR', 'VERIFIER', 'VIEWER'],
     label: 'Dashboard Overview',
   },
