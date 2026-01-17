@@ -220,6 +220,26 @@ const data = {
   ],
 }
 
+// Helper function to check if a submenu is active
+// Handles the case where one submenu URL is a prefix of another (e.g., /dashboard vs /dashboard/indicators)
+function isSubmenuActive(pathname: string, submenuUrl: string, allSubmenus?: { url: string }[]): boolean {
+  // Exact match is always active
+  if (pathname === submenuUrl) return true
+
+  // Check if pathname starts with submenu URL (for dynamic routes like /dashboard/submissions/123)
+  if (pathname.startsWith(submenuUrl + '/')) {
+    // But make sure no other sibling submenu is a better (longer) match
+    const hasBetterMatch = allSubmenus?.some(other =>
+      other.url !== submenuUrl &&
+      other.url.startsWith(submenuUrl + '/') &&
+      (pathname === other.url || pathname.startsWith(other.url + '/'))
+    )
+    return !hasBetterMatch
+  }
+
+  return false
+}
+
 // Filter menu items based on user role
 function filterMenuByRole(menuItems: typeof data.navMain, userRole?: string) {
   if (!userRole) return []
@@ -338,7 +358,7 @@ function MobileSidebar({ filteredNavMain, pathname }: { filteredNavMain: typeof 
                         <SidebarMenuSub>
                           {item.submenus?.map((submenu) => (
                             <SidebarMenuSubItem key={submenu.url}>
-                              <SidebarMenuSubButton asChild isActive={pathname === submenu.url}>
+                              <SidebarMenuSubButton asChild isActive={isSubmenuActive(pathname, submenu.url, item.submenus)}>
                                 <a href={submenu.url}>
                                   {submenu.title}
                                 </a>
@@ -480,10 +500,10 @@ function DesktopSidebar({
               <SidebarMenu>
                 {activeItem?.submenus?.map((submenu) => (
                   <SidebarMenuItem key={submenu.url}>
-                    <SidebarMenuButton asChild isActive={pathname === submenu.url}>
+                    <SidebarMenuButton asChild isActive={isSubmenuActive(pathname, submenu.url, activeItem?.submenus)}>
                       <a
                         href={submenu.url}
-                        className="hover:bg-sidebar-accent hover:text-sidebar-accent-foreground flex items-center gap-2 px-3 py-2.5 text-sm"
+                        className="flex items-center gap-2 px-3 py-2.5 text-sm"
                       >
                         {submenu.title}
                       </a>
@@ -546,19 +566,37 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   // Determine active item based on current pathname
   const defaultActiveItem = React.useMemo(() => {
-    // First, try to find an exact submenu match
-    const itemWithSubmenuMatch = filteredNavMain.find(item =>
-      item.submenus?.some(submenu => pathname === submenu.url || pathname.startsWith(submenu.url + '/'))
+    // Collect all submenus from all menu items to find the best match
+    const allSubmenus = filteredNavMain.flatMap(item =>
+      item.submenus?.map(sub => ({ ...sub, parent: item })) || []
     )
 
-    if (itemWithSubmenuMatch) return itemWithSubmenuMatch
+    // Find the submenu that best matches the current pathname
+    // Prefer longer/more specific URL matches
+    let bestMatch: { url: string; parent: typeof filteredNavMain[0] } | null = null
 
-    // Then try to match the main url (exact match or starts with)
-    const itemWithMainMatch = filteredNavMain.find(item =>
-      pathname === item.url || pathname.startsWith(item.url + '/')
-    )
+    for (const submenu of allSubmenus) {
+      if (pathname === submenu.url || pathname.startsWith(submenu.url + '/')) {
+        if (!bestMatch || submenu.url.length > bestMatch.url.length) {
+          bestMatch = submenu
+        }
+      }
+    }
 
-    return itemWithMainMatch || filteredNavMain[0]
+    if (bestMatch) return bestMatch.parent
+
+    // Fallback: try to match the main url
+    let bestMainMatch: typeof filteredNavMain[0] | null = null
+
+    for (const item of filteredNavMain) {
+      if (pathname === item.url || pathname.startsWith(item.url + '/')) {
+        if (!bestMainMatch || item.url.length > bestMainMatch.url.length) {
+          bestMainMatch = item
+        }
+      }
+    }
+
+    return bestMainMatch || filteredNavMain[0]
   }, [pathname, filteredNavMain])
 
   const [manualActiveItem, setManualActiveItem] = React.useState<typeof data.navMain[0] | null>(null)
