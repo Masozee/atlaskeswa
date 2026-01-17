@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/breadcrumb"
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
+import { ThemeToggle } from "@/components/theme-toggle"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   BarChart,
@@ -95,8 +96,12 @@ export default function DashboardPage() {
               </BreadcrumbItem>
             </BreadcrumbList>
           </Breadcrumb>
-          <div className="ml-auto">
-            <DateTime />
+          <div className="ml-auto flex h-full items-center">
+            <div className="px-4">
+              <DateTime />
+            </div>
+            <Separator orientation="vertical" />
+            <ThemeToggle />
           </div>
         </header>
         <div className="flex flex-1 items-center justify-center">
@@ -142,8 +147,12 @@ export default function DashboardPage() {
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
-        <div className="ml-auto">
-          <DateTime />
+        <div className="ml-auto flex h-full items-center">
+          <div className="px-4">
+            <DateTime />
+          </div>
+          <Separator orientation="vertical" />
+          <ThemeToggle />
         </div>
       </header>
 
