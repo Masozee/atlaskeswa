@@ -16,7 +16,6 @@ import { KebumenMap } from '@/components/kebumen-map';
 import { HugeiconsIcon } from "@hugeicons/react"
 import {DashboardSquare01Icon,
   Hospital01Icon,
-  ClipboardIcon,
   Analytics01Icon,
   Location01Icon,
   ShieldUserIcon,
@@ -111,11 +110,12 @@ export default function HomePage() {
             <span>Sistem Layanan Kesehatan Jiwa DESDE-LTC</span>
           </Badge>
           <h2 className="text-3xl md:text-5xl font-bold tracking-tight">
-            Direktori Layanan Kesehatan Jiwa & Manajemen Survei
+            Pemetaan Layanan Kesehatan Jiwa Indonesia
           </h2>
           <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
-            Platform komprehensif untuk mengelola direktori layanan kesehatan jiwa, melakukan survei,
-            dan memantau kualitas layanan di seluruh Indonesia.
+            Atlas Keswa adalah sistem informasi berbasis DESDE-LTC untuk memetakan, mengklasifikasi,
+            dan memvisualisasikan layanan kesehatan jiwa (keswa) di Indonesia secara komprehensif
+            guna mendukung perencanaan dan pengembangan layanan yang lebih baik.
           </p>
           <div className="flex items-center justify-center gap-4 pt-4">
             <Button asChild size="lg" className="gap-2">
@@ -288,11 +288,11 @@ export default function HomePage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                      <HugeiconsIcon icon={ClipboardIcon} size={16} className="text-amber-500" />
+                      <HugeiconsIcon icon={Hospital01Icon} size={16} className="text-amber-500" />
                     </div>
-                    <span className="text-sm">Survei Aktif</span>
+                    <span className="text-sm">Jenis Layanan</span>
                   </div>
-                  <span className="text-xl font-bold">12</span>
+                  <span className="text-xl font-bold">7</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
