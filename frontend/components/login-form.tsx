@@ -1,60 +1,97 @@
 'use client';
 
-import Image from "next/image"
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
+import Image from "next/image";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useForm } from "@tanstack/react-form";
+import { z } from "zod";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import {
   Field,
   FieldDescription,
   FieldGroup,
   FieldLabel,
   FieldSeparator,
-} from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-import { apiClient } from "@/lib/api-client"
-import { authActions } from "@/store/auth-store"
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { apiClient } from "@/lib/api-client";
+import { authActions } from "@/store/auth-store";
+
+/**
+ * Login form validation schema
+ */
+const loginSchema = z.object({
+  email: z
+    .string()
+    .min(1, 'Email wajib diisi')
+    .email('Format email tidak valid'),
+  password: z
+    .string()
+    .min(1, 'Kata sandi wajib diisi')
+    .min(6, 'Kata sandi minimal 6 karakter'),
+});
+
+type LoginFormData = z.infer<typeof loginSchema>;
 
 export function LoginForm({
   className,
   ...props
 }: React.ComponentProps<"form">) {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
-  const router = useRouter()
+  const router = useRouter();
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    setIsLoading(true)
+  /**
+   * TanStack Form with field-level Zod validation
+   * Best practice: Use form library for complex form state management
+   */
+  const form = useForm({
+    defaultValues: {
+      email: '',
+      password: '',
+    } as LoginFormData,
+    onSubmit: async ({ value }) => {
+      setSubmitError(null);
 
-    try {
-      const response = await apiClient.login(email, password)
+      try {
+        const response = await apiClient.login(value.email, value.password);
 
-      // Fetch user data with the new token
-      const userData = await apiClient.get<any>('/accounts/users/me/')
+        // Fetch user data with the new token
+        const userData = await apiClient.get<{
+          id: number;
+          email: string;
+          full_name?: string;
+          role: 'ADMIN' | 'SURVEYOR' | 'VERIFIER' | 'VIEWER';
+        }>('/accounts/users/me/');
 
-      // Update auth store with tokens and user data
-      authActions.login(response.access, response.refresh, {
-        id: userData.id,
-        email: userData.email,
-        name: userData.full_name || userData.email,
-        role: userData.role,
-      })
+        // Update auth store with tokens and user data
+        authActions.login(response.access, response.refresh, {
+          id: userData.id,
+          email: userData.email,
+          name: userData.full_name || userData.email,
+          role: userData.role,
+        });
 
-      router.push('/dashboard')
-    } catch (err: any) {
-      setError(err?.message || 'Email atau kata sandi tidak valid')
-    } finally {
-      setIsLoading(false)
-    }
-  }
+        router.push('/dashboard');
+      } catch (err: unknown) {
+        const errorMessage = err instanceof Error
+          ? err.message
+          : (err as { message?: string })?.message || 'Email atau kata sandi tidak valid';
+        setSubmitError(errorMessage);
+      }
+    },
+  });
 
   return (
-    <form className={cn("flex flex-col gap-6", className)} onSubmit={handleSubmit} {...props}>
+    <form
+      className={cn("flex flex-col gap-6", className)}
+      onSubmit={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        form.handleSubmit();
+      }}
+      {...props}
+    >
       <FieldGroup>
         <div className="flex flex-col items-center gap-4 text-center">
           <div className="flex size-16 items-center justify-center rounded-lg overflow-hidden relative">
@@ -72,45 +109,94 @@ export function LoginForm({
             </p>
           </div>
         </div>
-        {error && (
+
+        {/* Global form error */}
+        {submitError && (
           <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-lg">
-            {error}
+            {submitError}
           </div>
         )}
-        <Field>
-          <FieldLabel htmlFor="email">Email</FieldLabel>
-          <Input
-            id="email"
-            type="email"
-            placeholder="contoh@email.com"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-        </Field>
-        <Field>
-          <div className="flex items-center">
-            <FieldLabel htmlFor="password">Kata Sandi</FieldLabel>
-            <a
-              href="#"
-              className="ml-auto text-sm underline-offset-4 hover:underline"
-            >
-              Lupa kata sandi?
-            </a>
-          </div>
-          <Input
-            id="password"
-            type="password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </Field>
-        <Field>
-          <Button type="submit" disabled={isLoading}>
-            {isLoading ? 'Sedang masuk...' : 'Masuk'}
-          </Button>
-        </Field>
+
+        {/* Email field */}
+        <form.Field
+          name="email"
+          validators={{
+            onChange: ({ value }) => {
+              const result = loginSchema.shape.email.safeParse(value);
+              return result.success ? undefined : result.error.issues[0]?.message;
+            },
+          }}
+        >
+          {(field) => (
+            <Field>
+              <FieldLabel htmlFor="email">Email</FieldLabel>
+              <Input
+                id="email"
+                type="email"
+                placeholder="contoh@email.com"
+                value={field.state.value}
+                onChange={(e) => field.handleChange(e.target.value)}
+                onBlur={field.handleBlur}
+                aria-invalid={field.state.meta.errors.length > 0}
+              />
+              {field.state.meta.isTouched && field.state.meta.errors.length > 0 && (
+                <p className="text-sm text-destructive mt-1">
+                  {field.state.meta.errors[0]}
+                </p>
+              )}
+            </Field>
+          )}
+        </form.Field>
+
+        {/* Password field */}
+        <form.Field
+          name="password"
+          validators={{
+            onChange: ({ value }) => {
+              const result = loginSchema.shape.password.safeParse(value);
+              return result.success ? undefined : result.error.issues[0]?.message;
+            },
+          }}
+        >
+          {(field) => (
+            <Field>
+              <div className="flex items-center">
+                <FieldLabel htmlFor="password">Kata Sandi</FieldLabel>
+                <a
+                  href="#"
+                  className="ml-auto text-sm underline-offset-4 hover:underline"
+                >
+                  Lupa kata sandi?
+                </a>
+              </div>
+              <Input
+                id="password"
+                type="password"
+                value={field.state.value}
+                onChange={(e) => field.handleChange(e.target.value)}
+                onBlur={field.handleBlur}
+                aria-invalid={field.state.meta.errors.length > 0}
+              />
+              {field.state.meta.isTouched && field.state.meta.errors.length > 0 && (
+                <p className="text-sm text-destructive mt-1">
+                  {field.state.meta.errors[0]}
+                </p>
+              )}
+            </Field>
+          )}
+        </form.Field>
+
+        {/* Submit button */}
+        <form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting]}>
+          {([canSubmit, isSubmitting]) => (
+            <Field>
+              <Button type="submit" disabled={!canSubmit || isSubmitting}>
+                {isSubmitting ? 'Sedang masuk...' : 'Masuk'}
+              </Button>
+            </Field>
+          )}
+        </form.Subscribe>
+
         <FieldSeparator>Atau lanjutkan dengan</FieldSeparator>
         <Field>
           <Button variant="outline" type="button">
@@ -143,5 +229,5 @@ export function LoginForm({
         </Field>
       </FieldGroup>
     </form>
-  )
+  );
 }

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "@tanstack/react-form";
 import { useServices } from "@/hooks/use-services";
 import { useCreateSurvey } from "@/hooks/use-surveys";
+import type { SurveyCreateData } from "@/lib/types/api";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,18 +17,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 
 const breadcrumbs = [
   { label: 'Dashboard', href: '/dashboard' },
-  { label: 'Survey Records', href: '/dashboard/survey' },
-  { label: 'New Survey Entry' },
+  { label: 'Data Survei', href: '/dashboard/survey' },
+  { label: 'Survei Baru' },
 ];
 
 export default function NewSurveyPage() {
@@ -69,8 +63,7 @@ export default function NewSurveyPage() {
     },
     onSubmit: async ({ value }) => {
       try {
-        // Convert string values to numbers where needed
-        const payload: any = {
+        const payload = {
           service: parseInt(value.service),
           survey_date: value.survey_date,
           survey_period_start: value.survey_period_start,
@@ -102,7 +95,7 @@ export default function NewSurveyPage() {
           additional_notes: value.additional_notes,
         };
 
-        await createSurvey.mutateAsync(payload);
+        await createSurvey.mutateAsync(payload as SurveyCreateData);
         router.push('/dashboard/survey');
       } catch (error) {
         console.error('Failed to create survey:', error);
@@ -114,10 +107,12 @@ export default function NewSurveyPage() {
     <>
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-4 p-8">
-        <div>
-          <h1 className="text-2xl font-bold">New Survey Entry</h1>
-          <p className="text-muted-foreground">Create a new survey data collection record</p>
+      <div className="flex flex-1 flex-col p-8">
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold">Formulir Survei Layanan Kesehatan Jiwa</h1>
+          <p className="text-muted-foreground mt-1">
+            Silakan lengkapi seluruh pertanyaan di bawah ini dengan data yang akurat sesuai kondisi layanan pada periode survei.
+          </p>
         </div>
 
         <form
@@ -126,577 +121,628 @@ export default function NewSurveyPage() {
             e.stopPropagation();
             form.handleSubmit();
           }}
-          className="space-y-6"
+          className="space-y-10 max-w-4xl"
         >
-          {/* Basic Information */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Basic Information</CardTitle>
-              <CardDescription>Service and survey period details</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-4">
-              <div className="grid grid-cols-2 gap-4">
-                <form.Field
-                  name="service"
-                  children={(field) => {
-                    const selectedService = servicesData?.results.find(
-                      s => s.id.toString() === field.state.value
-                    );
-                    return (
-                      <div className="grid gap-2">
-                        <Label htmlFor={field.name}>Service *</Label>
-                        <Select
+          {/* Section A: Informasi Dasar */}
+          <section>
+            <h2 className="text-lg font-semibold border-b pb-2 mb-6">Bagian A: Informasi Dasar</h2>
+
+            <div className="space-y-6">
+              <form.Field
+                name="service"
+                children={(field) => {
+                  const selectedService = servicesData?.results.find(
+                    s => s.id.toString() === field.state.value
+                  );
+                  return (
+                    <div className="space-y-2">
+                      <Label htmlFor={field.name} className="text-base font-medium">
+                        1. Pilih fasilitas layanan kesehatan jiwa yang akan disurvei <span className="text-destructive">*</span>
+                      </Label>
+                      <p className="text-sm text-muted-foreground mb-2">
+                        Pilih nama fasilitas dari daftar layanan yang telah terdaftar dalam sistem.
+                      </p>
+                      <Select
+                        value={field.state.value}
+                        onValueChange={(value) => field.handleChange(value)}
+                      >
+                        <SelectTrigger className="max-w-md">
+                          <SelectValue placeholder="-- Pilih Fasilitas --">
+                            {selectedService ? `${selectedService.name} - ${selectedService.city}` : '-- Pilih Fasilitas --'}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {servicesData?.results.map((service) => (
+                            <SelectItem key={service.id} value={service.id.toString()}>
+                              {service.name} - {service.city}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  );
+                }}
+              />
+
+              <form.Field
+                name="survey_date"
+                children={(field) => (
+                  <div className="space-y-2">
+                    <Label htmlFor={field.name} className="text-base font-medium">
+                      2. Tanggal pelaksanaan survei <span className="text-destructive">*</span>
+                    </Label>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Masukkan tanggal saat survei ini dilakukan.
+                    </p>
+                    <Input
+                      id={field.name}
+                      type="date"
+                      value={field.state.value}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      className="max-w-xs"
+                      required
+                    />
+                  </div>
+                )}
+              />
+
+              <div className="space-y-2">
+                <Label className="text-base font-medium">
+                  3. Periode data yang dilaporkan <span className="text-destructive">*</span>
+                </Label>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Tentukan rentang waktu data yang dikumpulkan dalam survei ini (misalnya: 1 bulan terakhir, 3 bulan terakhir, atau 1 tahun terakhir).
+                </p>
+                <div className="flex items-center gap-4">
+                  <form.Field
+                    name="survey_period_start"
+                    children={(field) => (
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-muted-foreground">Dari:</span>
+                        <Input
+                          id={field.name}
+                          type="date"
                           value={field.state.value}
-                          onValueChange={(value) => field.handleChange(value)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select service">
-                              {selectedService ? `${selectedService.name} - ${selectedService.city}` : 'Select service'}
-                            </SelectValue>
-                          </SelectTrigger>
-                          <SelectContent>
-                            {servicesData?.results.map((service) => (
-                              <SelectItem key={service.id} value={service.id.toString()}>
-                                {service.name} - {service.city}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {field.state.meta.errors && (
-                          <p className="text-sm text-destructive">{field.state.meta.errors}</p>
-                        )}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                          className="w-40"
+                          required
+                        />
                       </div>
-                    );
-                  }}
-                />
-
-                <form.Field
-                  name="survey_date"
-                  children={(field) => (
-                    <div className="grid gap-2">
-                      <Label htmlFor={field.name}>Survey Date *</Label>
-                      <Input
-                        id={field.name}
-                        name={field.name}
-                        type="date"
-                        value={field.state.value}
-                        onBlur={field.handleBlur}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        required
-                      />
-                    </div>
-                  )}
-                />
-
-                <form.Field
-                  name="survey_period_start"
-                  children={(field) => (
-                    <div className="grid gap-2">
-                      <Label htmlFor={field.name}>Period Start *</Label>
-                      <Input
-                        id={field.name}
-                        name={field.name}
-                        type="date"
-                        value={field.state.value}
-                        onBlur={field.handleBlur}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        required
-                      />
-                    </div>
-                  )}
-                />
-
-                <form.Field
-                  name="survey_period_end"
-                  children={(field) => (
-                    <div className="grid gap-2">
-                      <Label htmlFor={field.name}>Period End *</Label>
-                      <Input
-                        id={field.name}
-                        name={field.name}
-                        type="date"
-                        value={field.state.value}
-                        onBlur={field.handleBlur}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        required
-                      />
-                    </div>
-                  )}
-                />
+                    )}
+                  />
+                  <form.Field
+                    name="survey_period_end"
+                    children={(field) => (
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-muted-foreground">Sampai:</span>
+                        <Input
+                          id={field.name}
+                          type="date"
+                          value={field.state.value}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                          className="w-40"
+                          required
+                        />
+                      </div>
+                    )}
+                  />
+                </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </section>
 
-          {/* Capacity Data */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Capacity & Occupancy</CardTitle>
-              <CardDescription>Bed capacity and occupancy information</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-4">
-              <div className="grid grid-cols-2 gap-4">
-                <form.Field
-                  name="current_bed_capacity"
-                  children={(field) => (
-                    <div className="grid gap-2">
-                      <Label htmlFor={field.name}>Total Bed Capacity</Label>
-                      <Input
-                        id={field.name}
-                        name={field.name}
-                        type="number"
-                        min="0"
-                        value={field.state.value}
-                        onBlur={field.handleBlur}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        placeholder="0"
-                      />
-                    </div>
-                  )}
-                />
+          {/* Section B: Kapasitas dan Okupansi */}
+          <section>
+            <h2 className="text-lg font-semibold border-b pb-2 mb-6">Bagian B: Kapasitas dan Tingkat Hunian</h2>
 
-                <form.Field
-                  name="beds_occupied"
-                  children={(field) => (
-                    <div className="grid gap-2">
-                      <Label htmlFor={field.name}>Beds Occupied</Label>
-                      <Input
-                        id={field.name}
-                        name={field.name}
-                        type="number"
-                        min="0"
-                        value={field.state.value}
-                        onBlur={field.handleBlur}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        placeholder="0"
-                      />
-                    </div>
-                  )}
-                />
+            <div className="space-y-6">
+              <form.Field
+                name="current_bed_capacity"
+                children={(field) => (
+                  <div className="space-y-2">
+                    <Label htmlFor={field.name} className="text-base font-medium">
+                      4. Berapa jumlah total tempat tidur yang tersedia di fasilitas ini?
+                    </Label>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Hitung seluruh tempat tidur yang dapat digunakan untuk pasien rawat inap, termasuk yang sedang dalam perbaikan.
+                    </p>
+                    <Input
+                      id={field.name}
+                      type="number"
+                      min="0"
+                      value={field.state.value}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      placeholder="Masukkan jumlah tempat tidur"
+                      className="max-w-xs"
+                    />
+                  </div>
+                )}
+              />
+
+              <form.Field
+                name="beds_occupied"
+                children={(field) => (
+                  <div className="space-y-2">
+                    <Label htmlFor={field.name} className="text-base font-medium">
+                      5. Berapa rata-rata jumlah tempat tidur yang terisi selama periode survei?
+                    </Label>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Estimasi rata-rata tempat tidur yang digunakan pasien per hari selama periode yang dilaporkan.
+                    </p>
+                    <Input
+                      id={field.name}
+                      type="number"
+                      min="0"
+                      value={field.state.value}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      placeholder="Masukkan jumlah tempat tidur terisi"
+                      className="max-w-xs"
+                    />
+                  </div>
+                )}
+              />
+            </div>
+          </section>
+
+          {/* Section C: Tenaga Kesehatan */}
+          <section>
+            <h2 className="text-lg font-semibold border-b pb-2 mb-6">Bagian C: Tenaga Kesehatan Profesional</h2>
+
+            <div className="space-y-6">
+              <form.Field
+                name="current_staff_count"
+                children={(field) => (
+                  <div className="space-y-2">
+                    <Label htmlFor={field.name} className="text-base font-medium">
+                      6. Berapa jumlah total seluruh staf yang bekerja di fasilitas ini?
+                    </Label>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Termasuk tenaga medis, paramedis, administrasi, dan staf pendukung lainnya.
+                    </p>
+                    <Input
+                      id={field.name}
+                      type="number"
+                      min="0"
+                      value={field.state.value}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      placeholder="Masukkan total staf"
+                      className="max-w-xs"
+                    />
+                  </div>
+                )}
+              />
+
+              <div className="space-y-2">
+                <Label className="text-base font-medium">
+                  7. Berapa jumlah tenaga kesehatan profesional berdasarkan kategori berikut?
+                </Label>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Isi jumlah tenaga profesional yang aktif bekerja di fasilitas ini. Kosongkan atau isi 0 jika tidak ada.
+                </p>
+
+                <div className="grid grid-cols-2 gap-4 max-w-lg">
+                  <form.Field
+                    name="current_psychiatrist_count"
+                    children={(field) => (
+                      <div className="space-y-1">
+                        <Label htmlFor={field.name} className="text-sm">Dokter Spesialis Jiwa (Psikiater)</Label>
+                        <Input
+                          id={field.name}
+                          type="number"
+                          min="0"
+                          value={field.state.value}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                          placeholder="0"
+                        />
+                      </div>
+                    )}
+                  />
+
+                  <form.Field
+                    name="current_psychologist_count"
+                    children={(field) => (
+                      <div className="space-y-1">
+                        <Label htmlFor={field.name} className="text-sm">Psikolog Klinis</Label>
+                        <Input
+                          id={field.name}
+                          type="number"
+                          min="0"
+                          value={field.state.value}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                          placeholder="0"
+                        />
+                      </div>
+                    )}
+                  />
+
+                  <form.Field
+                    name="current_nurse_count"
+                    children={(field) => (
+                      <div className="space-y-1">
+                        <Label htmlFor={field.name} className="text-sm">Perawat Jiwa</Label>
+                        <Input
+                          id={field.name}
+                          type="number"
+                          min="0"
+                          value={field.state.value}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                          placeholder="0"
+                        />
+                      </div>
+                    )}
+                  />
+
+                  <form.Field
+                    name="current_social_worker_count"
+                    children={(field) => (
+                      <div className="space-y-1">
+                        <Label htmlFor={field.name} className="text-sm">Pekerja Sosial</Label>
+                        <Input
+                          id={field.name}
+                          type="number"
+                          min="0"
+                          value={field.state.value}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                          placeholder="0"
+                        />
+                      </div>
+                    )}
+                  />
+                </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </section>
 
-          {/* Staffing Data */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Staffing Information</CardTitle>
-              <CardDescription>Professional staff counts at survey time</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-4">
-              <div className="grid grid-cols-2 gap-4">
-                <form.Field
-                  name="current_staff_count"
-                  children={(field) => (
-                    <div className="grid gap-2">
-                      <Label htmlFor={field.name}>Total Staff Count</Label>
-                      <Input
-                        id={field.name}
-                        name={field.name}
-                        type="number"
-                        min="0"
-                        value={field.state.value}
-                        onBlur={field.handleBlur}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        placeholder="0"
-                      />
-                    </div>
-                  )}
-                />
+          {/* Section D: Data Pasien */}
+          <section>
+            <h2 className="text-lg font-semibold border-b pb-2 mb-6">Bagian D: Statistik Pasien</h2>
 
-                <form.Field
-                  name="current_psychiatrist_count"
-                  children={(field) => (
-                    <div className="grid gap-2">
-                      <Label htmlFor={field.name}>Psychiatrists</Label>
-                      <Input
-                        id={field.name}
-                        name={field.name}
-                        type="number"
-                        min="0"
-                        value={field.state.value}
-                        onBlur={field.handleBlur}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        placeholder="0"
-                      />
-                    </div>
-                  )}
-                />
+            <div className="space-y-6">
+              <form.Field
+                name="total_patients_served"
+                children={(field) => (
+                  <div className="space-y-2">
+                    <Label htmlFor={field.name} className="text-base font-medium">
+                      8. Berapa total pasien yang dilayani selama periode survei?
+                    </Label>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Hitung seluruh pasien yang menerima layanan (rawat jalan dan rawat inap) selama periode yang dilaporkan.
+                    </p>
+                    <Input
+                      id={field.name}
+                      type="number"
+                      min="0"
+                      value={field.state.value}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      placeholder="Masukkan jumlah pasien"
+                      className="max-w-xs"
+                    />
+                  </div>
+                )}
+              />
 
-                <form.Field
-                  name="current_psychologist_count"
-                  children={(field) => (
-                    <div className="grid gap-2">
-                      <Label htmlFor={field.name}>Psychologists</Label>
-                      <Input
-                        id={field.name}
-                        name={field.name}
-                        type="number"
-                        min="0"
-                        value={field.state.value}
-                        onBlur={field.handleBlur}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        placeholder="0"
-                      />
-                    </div>
-                  )}
-                />
+              <div className="space-y-2">
+                <Label className="text-base font-medium">
+                  9. Dari total pasien tersebut, berapa yang merupakan pasien baru dan pasien lama?
+                </Label>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Pasien baru adalah pasien yang pertama kali berkunjung ke fasilitas ini. Pasien lama adalah pasien yang pernah berkunjung sebelumnya.
+                </p>
 
-                <form.Field
-                  name="current_nurse_count"
-                  children={(field) => (
-                    <div className="grid gap-2">
-                      <Label htmlFor={field.name}>Nurses</Label>
-                      <Input
-                        id={field.name}
-                        name={field.name}
-                        type="number"
-                        min="0"
-                        value={field.state.value}
-                        onBlur={field.handleBlur}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        placeholder="0"
-                      />
-                    </div>
-                  )}
-                />
+                <div className="grid grid-cols-2 gap-4 max-w-lg">
+                  <form.Field
+                    name="new_patients"
+                    children={(field) => (
+                      <div className="space-y-1">
+                        <Label htmlFor={field.name} className="text-sm">Pasien Baru</Label>
+                        <Input
+                          id={field.name}
+                          type="number"
+                          min="0"
+                          value={field.state.value}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                          placeholder="0"
+                        />
+                      </div>
+                    )}
+                  />
 
-                <form.Field
-                  name="current_social_worker_count"
-                  children={(field) => (
-                    <div className="grid gap-2">
-                      <Label htmlFor={field.name}>Social Workers</Label>
-                      <Input
-                        id={field.name}
-                        name={field.name}
-                        type="number"
-                        min="0"
-                        value={field.state.value}
-                        onBlur={field.handleBlur}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        placeholder="0"
-                      />
-                    </div>
-                  )}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Patient Data */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Patient Statistics</CardTitle>
-              <CardDescription>Patient counts and demographics</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-4">
-              <div className="grid grid-cols-3 gap-4">
-                <form.Field
-                  name="total_patients_served"
-                  children={(field) => (
-                    <div className="grid gap-2">
-                      <Label htmlFor={field.name}>Total Patients Served</Label>
-                      <Input
-                        id={field.name}
-                        name={field.name}
-                        type="number"
-                        min="0"
-                        value={field.state.value}
-                        onBlur={field.handleBlur}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        placeholder="0"
-                      />
-                    </div>
-                  )}
-                />
-
-                <form.Field
-                  name="new_patients"
-                  children={(field) => (
-                    <div className="grid gap-2">
-                      <Label htmlFor={field.name}>New Patients</Label>
-                      <Input
-                        id={field.name}
-                        name={field.name}
-                        type="number"
-                        min="0"
-                        value={field.state.value}
-                        onBlur={field.handleBlur}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        placeholder="0"
-                      />
-                    </div>
-                  )}
-                />
-
-                <form.Field
-                  name="returning_patients"
-                  children={(field) => (
-                    <div className="grid gap-2">
-                      <Label htmlFor={field.name}>Returning Patients</Label>
-                      <Input
-                        id={field.name}
-                        name={field.name}
-                        type="number"
-                        min="0"
-                        value={field.state.value}
-                        onBlur={field.handleBlur}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        placeholder="0"
-                      />
-                    </div>
-                  )}
-                />
+                  <form.Field
+                    name="returning_patients"
+                    children={(field) => (
+                      <div className="space-y-1">
+                        <Label htmlFor={field.name} className="text-sm">Pasien Lama (Kunjungan Ulang)</Label>
+                        <Input
+                          id={field.name}
+                          type="number"
+                          min="0"
+                          value={field.state.value}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                          placeholder="0"
+                        />
+                      </div>
+                    )}
+                  />
+                </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <form.Field
-                  name="patients_male"
-                  children={(field) => (
-                    <div className="grid gap-2">
-                      <Label htmlFor={field.name}>Male Patients</Label>
-                      <Input
-                        id={field.name}
-                        name={field.name}
-                        type="number"
-                        min="0"
-                        value={field.state.value}
-                        onBlur={field.handleBlur}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        placeholder="0"
-                      />
-                    </div>
-                  )}
-                />
+              <div className="space-y-2">
+                <Label className="text-base font-medium">
+                  10. Berapa distribusi pasien berdasarkan jenis kelamin?
+                </Label>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Isi jumlah pasien laki-laki dan perempuan yang dilayani selama periode survei.
+                </p>
 
-                <form.Field
-                  name="patients_female"
-                  children={(field) => (
-                    <div className="grid gap-2">
-                      <Label htmlFor={field.name}>Female Patients</Label>
-                      <Input
-                        id={field.name}
-                        name={field.name}
-                        type="number"
-                        min="0"
-                        value={field.state.value}
-                        onBlur={field.handleBlur}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        placeholder="0"
-                      />
-                    </div>
-                  )}
-                />
+                <div className="grid grid-cols-2 gap-4 max-w-lg">
+                  <form.Field
+                    name="patients_male"
+                    children={(field) => (
+                      <div className="space-y-1">
+                        <Label htmlFor={field.name} className="text-sm">Laki-laki</Label>
+                        <Input
+                          id={field.name}
+                          type="number"
+                          min="0"
+                          value={field.state.value}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                          placeholder="0"
+                        />
+                      </div>
+                    )}
+                  />
+
+                  <form.Field
+                    name="patients_female"
+                    children={(field) => (
+                      <div className="space-y-1">
+                        <Label htmlFor={field.name} className="text-sm">Perempuan</Label>
+                        <Input
+                          id={field.name}
+                          type="number"
+                          min="0"
+                          value={field.state.value}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                          placeholder="0"
+                        />
+                      </div>
+                    )}
+                  />
+                </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
-                <form.Field
-                  name="patients_age_0_17"
-                  children={(field) => (
-                    <div className="grid gap-2">
-                      <Label htmlFor={field.name}>Age 0-17</Label>
-                      <Input
-                        id={field.name}
-                        name={field.name}
-                        type="number"
-                        min="0"
-                        value={field.state.value}
-                        onBlur={field.handleBlur}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        placeholder="0"
-                      />
-                    </div>
-                  )}
-                />
+              <div className="space-y-2">
+                <Label className="text-base font-medium">
+                  11. Berapa distribusi pasien berdasarkan kelompok usia?
+                </Label>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Klasifikasikan pasien ke dalam tiga kelompok usia: anak-anak dan remaja (0-17 tahun), dewasa (18-64 tahun), dan lansia (65 tahun ke atas).
+                </p>
 
-                <form.Field
-                  name="patients_age_18_64"
-                  children={(field) => (
-                    <div className="grid gap-2">
-                      <Label htmlFor={field.name}>Age 18-64</Label>
-                      <Input
-                        id={field.name}
-                        name={field.name}
-                        type="number"
-                        min="0"
-                        value={field.state.value}
-                        onBlur={field.handleBlur}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        placeholder="0"
-                      />
-                    </div>
-                  )}
-                />
+                <div className="grid grid-cols-3 gap-4 max-w-xl">
+                  <form.Field
+                    name="patients_age_0_17"
+                    children={(field) => (
+                      <div className="space-y-1">
+                        <Label htmlFor={field.name} className="text-sm">Usia 0-17 tahun</Label>
+                        <Input
+                          id={field.name}
+                          type="number"
+                          min="0"
+                          value={field.state.value}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                          placeholder="0"
+                        />
+                      </div>
+                    )}
+                  />
 
-                <form.Field
-                  name="patients_age_65_plus"
-                  children={(field) => (
-                    <div className="grid gap-2">
-                      <Label htmlFor={field.name}>Age 65+</Label>
-                      <Input
-                        id={field.name}
-                        name={field.name}
-                        type="number"
-                        min="0"
-                        value={field.state.value}
-                        onBlur={field.handleBlur}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        placeholder="0"
-                      />
-                    </div>
-                  )}
-                />
+                  <form.Field
+                    name="patients_age_18_64"
+                    children={(field) => (
+                      <div className="space-y-1">
+                        <Label htmlFor={field.name} className="text-sm">Usia 18-64 tahun</Label>
+                        <Input
+                          id={field.name}
+                          type="number"
+                          min="0"
+                          value={field.state.value}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                          placeholder="0"
+                        />
+                      </div>
+                    )}
+                  />
+
+                  <form.Field
+                    name="patients_age_65_plus"
+                    children={(field) => (
+                      <div className="space-y-1">
+                        <Label htmlFor={field.name} className="text-sm">Usia 65+ tahun</Label>
+                        <Input
+                          id={field.name}
+                          type="number"
+                          min="0"
+                          value={field.state.value}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                          placeholder="0"
+                        />
+                      </div>
+                    )}
+                  />
+                </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </section>
 
-          {/* Quality & Financial */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Quality & Financial Data</CardTitle>
-              <CardDescription>Quality indicators and payment methods</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-4">
-              <div className="grid grid-cols-3 gap-4">
-                <form.Field
-                  name="patient_satisfaction_score"
-                  children={(field) => (
-                    <div className="grid gap-2">
-                      <Label htmlFor={field.name}>Satisfaction Score (0-5)</Label>
-                      <Input
-                        id={field.name}
-                        name={field.name}
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        max="5"
-                        value={field.state.value}
-                        onBlur={field.handleBlur}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        placeholder="0.0"
-                      />
-                    </div>
-                  )}
-                />
+          {/* Section E: Kualitas Layanan */}
+          <section>
+            <h2 className="text-lg font-semibold border-b pb-2 mb-6">Bagian E: Kualitas Layanan</h2>
 
-                <form.Field
-                  name="average_wait_time_days"
-                  children={(field) => (
-                    <div className="grid gap-2">
-                      <Label htmlFor={field.name}>Avg Wait Time (days)</Label>
-                      <Input
-                        id={field.name}
-                        name={field.name}
-                        type="number"
-                        min="0"
-                        value={field.state.value}
-                        onBlur={field.handleBlur}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        placeholder="0"
-                      />
-                    </div>
-                  )}
-                />
+            <div className="space-y-6">
+              <form.Field
+                name="patient_satisfaction_score"
+                children={(field) => (
+                  <div className="space-y-2">
+                    <Label htmlFor={field.name} className="text-base font-medium">
+                      12. Berapa rata-rata skor kepuasan pasien terhadap layanan?
+                    </Label>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Masukkan skor rata-rata berdasarkan survei kepuasan pasien dengan skala 0-5 (0 = sangat tidak puas, 5 = sangat puas). Kosongkan jika tidak ada data.
+                    </p>
+                    <Input
+                      id={field.name}
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      max="5"
+                      value={field.state.value}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      placeholder="Contoh: 4.2"
+                      className="max-w-xs"
+                    />
+                  </div>
+                )}
+              />
 
-                <form.Field
-                  name="monthly_budget"
-                  children={(field) => (
-                    <div className="grid gap-2">
-                      <Label htmlFor={field.name}>Monthly Budget (IDR)</Label>
-                      <Input
-                        id={field.name}
-                        name={field.name}
-                        type="text"
-                        value={field.state.value}
-                        onBlur={field.handleBlur}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        placeholder="0"
-                      />
-                    </div>
-                  )}
-                />
+              <form.Field
+                name="average_wait_time_days"
+                children={(field) => (
+                  <div className="space-y-2">
+                    <Label htmlFor={field.name} className="text-base font-medium">
+                      13. Berapa rata-rata waktu tunggu pasien untuk mendapatkan layanan (dalam hari)?
+                    </Label>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Hitung rata-rata waktu tunggu dari saat pendaftaran hingga pasien mendapatkan layanan pertama.
+                    </p>
+                    <Input
+                      id={field.name}
+                      type="number"
+                      min="0"
+                      value={field.state.value}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      placeholder="Masukkan jumlah hari"
+                      className="max-w-xs"
+                    />
+                  </div>
+                )}
+              />
+            </div>
+          </section>
+
+          {/* Section F: Data Finansial */}
+          <section>
+            <h2 className="text-lg font-semibold border-b pb-2 mb-6">Bagian F: Pembiayaan dan Sumber Pendanaan</h2>
+
+            <div className="space-y-6">
+              <form.Field
+                name="monthly_budget"
+                children={(field) => (
+                  <div className="space-y-2">
+                    <Label htmlFor={field.name} className="text-base font-medium">
+                      14. Berapa perkiraan anggaran operasional bulanan fasilitas ini?
+                    </Label>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Masukkan estimasi total biaya operasional per bulan dalam Rupiah (termasuk gaji staf, obat-obatan, utilitas, dll).
+                    </p>
+                    <Input
+                      id={field.name}
+                      type="text"
+                      value={field.state.value}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      placeholder="Contoh: 500000000"
+                      className="max-w-xs"
+                    />
+                  </div>
+                )}
+              />
+
+              <div className="space-y-2">
+                <Label className="text-base font-medium">
+                  15. Berapa distribusi pasien berdasarkan sumber pembiayaan?
+                </Label>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Klasifikasikan pasien berdasarkan metode pembayaran yang digunakan selama periode survei.
+                </p>
+
+                <div className="grid grid-cols-3 gap-4 max-w-xl">
+                  <form.Field
+                    name="bpjs_patients"
+                    children={(field) => (
+                      <div className="space-y-1">
+                        <Label htmlFor={field.name} className="text-sm">Pasien BPJS</Label>
+                        <Input
+                          id={field.name}
+                          type="number"
+                          min="0"
+                          value={field.state.value}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                          placeholder="0"
+                        />
+                      </div>
+                    )}
+                  />
+
+                  <form.Field
+                    name="private_insurance_patients"
+                    children={(field) => (
+                      <div className="space-y-1">
+                        <Label htmlFor={field.name} className="text-sm">Asuransi Swasta</Label>
+                        <Input
+                          id={field.name}
+                          type="number"
+                          min="0"
+                          value={field.state.value}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                          placeholder="0"
+                        />
+                      </div>
+                    )}
+                  />
+
+                  <form.Field
+                    name="self_pay_patients"
+                    children={(field) => (
+                      <div className="space-y-1">
+                        <Label htmlFor={field.name} className="text-sm">Bayar Mandiri</Label>
+                        <Input
+                          id={field.name}
+                          type="number"
+                          min="0"
+                          value={field.state.value}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                          placeholder="0"
+                        />
+                      </div>
+                    )}
+                  />
+                </div>
               </div>
+            </div>
+          </section>
 
-              <div className="grid grid-cols-3 gap-4">
-                <form.Field
-                  name="bpjs_patients"
-                  children={(field) => (
-                    <div className="grid gap-2">
-                      <Label htmlFor={field.name}>BPJS Patients</Label>
-                      <Input
-                        id={field.name}
-                        name={field.name}
-                        type="number"
-                        min="0"
-                        value={field.state.value}
-                        onBlur={field.handleBlur}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        placeholder="0"
-                      />
-                    </div>
-                  )}
-                />
+          {/* Section G: Tantangan dan Rekomendasi */}
+          <section>
+            <h2 className="text-lg font-semibold border-b pb-2 mb-6">Bagian G: Tantangan dan Rekomendasi</h2>
 
-                <form.Field
-                  name="private_insurance_patients"
-                  children={(field) => (
-                    <div className="grid gap-2">
-                      <Label htmlFor={field.name}>Private Insurance Patients</Label>
-                      <Input
-                        id={field.name}
-                        name={field.name}
-                        type="number"
-                        min="0"
-                        value={field.state.value}
-                        onBlur={field.handleBlur}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        placeholder="0"
-                      />
-                    </div>
-                  )}
-                />
-
-                <form.Field
-                  name="self_pay_patients"
-                  children={(field) => (
-                    <div className="grid gap-2">
-                      <Label htmlFor={field.name}>Self-Pay Patients</Label>
-                      <Input
-                        id={field.name}
-                        name={field.name}
-                        type="number"
-                        min="0"
-                        value={field.state.value}
-                        onBlur={field.handleBlur}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        placeholder="0"
-                      />
-                    </div>
-                  )}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Notes */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Additional Information</CardTitle>
-              <CardDescription>Challenges, improvements, and notes</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-4">
+            <div className="space-y-6">
               <form.Field
                 name="challenges_faced"
                 children={(field) => (
-                  <div className="grid gap-2">
-                    <Label htmlFor={field.name}>Challenges Faced</Label>
+                  <div className="space-y-2">
+                    <Label htmlFor={field.name} className="text-base font-medium">
+                      16. Apa saja tantangan utama yang dihadapi fasilitas ini dalam memberikan layanan kesehatan jiwa?
+                    </Label>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Jelaskan hambatan atau kesulitan yang dialami, seperti kekurangan tenaga ahli, keterbatasan dana, infrastruktur yang tidak memadai, stigma masyarakat, atau lainnya.
+                    </p>
                     <Textarea
                       id={field.name}
-                      name={field.name}
                       value={field.state.value}
-                      onBlur={field.handleBlur}
                       onChange={(e) => field.handleChange(e.target.value)}
-                      placeholder="Describe any challenges..."
-                      rows={3}
+                      placeholder="Tuliskan tantangan yang dihadapi..."
+                      rows={4}
+                      className="max-w-2xl"
                     />
                   </div>
                 )}
@@ -705,16 +751,20 @@ export default function NewSurveyPage() {
               <form.Field
                 name="improvements_needed"
                 children={(field) => (
-                  <div className="grid gap-2">
-                    <Label htmlFor={field.name}>Improvements Needed</Label>
+                  <div className="space-y-2">
+                    <Label htmlFor={field.name} className="text-base font-medium">
+                      17. Perbaikan atau dukungan apa yang paling dibutuhkan fasilitas ini?
+                    </Label>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Berikan rekomendasi konkret mengenai peningkatan kapasitas, kebutuhan pelatihan, penambahan fasilitas, atau dukungan kebijakan yang diperlukan.
+                    </p>
                     <Textarea
                       id={field.name}
-                      name={field.name}
                       value={field.state.value}
-                      onBlur={field.handleBlur}
                       onChange={(e) => field.handleChange(e.target.value)}
-                      placeholder="Describe needed improvements..."
-                      rows={3}
+                      placeholder="Tuliskan perbaikan yang dibutuhkan..."
+                      rows={4}
+                      className="max-w-2xl"
                     />
                   </div>
                 )}
@@ -723,34 +773,39 @@ export default function NewSurveyPage() {
               <form.Field
                 name="surveyor_notes"
                 children={(field) => (
-                  <div className="grid gap-2">
-                    <Label htmlFor={field.name}>Surveyor Notes</Label>
+                  <div className="space-y-2">
+                    <Label htmlFor={field.name} className="text-base font-medium">
+                      18. Catatan tambahan dari surveyor
+                    </Label>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Tuliskan observasi, temuan penting, atau catatan lain yang relevan dari hasil kunjungan survei.
+                    </p>
                     <Textarea
                       id={field.name}
-                      name={field.name}
                       value={field.state.value}
-                      onBlur={field.handleBlur}
                       onChange={(e) => field.handleChange(e.target.value)}
-                      placeholder="Any additional notes..."
-                      rows={3}
+                      placeholder="Tuliskan catatan tambahan..."
+                      rows={4}
+                      className="max-w-2xl"
                     />
                   </div>
                 )}
               />
-            </CardContent>
-          </Card>
+            </div>
+          </section>
 
           {/* Form Actions */}
-          <div className="flex gap-4 justify-end">
+          <div className="flex gap-4 pt-6 border-t">
+            <Button type="submit" disabled={createSurvey.isPending} size="lg">
+              {createSurvey.isPending ? 'Menyimpan...' : 'Simpan Survei'}
+            </Button>
             <Button
               type="button"
               variant="outline"
+              size="lg"
               onClick={() => router.push('/dashboard/survey')}
             >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={createSurvey.isPending}>
-              {createSurvey.isPending ? 'Creating...' : 'Create Survey'}
+              Batal
             </Button>
           </div>
         </form>

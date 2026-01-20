@@ -2,7 +2,9 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useForm } from '@tanstack/react-form';
 import { useCreateUser } from '@/hooks/use-users';
+import { createUserSchema, type CreateUserFormData } from '@/lib/validations/user';
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -25,47 +27,30 @@ const breadcrumbs = [
 export default function AddUserPage() {
   const router = useRouter();
   const createUser = useCreateUser();
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-    password_confirm: '',
-    first_name: '',
-    last_name: '',
-    role: 'VIEWER',
-    phone_number: '',
-    organization: '',
-  });
-
-  const [errors, setErrors] = useState<Record<string, string>>({});
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrors({});
-
-    try {
-      await createUser.mutateAsync(formData);
-      router.push('/dashboard/users');
-    } catch (error: any) {
-      if (error.errors) {
-        setErrors(error.errors);
-      } else {
-        setErrors({ general: error.message || 'Failed to create user' });
+  const form = useForm({
+    defaultValues: {
+      email: '',
+      password: '',
+      password_confirm: '',
+      first_name: '',
+      last_name: '',
+      role: 'VIEWER' as const,
+      phone_number: '',
+      organization: '',
+    } as CreateUserFormData,
+    onSubmit: async ({ value }) => {
+      setSubmitError(null);
+      try {
+        await createUser.mutateAsync(value);
+        router.push('/dashboard/users');
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Gagal membuat pengguna';
+        setSubmitError(errorMessage);
       }
-    }
-  };
-
-  const handleChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    // Clear error for this field
-    if (errors[field]) {
-      setErrors(prev => {
-        const newErrors = { ...prev };
-        delete newErrors[field];
-        return newErrors;
-      });
-    }
-  };
+    },
+  });
 
   return (
     <>
@@ -84,124 +69,198 @@ export default function AddUserPage() {
               <CardDescription>Fill in the details to create a new user account</CardDescription>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-6">
-                {errors.general && (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  form.handleSubmit();
+                }}
+                className="space-y-6"
+              >
+                {submitError && (
                   <div className="rounded-lg bg-destructive/15 p-3 text-sm text-destructive">
-                    {errors.general}
+                    {submitError}
                   </div>
                 )}
 
                 <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="first_name">First Name</Label>
-                    <Input
-                      id="first_name"
-                      value={formData.first_name}
-                      onChange={(e) => handleChange('first_name', e.target.value)}
-                    />
-                    {errors.first_name && (
-                      <p className="text-sm text-destructive">{errors.first_name}</p>
+                  <form.Field name="first_name">
+                    {(field) => (
+                      <div className="space-y-2">
+                        <Label htmlFor={field.name}>First Name</Label>
+                        <Input
+                          id={field.name}
+                          value={field.state.value || ''}
+                          onBlur={field.handleBlur}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                        />
+                      </div>
                     )}
-                  </div>
+                  </form.Field>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="last_name">Last Name</Label>
-                    <Input
-                      id="last_name"
-                      value={formData.last_name}
-                      onChange={(e) => handleChange('last_name', e.target.value)}
-                    />
-                    {errors.last_name && (
-                      <p className="text-sm text-destructive">{errors.last_name}</p>
+                  <form.Field name="last_name">
+                    {(field) => (
+                      <div className="space-y-2">
+                        <Label htmlFor={field.name}>Last Name</Label>
+                        <Input
+                          id={field.name}
+                          value={field.state.value || ''}
+                          onBlur={field.handleBlur}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                        />
+                      </div>
                     )}
-                  </div>
+                  </form.Field>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email *</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => handleChange('email', e.target.value)}
-                    required
-                  />
-                  {errors.email && (
-                    <p className="text-sm text-destructive">{errors.email}</p>
+                <form.Field
+                  name="email"
+                  validators={{
+                    onChange: ({ value }) => {
+                      const result = createUserSchema.shape.email.safeParse(value);
+                      return result.success ? undefined : result.error.issues[0]?.message;
+                    },
+                  }}
+                >
+                  {(field) => (
+                    <div className="space-y-2">
+                      <Label htmlFor={field.name}>Email *</Label>
+                      <Input
+                        id={field.name}
+                        type="email"
+                        value={field.state.value}
+                        onBlur={field.handleBlur}
+                        onChange={(e) => field.handleChange(e.target.value)}
+                        className={field.state.meta.errors?.length ? 'border-destructive' : ''}
+                      />
+                      {field.state.meta.errors?.length > 0 && (
+                        <p className="text-sm text-destructive">{field.state.meta.errors[0]}</p>
+                      )}
+                    </div>
                   )}
-                </div>
+                </form.Field>
 
                 <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Password *</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      value={formData.password}
-                      onChange={(e) => handleChange('password', e.target.value)}
-                      required
-                    />
-                    {errors.password && (
-                      <p className="text-sm text-destructive">{errors.password}</p>
+                  <form.Field
+                    name="password"
+                    validators={{
+                      onChange: ({ value }) => {
+                        const result = createUserSchema.shape.password.safeParse(value);
+                        return result.success ? undefined : result.error.issues[0]?.message;
+                      },
+                    }}
+                  >
+                    {(field) => (
+                      <div className="space-y-2">
+                        <Label htmlFor={field.name}>Password *</Label>
+                        <Input
+                          id={field.name}
+                          type="password"
+                          value={field.state.value}
+                          onBlur={field.handleBlur}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                          className={field.state.meta.errors?.length ? 'border-destructive' : ''}
+                        />
+                        {field.state.meta.errors?.length > 0 && (
+                          <p className="text-sm text-destructive">{field.state.meta.errors[0]}</p>
+                        )}
+                      </div>
                     )}
-                  </div>
+                  </form.Field>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="password_confirm">Confirm Password *</Label>
-                    <Input
-                      id="password_confirm"
-                      type="password"
-                      value={formData.password_confirm}
-                      onChange={(e) => handleChange('password_confirm', e.target.value)}
-                      required
-                    />
-                    {errors.password_confirm && (
-                      <p className="text-sm text-destructive">{errors.password_confirm}</p>
+                  <form.Field
+                    name="password_confirm"
+                    validators={{
+                      onChangeListenTo: ['password'],
+                      onChange: ({ value, fieldApi }) => {
+                        const password = fieldApi.form.getFieldValue('password');
+                        if (value && password && value !== password) {
+                          return 'Kata sandi tidak cocok';
+                        }
+                        if (!value) {
+                          return 'Konfirmasi kata sandi wajib diisi';
+                        }
+                        return undefined;
+                      },
+                    }}
+                  >
+                    {(field) => (
+                      <div className="space-y-2">
+                        <Label htmlFor={field.name}>Confirm Password *</Label>
+                        <Input
+                          id={field.name}
+                          type="password"
+                          value={field.state.value}
+                          onBlur={field.handleBlur}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                          className={field.state.meta.errors?.length ? 'border-destructive' : ''}
+                        />
+                        {field.state.meta.errors?.length > 0 && (
+                          <p className="text-sm text-destructive">{field.state.meta.errors[0]}</p>
+                        )}
+                      </div>
                     )}
-                  </div>
+                  </form.Field>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="role">Role *</Label>
-                  <Select value={formData.role} onValueChange={(value) => handleChange('role', value)}>
-                    <SelectTrigger id="role">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ADMIN">Admin</SelectItem>
-                      <SelectItem value="STAFF">Staff</SelectItem>
-                      <SelectItem value="VIEWER">Viewer</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {errors.role && (
-                    <p className="text-sm text-destructive">{errors.role}</p>
+                <form.Field
+                  name="role"
+                  validators={{
+                    onChange: ({ value }) => {
+                      if (!value) return 'Role wajib dipilih';
+                      return undefined;
+                    },
+                  }}
+                >
+                  {(field) => (
+                    <div className="space-y-2">
+                      <Label htmlFor={field.name}>Role *</Label>
+                      <Select value={field.state.value} onValueChange={(v) => field.handleChange(v as typeof field.state.value)}>
+                        <SelectTrigger id={field.name} className={field.state.meta.errors?.length ? 'border-destructive' : ''}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ADMIN">Admin</SelectItem>
+                          <SelectItem value="SURVEYOR">Surveyor</SelectItem>
+                          <SelectItem value="VERIFIER">Verifier</SelectItem>
+                          <SelectItem value="VIEWER">Viewer</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {field.state.meta.errors?.length > 0 && (
+                        <p className="text-sm text-destructive">{field.state.meta.errors[0]}</p>
+                      )}
+                    </div>
                   )}
-                </div>
+                </form.Field>
 
-                <div className="space-y-2">
-                  <Label htmlFor="phone_number">Phone Number</Label>
-                  <Input
-                    id="phone_number"
-                    type="tel"
-                    value={formData.phone_number}
-                    onChange={(e) => handleChange('phone_number', e.target.value)}
-                  />
-                  {errors.phone_number && (
-                    <p className="text-sm text-destructive">{errors.phone_number}</p>
+                <form.Field name="phone_number">
+                  {(field) => (
+                    <div className="space-y-2">
+                      <Label htmlFor={field.name}>Phone Number</Label>
+                      <Input
+                        id={field.name}
+                        type="tel"
+                        value={field.state.value || ''}
+                        onBlur={field.handleBlur}
+                        onChange={(e) => field.handleChange(e.target.value)}
+                      />
+                    </div>
                   )}
-                </div>
+                </form.Field>
 
-                <div className="space-y-2">
-                  <Label htmlFor="organization">Organization</Label>
-                  <Input
-                    id="organization"
-                    value={formData.organization}
-                    onChange={(e) => handleChange('organization', e.target.value)}
-                  />
-                  {errors.organization && (
-                    <p className="text-sm text-destructive">{errors.organization}</p>
+                <form.Field name="organization">
+                  {(field) => (
+                    <div className="space-y-2">
+                      <Label htmlFor={field.name}>Organization</Label>
+                      <Input
+                        id={field.name}
+                        value={field.state.value || ''}
+                        onBlur={field.handleBlur}
+                        onChange={(e) => field.handleChange(e.target.value)}
+                      />
+                    </div>
                   )}
-                </div>
+                </form.Field>
 
                 <div className="flex gap-2">
                   <Button type="submit" disabled={createUser.isPending}>

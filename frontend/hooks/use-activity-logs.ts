@@ -1,5 +1,11 @@
-import { useQuery } from '@tanstack/react-query';
+/**
+ * Activity logs hooks using TanStack Query
+ * Best practice: Use query key factory for consistency
+ */
+
+import { useQuery, queryOptions } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
+import { queryKeys } from '@/lib/query-keys';
 
 export interface ActivityLog {
   id: number;
@@ -18,8 +24,8 @@ export interface ActivityLog {
   user_agent: string;
   request_method: string;
   request_path: string;
-  changes: any;
-  metadata: any;
+  changes: unknown;
+  metadata: unknown;
   timestamp: string;
 }
 
@@ -33,13 +39,32 @@ interface ActivityLogsParams {
   page_size?: number;
 }
 
-export function useActivityLogs(params?: ActivityLogsParams) {
-  return useQuery({
-    queryKey: ['activity-logs', params],
+/**
+ * Helper to clean params
+ */
+function cleanParams(params?: ActivityLogsParams) {
+  if (!params) return undefined;
+  return Object.fromEntries(
+    Object.entries(params).filter(([_, v]) => v !== undefined && v !== null && v !== '')
+  );
+}
+
+/**
+ * Query options for activity logs
+ */
+export const activityLogsQueryOptions = (params?: ActivityLogsParams) =>
+  queryOptions({
+    queryKey: queryKeys.activityLogs.list(cleanParams(params)),
     queryFn: () =>
       apiClient.get<{ count: number; results: ActivityLog[] }>(
         '/logs/activity/',
-        params
+        cleanParams(params)
       ),
   });
+
+/**
+ * Activity logs hook
+ */
+export function useActivityLogs(params?: ActivityLogsParams) {
+  return useQuery(activityLogsQueryOptions(params));
 }

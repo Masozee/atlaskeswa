@@ -90,7 +90,7 @@ const data = {
       isActive: false,
       submenus: [
         { title: "Semua Catatan Survei", url: "/dashboard/survey" },
-        { title: "Entri Survei Baru", url: "/dashboard/survey/new" },
+        { title: "Entri Survei Baru", url: "/survey/new" },
         { title: "Pengajuan Tertunda", url: "/dashboard/survey/pending" },
         { title: "Survei Disetujui", url: "/dashboard/survey/approved" },
         { title: "Survei Ditolak", url: "/dashboard/survey/rejected" },
