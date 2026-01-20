@@ -3,17 +3,8 @@
 import { use } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSurvey } from '@/hooks/use-surveys';
-import { DateTime } from '@/components/date-time';
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from '@/components/ui/breadcrumb';
+import { PageHeader } from '@/components/page-header';
 import { Separator } from '@/components/ui/separator';
-import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -68,31 +59,16 @@ export default function SubmissionDetailPage({
   const router = useRouter();
   const { data: survey, isLoading } = useSurvey(Number(id));
 
+  const loadingBreadcrumbs = [
+    { label: 'Dashboard', href: '/dashboard' },
+    { label: 'Submissions', href: '/dashboard/submissions' },
+    { label: 'Loading...' },
+  ];
+
   if (isLoading) {
     return (
       <>
-        <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mr-2 h-4" />
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem>
-                <BreadcrumbLink href="/dashboard">Dashboard</BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbLink href="/dashboard/submissions">Submissions</BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbPage>Loading...</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-          <div className="ml-auto">
-            <DateTime />
-          </div>
-        </header>
+        <PageHeader breadcrumbs={loadingBreadcrumbs} />
         <div className="flex flex-1 items-center justify-center">
           <div className="text-center">
             <div className="h-16 w-16 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto mb-4"></div>
@@ -103,31 +79,16 @@ export default function SubmissionDetailPage({
     );
   }
 
+  const notFoundBreadcrumbs = [
+    { label: 'Dashboard', href: '/dashboard' },
+    { label: 'Submissions', href: '/dashboard/submissions' },
+    { label: 'Not Found' },
+  ];
+
   if (!survey) {
     return (
       <>
-        <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mr-2 h-4" />
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem>
-                <BreadcrumbLink href="/dashboard">Dashboard</BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbLink href="/dashboard/submissions">Submissions</BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbPage>Not Found</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-          <div className="ml-auto">
-            <DateTime />
-          </div>
-        </header>
+        <PageHeader breadcrumbs={notFoundBreadcrumbs} />
         <div className="flex flex-1 items-center justify-center">
           <div className="text-center">
             <p className="text-lg font-semibold mb-2">Submission not found</p>
@@ -147,32 +108,17 @@ export default function SubmissionDetailPage({
   const submittedDate = survey.submitted_at ? new Date(survey.submitted_at) : null;
   const verifiedDate = survey.verified_at ? new Date(survey.verified_at) : null;
 
+  const breadcrumbs = [
+    { label: 'Dashboard', href: '/dashboard' },
+    { label: 'Submissions', href: '/dashboard/submissions' },
+    { label: `#${survey.id}` },
+  ];
+
   return (
     <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <Breadcrumb>
-          <BreadcrumbList>
-            <BreadcrumbItem>
-              <BreadcrumbLink href="/dashboard">Dashboard</BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbLink href="/dashboard/submissions">Submissions</BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbPage>#{survey.id}</BreadcrumbPage>
-            </BreadcrumbItem>
-          </BreadcrumbList>
-        </Breadcrumb>
-        <div className="ml-auto">
-          <DateTime />
-        </div>
-      </header>
+      <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-4 p-4">
+      <div className="flex flex-1 flex-col gap-4 p-8">
         {/* Header Section */}
         <div className="space-y-3">
           <Button

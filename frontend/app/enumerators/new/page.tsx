@@ -4,17 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useForm } from '@tanstack/react-form';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
-import { DateTime } from '@/components/date-time';
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from '@/components/ui/breadcrumb';
-import { Separator } from '@/components/ui/separator';
-import { SidebarTrigger } from '@/components/ui/sidebar';
+import { PageHeader, BreadcrumbItemType } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -34,6 +24,11 @@ import {
 } from '@/components/ui/card';
 import { HugeiconsIcon } from "@hugeicons/react"
 import {UserAdd02Icon} from "@hugeicons/core-free-icons";
+
+const breadcrumbs: BreadcrumbItemType[] = [
+  { label: 'Enumerators', href: '/enumerators' },
+  { label: 'Add Enumerator' },
+];
 
 export default function NewEnumeratorPage() {
   const router = useRouter();
@@ -70,24 +65,7 @@ export default function NewEnumeratorPage() {
 
   return (
     <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <Breadcrumb>
-          <BreadcrumbList>
-            <BreadcrumbItem>
-              <BreadcrumbLink href="/enumerators">Enumerators</BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbPage>Add Enumerator</BreadcrumbPage>
-            </BreadcrumbItem>
-          </BreadcrumbList>
-        </Breadcrumb>
-        <div className="ml-auto">
-          <DateTime />
-        </div>
-      </header>
+      <PageHeader breadcrumbs={breadcrumbs} />
 
       <div className="flex flex-1 flex-col gap-4 p-6">
         <div className="flex items-center gap-3">

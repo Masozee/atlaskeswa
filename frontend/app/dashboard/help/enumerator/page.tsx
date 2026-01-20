@@ -1,25 +1,7 @@
 'use client';
 
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from '@/components/ui/breadcrumb';
-import { Separator } from '@/components/ui/separator';
-import { SidebarTrigger } from '@/components/ui/sidebar';
-import { DateTime } from '@/components/date-time';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
-import { HugeiconsIcon } from "@hugeicons/react"
-import {ClipboardIcon,
-  CheckmarkCircle02Icon,
-  AlertCircleIcon,
-  Location01Icon,
-  UserIcon,
-  FileAttachmentIcon,} from "@hugeicons/core-free-icons";
 
 const checklistItems = {
   before: [
@@ -50,7 +32,6 @@ const checklistItems = {
 const commonIssues = [
   {
     issue: 'GPS Not Working',
-    icon: Location01Icon,
     solutions: [
       'Enable location services in device settings',
       'Move to an open area with clear sky view',
@@ -60,7 +41,6 @@ const commonIssues = [
   },
   {
     issue: 'Service Not in Database',
-    icon: FileAttachmentIcon,
     solutions: [
       'Use "Add New Service" form',
       'Provide detailed information about the service',
@@ -70,7 +50,6 @@ const commonIssues = [
   },
   {
     issue: 'Respondent Unavailable',
-    icon: UserIcon,
     solutions: [
       'Schedule a callback appointment',
       'Leave contact information',
@@ -80,33 +59,18 @@ const commonIssues = [
   },
 ];
 
+const breadcrumbs = [
+  { label: 'Dashboard', href: '/dashboard' },
+  { label: 'Help & Documentation', href: '/dashboard/help' },
+  { label: 'Enumerator Handbook' },
+];
+
 export default function EnumeratorPage() {
   return (
     <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <Breadcrumb>
-          <BreadcrumbList>
-            <BreadcrumbItem>
-              <BreadcrumbLink href="/dashboard">Dashboard</BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbLink href="/dashboard/help">Help & Documentation</BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbPage>Enumerator Handbook</BreadcrumbPage>
-            </BreadcrumbItem>
-          </BreadcrumbList>
-        </Breadcrumb>
-        <div className="ml-auto">
-          <DateTime />
-        </div>
-      </header>
+      <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-4 p-4">
+      <div className="flex flex-1 flex-col gap-6 p-8">
         {/* Page Header */}
         <div>
           <h1 className="text-2xl font-bold">Enumerator Handbook</h1>
@@ -117,172 +81,117 @@ export default function EnumeratorPage() {
 
         {/* Checklists */}
         <div className="grid gap-4 md:grid-cols-3">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <HugeiconsIcon icon={ClipboardIcon} size={20} className="text-blue-600" />
-                Before Starting
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-2">
-                {checklistItems.before.map((item, idx) => (
-                  <li key={idx} className="flex items-start gap-2 text-sm">
-                    <HugeiconsIcon icon={CheckmarkCircle02Icon} size={16} className="text-blue-600 shrink-0 mt-0.5" />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
+          <div className="p-4 rounded-lg bg-muted/50">
+            <h3 className="font-semibold text-base mb-3">Before Starting</h3>
+            <ul className="space-y-2">
+              {checklistItems.before.map((item, idx) => (
+                <li key={idx} className="flex items-start gap-2 text-sm">
+                  <span className="text-muted-foreground">•</span>
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <HugeiconsIcon icon={ClipboardIcon} size={20} className="text-green-600" />
-                During Survey
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-2">
-                {checklistItems.during.map((item, idx) => (
-                  <li key={idx} className="flex items-start gap-2 text-sm">
-                    <HugeiconsIcon icon={CheckmarkCircle02Icon} size={16} className="text-green-600 shrink-0 mt-0.5" />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
+          <div className="p-4 rounded-lg bg-muted/50">
+            <h3 className="font-semibold text-base mb-3">During Survey</h3>
+            <ul className="space-y-2">
+              {checklistItems.during.map((item, idx) => (
+                <li key={idx} className="flex items-start gap-2 text-sm">
+                  <span className="text-muted-foreground">•</span>
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <HugeiconsIcon icon={ClipboardIcon} size={20} className="text-purple-600" />
-                After Survey
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-2">
-                {checklistItems.after.map((item, idx) => (
-                  <li key={idx} className="flex items-start gap-2 text-sm">
-                    <HugeiconsIcon icon={CheckmarkCircle02Icon} size={16} className="text-purple-600 shrink-0 mt-0.5" />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
+          <div className="p-4 rounded-lg bg-muted/50">
+            <h3 className="font-semibold text-base mb-3">After Survey</h3>
+            <ul className="space-y-2">
+              {checklistItems.after.map((item, idx) => (
+                <li key={idx} className="flex items-start gap-2 text-sm">
+                  <span className="text-muted-foreground">•</span>
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
 
         {/* Service Details Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Key Information to Collect</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <h4 className="font-medium text-sm">Basic Information</h4>
-                <ul className="space-y-1 text-sm text-muted-foreground">
-                  <li>• Service name and type</li>
-                  <li>• Complete address and location</li>
-                  <li>• Contact information (phone, email)</li>
-                  <li>• GPS coordinates</li>
-                </ul>
-              </div>
-              <div className="space-y-2">
-                <h4 className="font-medium text-sm">Service Details</h4>
-                <ul className="space-y-1 text-sm text-muted-foreground">
-                  <li>• Services provided (MTC/BSIC classification)</li>
-                  <li>• Operating hours and schedule</li>
-                  <li>• Available resources and capacity</li>
-                  <li>• Target populations served</li>
-                </ul>
-              </div>
-              <div className="space-y-2">
-                <h4 className="font-medium text-sm">Quality Checks</h4>
-                <ul className="space-y-1 text-sm text-muted-foreground">
-                  <li>• Verify GPS coordinates accuracy</li>
-                  <li>• Validate contact details</li>
-                  <li>• Confirm service classifications</li>
-                  <li>• Ensure all required fields complete</li>
-                </ul>
-              </div>
-              <div className="space-y-2">
-                <h4 className="font-medium text-sm">Documentation</h4>
-                <ul className="space-y-1 text-sm text-muted-foreground">
-                  <li>• Photos of facility (exterior/interior)</li>
-                  <li>• Supporting documents</li>
-                  <li>• License or certification copies</li>
-                  <li>• Contact person details</li>
-                </ul>
-              </div>
+        <div className="p-4 rounded-lg bg-muted/50">
+          <h2 className="text-lg font-semibold mb-4">Key Information to Collect</h2>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <h4 className="font-medium text-sm">Basic Information</h4>
+              <ul className="space-y-1 text-sm text-muted-foreground">
+                <li>• Service name and type</li>
+                <li>• Complete address and location</li>
+                <li>• Contact information (phone, email)</li>
+                <li>• GPS coordinates</li>
+              </ul>
             </div>
-          </CardContent>
-        </Card>
+            <div className="space-y-2">
+              <h4 className="font-medium text-sm">Service Details</h4>
+              <ul className="space-y-1 text-sm text-muted-foreground">
+                <li>• Services provided (MTC/BSIC classification)</li>
+                <li>• Operating hours and schedule</li>
+                <li>• Available resources and capacity</li>
+                <li>• Target populations served</li>
+              </ul>
+            </div>
+            <div className="space-y-2">
+              <h4 className="font-medium text-sm">Quality Checks</h4>
+              <ul className="space-y-1 text-sm text-muted-foreground">
+                <li>• Verify GPS coordinates accuracy</li>
+                <li>• Validate contact details</li>
+                <li>• Confirm service classifications</li>
+                <li>• Ensure all required fields complete</li>
+              </ul>
+            </div>
+            <div className="space-y-2">
+              <h4 className="font-medium text-sm">Documentation</h4>
+              <ul className="space-y-1 text-sm text-muted-foreground">
+                <li>• Photos of facility (exterior/interior)</li>
+                <li>• Supporting documents</li>
+                <li>• License or certification copies</li>
+                <li>• Contact person details</li>
+              </ul>
+            </div>
+          </div>
+        </div>
 
         {/* Common Issues */}
-        <div>
-          <h2 className="text-lg font-semibold mb-3">Common Issues & Solutions</h2>
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold">Common Issues & Solutions</h2>
           <div className="grid gap-4">
-            {commonIssues.map((item, idx) => {
-              return (
-                <Card key={idx}>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-orange-100">
-                        <HugeiconsIcon icon={item.icon} size={16} className="text-orange-600" />
-                      </div>
-                      {item.issue}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ul className="space-y-2">
-                      {item.solutions.map((solution, sidx) => (
-                        <li key={sidx} className="flex items-start gap-2 text-sm">
-                          <HugeiconsIcon icon={AlertCircleIcon} size={16} className="text-orange-600 shrink-0 mt-0.5" />
-                          <span>{solution}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </CardContent>
-                </Card>
-              );
-            })}
+            {commonIssues.map((item, idx) => (
+              <div key={idx} className="p-4 rounded-lg bg-muted/50">
+                <h3 className="font-semibold mb-3">{item.issue}</h3>
+                <ul className="space-y-2">
+                  {item.solutions.map((solution, sidx) => (
+                    <li key={sidx} className="flex items-start gap-2 text-sm text-muted-foreground">
+                      <span>•</span>
+                      <span>{solution}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
           </div>
         </div>
 
         {/* Best Practices */}
-        <Card className="bg-blue-50 border-blue-200">
-          <CardHeader>
-            <CardTitle className="text-blue-900">Best Practices</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-2 text-sm text-blue-800">
-              <li className="flex items-start gap-2">
-                <HugeiconsIcon icon={CheckmarkCircle02Icon} size={16} className="shrink-0 mt-0.5" />
-                <span>Always be professional and respectful with respondents</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <HugeiconsIcon icon={CheckmarkCircle02Icon} size={16} className="shrink-0 mt-0.5" />
-                <span>Verify information from multiple sources when possible</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <HugeiconsIcon icon={CheckmarkCircle02Icon} size={16} className="shrink-0 mt-0.5" />
-                <span>Take clear, well-lit photos for documentation</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <HugeiconsIcon icon={CheckmarkCircle02Icon} size={16} className="shrink-0 mt-0.5" />
-                <span>Submit surveys on the same day whenever possible</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <HugeiconsIcon icon={CheckmarkCircle02Icon} size={16} className="shrink-0 mt-0.5" />
-                <span>Keep detailed notes for any unusual situations</span>
-              </li>
-            </ul>
-          </CardContent>
-        </Card>
+        <div className="bg-blue-50 rounded-lg p-6">
+          <h2 className="text-lg font-semibold text-blue-900 mb-4">Best Practices</h2>
+          <ul className="space-y-2 text-sm text-blue-800">
+            <li>• Always be professional and respectful with respondents</li>
+            <li>• Verify information from multiple sources when possible</li>
+            <li>• Take clear, well-lit photos for documentation</li>
+            <li>• Submit surveys on the same day whenever possible</li>
+            <li>• Keep detailed notes for any unusual situations</li>
+          </ul>
+        </div>
       </div>
     </>
   );

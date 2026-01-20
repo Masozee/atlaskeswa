@@ -3,19 +3,8 @@
 import { useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
-import {
-  SidebarTrigger,
-  useSidebar,
-} from "@/components/ui/sidebar"
+import { PageHeader, BreadcrumbItemType } from "@/components/page-header"
 import { Separator } from "@/components/ui/separator"
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -46,8 +35,13 @@ interface UploadResult {
   errors?: string[]
 }
 
+const breadcrumbs: BreadcrumbItemType[] = [
+  { label: 'Dashboard', href: '/dashboard' },
+  { label: 'Map', href: '/map' },
+  { label: 'Geospatial Data Upload' },
+]
+
 export default function GeospatialDataUploadPage() {
-  const { open } = useSidebar()
   const queryClient = useQueryClient()
 
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>("idle")
@@ -121,27 +115,7 @@ export default function GeospatialDataUploadPage() {
 
   return (
     <>
-      <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
-        <div className="flex items-center gap-2 px-4">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mr-2 h-4" />
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem className="hidden md:block">
-                <BreadcrumbLink href="/dashboard">Dashboard</BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator className="hidden md:block" />
-              <BreadcrumbItem className="hidden md:block">
-                <BreadcrumbLink href="/map">Map</BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator className="hidden md:block" />
-              <BreadcrumbItem>
-                <BreadcrumbPage>Geospatial Data Upload</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-        </div>
-      </header>
+      <PageHeader breadcrumbs={breadcrumbs} />
 
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="grid gap-4 md:grid-cols-2">

@@ -1,16 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator
-} from '@/components/ui/breadcrumb';
-import { Separator } from '@/components/ui/separator';
-import { SidebarTrigger } from '@/components/ui/sidebar';
-import { DateTime } from '@/components/date-time';
+import { PageHeader } from '@/components/page-header';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -40,6 +31,12 @@ import {
 } from '@tanstack/react-table';
 import { HugeiconsIcon } from "@hugeicons/react"
 import {Search01Icon, ArrowUp01Icon, ArrowDown01Icon} from "@hugeicons/core-free-icons";
+
+const breadcrumbs = [
+  { label: 'Dashboard', href: '/dashboard' },
+  { label: 'Survey Management', href: '/dashboard/survey' },
+  { label: 'Audit Log' },
+];
 
 interface AuditLog {
   id: number;
@@ -233,25 +230,10 @@ export default function AuditLogPage() {
   });
 
   return (
-    <div className="flex flex-col">
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <div className="flex flex-1 items-center gap-2">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mr-2 h-4" />
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem>Survey Management</BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbPage>Audit Log</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-        </div>
-        <DateTime />
-      </header>
+    <>
+      <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex-1 p-6 space-y-6">
+      <div className="flex flex-1 flex-col gap-4 p-8">
         <div>
           <h1 className="text-3xl font-bold">Audit Log</h1>
           <p className="text-muted-foreground mt-1">
@@ -339,6 +321,6 @@ export default function AuditLogPage() {
           </Table>
         </div>
       </div>
-    </div>
+    </>
   );
 }

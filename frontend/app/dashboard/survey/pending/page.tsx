@@ -2,17 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { useSurveys } from '@/hooks/use-surveys';
-import { DateTime } from "@/components/date-time";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
-import { Separator } from "@/components/ui/separator";
-import { SidebarTrigger } from "@/components/ui/sidebar";
+import { PageHeader } from "@/components/page-header";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -40,6 +30,12 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import { SurveyListItem } from "@/lib/types/api";
+
+const breadcrumbs = [
+  { label: 'Dashboard', href: '/dashboard' },
+  { label: 'Surveys', href: '/dashboard/survey' },
+  { label: 'Pending Submissions' },
+];
 
 export default function PendingSurveysPage() {
   const [search, setSearch] = useState('');
@@ -158,28 +154,7 @@ export default function PendingSurveysPage() {
   if (isLoading) {
     return (
       <>
-        <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mr-2 h-4" />
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem>
-                <BreadcrumbLink href="/dashboard">Dashboard</BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbLink href="/dashboard/survey">Surveys</BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbPage>Pending Submissions</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-          <div className="ml-auto">
-            <DateTime />
-          </div>
-        </header>
+        <PageHeader breadcrumbs={breadcrumbs} />
         <div className="flex flex-1 items-center justify-center">
           <div className="text-center">
             <div className="h-16 w-16 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto mb-4"></div>
@@ -192,30 +167,9 @@ export default function PendingSurveysPage() {
 
   return (
     <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <Breadcrumb>
-          <BreadcrumbList>
-            <BreadcrumbItem>
-              <BreadcrumbLink href="/dashboard">Dashboard</BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbLink href="/dashboard/survey">Surveys</BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbPage>Pending Submissions</BreadcrumbPage>
-            </BreadcrumbItem>
-          </BreadcrumbList>
-        </Breadcrumb>
-        <div className="ml-auto">
-          <DateTime />
-        </div>
-      </header>
+      <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-4 p-4">
+      <div className="flex flex-1 flex-col gap-4 p-8">
         <div>
           <h1 className="text-2xl font-bold">Pending Submissions</h1>
           <p className="text-muted-foreground">Surveys waiting for verification and approval</p>

@@ -3,16 +3,7 @@
 import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSurveys, useVerifySurvey } from '@/hooks/use-surveys';
-import { DateTime } from '@/components/date-time';
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from '@/components/ui/breadcrumb';
-import { Separator } from '@/components/ui/separator';
-import { SidebarTrigger } from '@/components/ui/sidebar';
+import { PageHeader, BreadcrumbItemType } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -42,6 +33,11 @@ type VerificationAction = {
   action: 'verify' | 'reject';
   surveyName: string;
 };
+
+const breadcrumbs: BreadcrumbItemType[] = [
+  { label: 'Verification', href: '/verification' },
+  { label: 'Queue' },
+];
 
 export default function VerificationQueuePage() {
   const router = useRouter();
@@ -215,22 +211,7 @@ export default function VerificationQueuePage() {
   if (isLoading) {
     return (
       <div className="flex flex-col">
-        <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-          <div className="flex flex-1 items-center gap-2">
-            <SidebarTrigger className="-ml-1" />
-            <Separator orientation="vertical" className="mr-2 h-4" />
-            <Breadcrumb>
-              <BreadcrumbList>
-                <BreadcrumbItem>Verification</BreadcrumbItem>
-                <BreadcrumbSeparator />
-                <BreadcrumbItem>
-                  <BreadcrumbPage>Queue</BreadcrumbPage>
-                </BreadcrumbItem>
-              </BreadcrumbList>
-            </Breadcrumb>
-          </div>
-          <DateTime />
-        </header>
+        <PageHeader breadcrumbs={breadcrumbs} />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <div className="h-16 w-16 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto mb-4"></div>
@@ -243,22 +224,7 @@ export default function VerificationQueuePage() {
 
   return (
     <div className="flex flex-col">
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <div className="flex flex-1 items-center gap-2">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mr-2 h-4" />
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem>Verification</BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbPage>Queue</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-        </div>
-        <DateTime />
-      </header>
+      <PageHeader breadcrumbs={breadcrumbs} />
 
       <div className="flex-1 p-6 space-y-6">
         <div className="flex items-center justify-between">

@@ -3,16 +3,8 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Papa from 'papaparse';
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator
-} from '@/components/ui/breadcrumb';
+import { PageHeader } from '@/components/page-header';
 import { Separator } from '@/components/ui/separator';
-import { SidebarTrigger } from '@/components/ui/sidebar';
-import { DateTime } from '@/components/date-time';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -22,6 +14,12 @@ import { Progress } from '@/components/ui/progress';
 import { useCreateSurvey } from '@/hooks/use-surveys';
 import { HugeiconsIcon } from "@hugeicons/react"
 import {Upload01Icon, File02Icon, AlertCircleIcon, Tick02Icon, Cancel01Icon} from "@hugeicons/core-free-icons";
+
+const breadcrumbs = [
+  { label: 'Dashboard', href: '/dashboard' },
+  { label: 'Survey Management', href: '/dashboard/survey' },
+  { label: 'Bulk Upload' },
+];
 
 interface ParsedSurvey {
   service_id: string;
@@ -281,25 +279,10 @@ export default function BulkUploadPage() {
   const errorCount = useMemo(() => uploadResults.filter(r => r.status === 'error').length, [uploadResults]);
 
   return (
-    <div className="flex flex-col">
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <div className="flex flex-1 items-center gap-2">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mr-2 h-4" />
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem>Survey Management</BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbPage>Bulk Upload</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-        </div>
-        <DateTime />
-      </header>
+    <>
+      <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex-1 p-6 space-y-6">
+      <div className="flex flex-1 flex-col gap-4 p-8">
         <div>
           <h1 className="text-3xl font-bold">Bulk Upload Surveys</h1>
           <p className="text-muted-foreground mt-1">
@@ -585,6 +568,6 @@ export default function BulkUploadPage() {
           </Card>
         )}
       </div>
-    </div>
+    </>
   );
 }

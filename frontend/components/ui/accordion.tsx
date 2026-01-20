@@ -35,7 +35,7 @@ const AccordionTrigger = React.forwardRef<
       {...props}
     >
       {children}
-      <HugeiconsIcon icon={ArrowDown01Icon} size={16} className="shrink-0 transition-transform duration-200" />
+      <HugeiconsIcon icon={ArrowDown01Icon} size={16} className="shrink-0 transition-transform duration-200" aria-hidden="true" />
     </AccordionPrimitive.Trigger>
   </AccordionPrimitive.Header>
 ))

@@ -56,8 +56,8 @@ def dashboard_stats(request):
         total_social_workers=Sum('social_worker_count')
     )
 
-    # Geographic distribution
-    province_distribution = Service.objects.values('province').annotate(
+    # Geographic distribution (by kecamatan/city)
+    kecamatan_distribution = Service.objects.values('city').annotate(
         count=Count('id')
     ).order_by('-count')
 
@@ -118,7 +118,7 @@ def dashboard_stats(request):
             'nurses': capacity_data['total_nurses'] or 0,
             'social_workers': capacity_data['total_social_workers'] or 0
         },
-        'geographic_distribution': list(province_distribution),
+        'geographic_distribution': list(kecamatan_distribution),
         'mtc_distribution': list(mtc_distribution)[:10],
         'system_health': {
             'unresolved_errors': unresolved_errors,

@@ -2,17 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { mockIndonesianServices } from '@/lib/indonesia-locations';
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from '@/components/ui/breadcrumb';
-import { Separator } from '@/components/ui/separator';
-import { SidebarTrigger } from '@/components/ui/sidebar';
-import { DateTime } from '@/components/date-time';
+import { PageHeader, BreadcrumbItemType } from '@/components/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -42,6 +32,12 @@ import {
 } from 'recharts';
 import { HugeiconsIcon } from "@hugeicons/react"
 import {Layers01Icon} from "@hugeicons/core-free-icons";
+
+const breadcrumbs: BreadcrumbItemType[] = [
+  { label: 'Dashboard', href: '/dashboard' },
+  { label: 'Reports & Analytics', href: '/reports' },
+  { label: 'MTC Distribution' },
+];
 
 const MTC_CATEGORIES = [
   { code: 'R1', name: 'Residential, 24-hour Inpatient Care', color: '#3b82f6' },
@@ -167,28 +163,7 @@ export default function MTCDistributionReportPage() {
 
   return (
     <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <Breadcrumb>
-          <BreadcrumbList>
-            <BreadcrumbItem>
-              <BreadcrumbLink href="/dashboard">Dashboard</BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbLink href="/reports">Reports & Analytics</BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbPage>MTC Distribution</BreadcrumbPage>
-            </BreadcrumbItem>
-          </BreadcrumbList>
-        </Breadcrumb>
-        <div className="ml-auto">
-          <DateTime />
-        </div>
-      </header>
+      <PageHeader breadcrumbs={breadcrumbs} />
 
       <div className="flex flex-1 flex-col gap-4 p-6">
         <div>

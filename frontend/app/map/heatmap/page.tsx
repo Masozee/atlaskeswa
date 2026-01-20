@@ -2,19 +2,7 @@
 
 import { useMemo, useState, useEffect } from "react"
 import dynamic from "next/dynamic"
-import {
-  SidebarTrigger,
-  useSidebar,
-} from "@/components/ui/sidebar"
-import { Separator } from "@/components/ui/separator"
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb"
+import { PageHeader, BreadcrumbItemType } from "@/components/page-header"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Select,
@@ -39,8 +27,13 @@ const LeafletHeatmap = dynamic(() => import("@/components/leaflet-heatmap").then
 
 type HeatmapMode = "density" | "capacity" | "staffing"
 
+const breadcrumbs: BreadcrumbItemType[] = [
+  { label: 'Dashboard', href: '/dashboard' },
+  { label: 'Map', href: '/map' },
+  { label: 'Heatmap' },
+]
+
 export default function HeatmapPage() {
-  const { open } = useSidebar()
   const [heatmapMode, setHeatmapMode] = useState<HeatmapMode>("density")
   const [mounted, setMounted] = useState(false)
 
@@ -150,27 +143,7 @@ export default function HeatmapPage() {
 
   return (
     <>
-      <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
-        <div className="flex items-center gap-2 px-4">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mr-2 h-4" />
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem className="hidden md:block">
-                <BreadcrumbLink href="/dashboard">Dashboard</BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator className="hidden md:block" />
-              <BreadcrumbItem className="hidden md:block">
-                <BreadcrumbLink href="/map">Map</BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator className="hidden md:block" />
-              <BreadcrumbItem>
-                <BreadcrumbPage>Heatmap</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-        </div>
-      </header>
+      <PageHeader breadcrumbs={breadcrumbs} />
 
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="grid gap-4 md:grid-cols-4">

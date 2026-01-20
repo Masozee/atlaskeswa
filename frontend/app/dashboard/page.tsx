@@ -2,19 +2,12 @@
 
 import { useDashboardStats } from '@/hooks/use-analytics';
 import { useSurveys } from '@/hooks/use-surveys';
-import { DateTime } from "@/components/date-time"
 import { useStore } from '@tanstack/react-store';
 import { authStore } from '@/store/auth-store';
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbList,
-  BreadcrumbPage,
-} from "@/components/ui/breadcrumb"
-import { Separator } from "@/components/ui/separator"
-import { SidebarTrigger } from "@/components/ui/sidebar"
-import { ThemeToggle } from "@/components/theme-toggle"
+import { PageHeader } from "@/components/page-header"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Calendar } from "@/components/ui/calendar"
+import { useState } from 'react'
 import {
   BarChart,
   Bar,
@@ -26,11 +19,36 @@ import {
   PieChart,
   Pie,
   Cell,
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
+  LabelList,
 } from 'recharts';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+
+// Dummy data for Kebumen kecamatan distribution
+const KEBUMEN_KECAMATAN_DATA = [
+  { name: 'Kebumen', services: 8 },
+  { name: 'Gombong', services: 6 },
+  { name: 'Kutowinangun', services: 5 },
+  { name: 'Karanganyar', services: 4 },
+  { name: 'Prembun', services: 4 },
+  { name: 'Pejagoan', services: 3 },
+  { name: 'Sruweng', services: 3 },
+  { name: 'Petanahan', services: 3 },
+  { name: 'Klirong', services: 2 },
+  { name: 'Buluspesantren', services: 2 },
+  { name: 'Ambal', services: 2 },
+  { name: 'Alian', services: 2 },
+  { name: 'Sempor', services: 1 },
+  { name: 'Rowokele', services: 1 },
+  { name: 'Kuwarasan', services: 1 },
+  { name: 'Adimulyo', services: 1 },
+];
+
+const breadcrumbs = [
+  { label: "Dasbor" },
+];
 
 function StatCard({
   title,
@@ -57,7 +75,6 @@ function StatCard({
           </CardDescription>
         )}
       </CardHeader>
-      <Separator />
       <CardContent className="pt-4">
         <div className="text-2xl font-bold">{typeof value === 'number' ? value.toLocaleString() : value}</div>
         {subtitle && (
@@ -79,6 +96,7 @@ export default function DashboardPage() {
   const { data: stats, isLoading } = useDashboardStats();
   const { data: pendingSurveys } = useSurveys({ verification_status: 'SUBMITTED', page_size: 5 });
   const user = useStore(authStore, (state) => state.user);
+  const [date, setDate] = useState<Date | undefined>(new Date());
 
   // Extract first name from user.name
   const firstName = user?.name?.split(' ')[0] || 'Pengguna';
@@ -86,24 +104,7 @@ export default function DashboardPage() {
   if (isLoading) {
     return (
       <>
-        <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mr-2 h-4" />
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem>
-                <BreadcrumbPage>Dasbor</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-          <div className="ml-auto flex h-full items-center">
-            <div className="px-4">
-              <DateTime />
-            </div>
-            <Separator orientation="vertical" />
-            <ThemeToggle />
-          </div>
-        </header>
+        <PageHeader breadcrumbs={breadcrumbs} />
         <div className="flex flex-1 items-center justify-center">
           <div className="text-center">
             <div className="h-16 w-16 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto mb-4"></div>
@@ -120,11 +121,6 @@ export default function DashboardPage() {
     value: item.count,
   }));
 
-  const provinceChartData = stats?.geographic_distribution.slice(0, 8).map((item) => ({
-    name: item.province,
-    services: item.count,
-  }));
-
   const activityTrendData = stats?.activity_trends.slice(-14).map((item) => ({
     date: new Date(item.day).toLocaleDateString('id-ID', { month: 'short', day: 'numeric' }),
     activities: item.count,
@@ -137,26 +133,9 @@ export default function DashboardPage() {
 
   return (
     <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <Breadcrumb>
-          <BreadcrumbList>
-            <BreadcrumbItem>
-              <BreadcrumbPage>Dasbor</BreadcrumbPage>
-            </BreadcrumbItem>
-          </BreadcrumbList>
-        </Breadcrumb>
-        <div className="ml-auto flex h-full items-center">
-          <div className="px-4">
-            <DateTime />
-          </div>
-          <Separator orientation="vertical" />
-          <ThemeToggle />
-        </div>
-      </header>
+      <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-4 p-4">
+      <div className="flex flex-1 flex-col gap-4 p-8">
         {/* Welcome Message */}
         <div>
           <h1 className="text-2xl font-bold">Selamat Datang Kembali, {firstName}!</h1>
@@ -191,57 +170,63 @@ export default function DashboardPage() {
           />
         </div>
 
-        {/* Charts Row */}
+        {/* Activity Overview + Calendar Row */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
           <Card className="col-span-4">
             <CardHeader>
               <CardTitle>Ikhtisar Aktivitas</CardTitle>
               <CardDescription>Aktivitas pengguna selama 14 hari terakhir</CardDescription>
             </CardHeader>
-            <Separator />
             <CardContent className="pl-2 pb-2">
               <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={activityTrendData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                <AreaChart data={activityTrendData} margin={{ top: 10, right: 10, left: 0, bottom: 5 }}>
                   <defs>
                     <linearGradient id="colorActivities" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
+                      <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.4}/>
+                      <stop offset="50%" stopColor="hsl(var(--primary))" stopOpacity={0.15}/>
+                      <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.02}/>
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted/50" vertical={false} />
                   <XAxis
                     dataKey="date"
                     className="text-xs"
                     tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
-                    angle={-45}
-                    textAnchor="end"
-                    height={60}
+                    axisLine={false}
+                    tickLine={false}
                   />
                   <YAxis
                     className="text-xs"
                     tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
                     domain={[0, yAxisMax]}
                     allowDataOverflow={false}
+                    axisLine={false}
+                    tickLine={false}
                   />
                   <Tooltip
                     contentStyle={{
                       backgroundColor: 'hsl(var(--background))',
                       border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px'
+                      borderRadius: '12px',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
                     }}
-                    labelStyle={{ color: 'hsl(var(--foreground))' }}
+                    labelStyle={{ color: 'hsl(var(--foreground))', fontWeight: 600 }}
                   />
-                  <Line
+                  <Area
                     type="monotone"
                     dataKey="activities"
                     stroke="hsl(var(--primary))"
-                    strokeWidth={2}
+                    strokeWidth={2.5}
                     fill="url(#colorActivities)"
-                    fillOpacity={1}
-                    dot={{ fill: 'hsl(var(--primary))', r: 4 }}
-                    activeDot={{ r: 6 }}
+                    dot={false}
+                    activeDot={{
+                      r: 6,
+                      fill: 'hsl(var(--primary))',
+                      stroke: 'hsl(var(--background))',
+                      strokeWidth: 2
+                    }}
                   />
-                </LineChart>
+                </AreaChart>
               </ResponsiveContainer>
               <p className="text-xs text-muted-foreground mt-4 px-4">
                 Pantau aktivitas sistem termasuk login, pengajuan data, dan proses verifikasi di semua peran pengguna selama dua minggu terakhir
@@ -251,10 +236,48 @@ export default function DashboardPage() {
 
           <Card className="col-span-3">
             <CardHeader>
+              <CardTitle>Kalender</CardTitle>
+              <CardDescription>Jadwal dan tanggal penting</CardDescription>
+            </CardHeader>
+            <CardContent className="flex gap-4 pt-0">
+              <Calendar
+                mode="single"
+                selected={date}
+                onSelect={setDate}
+                captionLayout="dropdown"
+                className="rounded-md [--cell-size:theme(spacing.10)] text-base"
+              />
+              <div className="w-px bg-border" />
+              <div className="flex-1 space-y-3">
+                <div className="text-sm font-medium">
+                  {date?.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                </div>
+                <div className="space-y-3 divide-y divide-border">
+                  <div className="pt-3 first:pt-0">
+                    <p className="text-sm font-medium">Verifikasi Survei</p>
+                    <p className="text-xs text-muted-foreground">3 survei menunggu verifikasi</p>
+                  </div>
+                  <div className="pt-3">
+                    <p className="text-sm font-medium">Deadline Laporan</p>
+                    <p className="text-xs text-muted-foreground">Laporan bulanan jatuh tempo</p>
+                  </div>
+                  <div className="pt-3">
+                    <p className="text-sm font-medium">Pelatihan Enumerator</p>
+                    <p className="text-xs text-muted-foreground">09:00 - 12:00 WIB</p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Distribusi Layanan + Geographic Distribution Row */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-12">
+          <Card className="lg:col-span-4">
+            <CardHeader>
               <CardTitle>Distribusi Layanan</CardTitle>
               <CardDescription>Berdasarkan jenis perawatan utama (MTC)</CardDescription>
             </CardHeader>
-            <Separator />
             <CardContent className="pb-2">
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
@@ -286,40 +309,52 @@ export default function DashboardPage() {
               </p>
             </CardContent>
           </Card>
-        </div>
 
-        {/* Geographic Distribution */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Distribusi Geografis</CardTitle>
-            <CardDescription>Layanan berdasarkan provinsi</CardDescription>
-          </CardHeader>
-          <Separator />
-          <CardContent className="pl-2">
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={provinceChartData}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis
-                  dataKey="name"
-                  className="text-xs"
-                  tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                />
-                <YAxis
-                  className="text-xs"
-                  tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: 'hsl(var(--background))',
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: '6px'
-                  }}
-                />
-                <Bar dataKey="services" fill="hsl(var(--primary))" radius={[8, 8, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+          <Card className="lg:col-span-8">
+            <CardContent className="pl-2 pt-4 relative h-full">
+              <div className="absolute top-4 right-4 text-right z-10">
+                <div className="text-base font-semibold">Distribusi Geografis</div>
+                <div className="text-xs text-muted-foreground">Sebaran layanan kesehatan jiwa<br />berdasarkan kecamatan di Kabupaten Kebumen</div>
+              </div>
+              <ResponsiveContainer width="100%" height={430}>
+                <BarChart data={KEBUMEN_KECAMATAN_DATA.slice(0, 10)} margin={{ top: 20, right: 10, left: 0, bottom: 5 }}>
+                  <defs>
+                    <linearGradient id="colorServices" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#4DA1DB" stopOpacity={1}/>
+                      <stop offset="100%" stopColor="#4DA1DB" stopOpacity={0.7}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted-foreground))" strokeOpacity={0.15} strokeWidth={0.5} />
+                  <XAxis
+                    dataKey="name"
+                    className="text-xs"
+                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
+                    axisLine={false}
+                    tickLine={false}
+                    interval={0}
+                  />
+                  <YAxis
+                    className="text-xs"
+                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
+                    axisLine={false}
+                    tickLine={false}
+                    orientation="left"
+                    tickMargin={8}
+                  />
+                  <Bar dataKey="services" fill="url(#colorServices)" radius={[6, 6, 0, 0]}>
+                    <LabelList
+                      dataKey="services"
+                      position="top"
+                      fill="hsl(var(--foreground))"
+                      fontSize={11}
+                      fontWeight={600}
+                    />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </div>
 
         {/* Bottom Row */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
@@ -328,14 +363,13 @@ export default function DashboardPage() {
               <CardTitle>Survei Tertunda Terbaru</CardTitle>
               <CardDescription>Menunggu verifikasi</CardDescription>
             </CardHeader>
-            <Separator />
-            <CardContent>
+                  <CardContent>
               <div className="space-y-3">
                 {pendingSurveys?.results && pendingSurveys.results.length > 0 ? (
                   pendingSurveys.results.map((survey) => (
                     <div
                       key={survey.id}
-                      className="flex items-center justify-between rounded-xl border p-3 hover:bg-accent transition-colors"
+                      className="flex items-center justify-between rounded-xl bg-muted/50 p-3 hover:bg-accent transition-colors"
                     >
                       <div className="space-y-1">
                         <p className="text-sm font-medium leading-none">{survey.service_name}</p>
@@ -360,8 +394,7 @@ export default function DashboardPage() {
               <CardTitle>Distribusi Staf</CardTitle>
               <CardDescription>Tenaga kesehatan profesional</CardDescription>
             </CardHeader>
-            <Separator />
-            <CardContent>
+                  <CardContent>
               <div className="space-y-3">
                 <div className="flex items-center">
                   <div className="ml-4 space-y-1 flex-1">
@@ -374,8 +407,7 @@ export default function DashboardPage() {
                     {stats?.capacity.psychiatrists || 0}
                   </div>
                 </div>
-                <Separator />
-                <div className="flex items-center">
+                          <div className="flex items-center">
                   <div className="ml-4 space-y-1 flex-1">
                     <p className="text-sm font-medium leading-none">Psikolog</p>
                     <p className="text-sm text-muted-foreground">
@@ -386,8 +418,7 @@ export default function DashboardPage() {
                     {stats?.capacity.psychologists || 0}
                   </div>
                 </div>
-                <Separator />
-                <div className="flex items-center">
+                          <div className="flex items-center">
                   <div className="ml-4 space-y-1 flex-1">
                     <p className="text-sm font-medium leading-none">Perawat</p>
                     <p className="text-sm text-muted-foreground">
@@ -398,8 +429,7 @@ export default function DashboardPage() {
                     {stats?.capacity.nurses || 0}
                   </div>
                 </div>
-                <Separator />
-                <div className="flex items-center">
+                          <div className="flex items-center">
                   <div className="ml-4 space-y-1 flex-1">
                     <p className="text-sm font-medium leading-none">Pekerja Sosial</p>
                     <p className="text-sm text-muted-foreground">

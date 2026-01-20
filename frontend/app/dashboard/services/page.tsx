@@ -1,18 +1,8 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { useServices, useMainTypesOfCare, useServiceTypes } from '@/hooks/use-services';
-import { DateTime } from "@/components/date-time";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
-import { Separator } from "@/components/ui/separator";
-import { SidebarTrigger } from "@/components/ui/sidebar";
+import { useServices } from '@/hooks/use-services';
+import { PageHeader } from "@/components/page-header";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -47,6 +37,11 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import { ServiceListItem } from "@/lib/types/api";
+
+const breadcrumbs = [
+  { label: "Dasbor", href: "/dashboard" },
+  { label: "Semua Layanan" },
+];
 
 export default function AllServicesPage() {
   const [search, setSearch] = useState('');
@@ -173,24 +168,7 @@ export default function AllServicesPage() {
   if (isLoading) {
     return (
       <>
-        <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mr-2 h-4" />
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem>
-                <BreadcrumbLink href="/dashboard">Dasbor</BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbPage>Semua Layanan</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-          <div className="ml-auto">
-            <DateTime />
-          </div>
-        </header>
+        <PageHeader breadcrumbs={breadcrumbs} />
         <div className="flex flex-1 items-center justify-center">
           <div className="text-center">
             <div className="h-16 w-16 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto mb-4"></div>
@@ -203,26 +181,9 @@ export default function AllServicesPage() {
 
   return (
     <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <Breadcrumb>
-          <BreadcrumbList>
-            <BreadcrumbItem>
-              <BreadcrumbLink href="/dashboard">Dasbor</BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbPage>Semua Layanan</BreadcrumbPage>
-            </BreadcrumbItem>
-          </BreadcrumbList>
-        </Breadcrumb>
-        <div className="ml-auto">
-          <DateTime />
-        </div>
-      </header>
+      <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-4 p-4">
+      <div className="flex flex-1 flex-col gap-4 p-8">
         <div>
           <h1 className="text-2xl font-bold">Semua Layanan</h1>
           <p className="text-muted-foreground">Direktori layanan kesehatan jiwa</p>

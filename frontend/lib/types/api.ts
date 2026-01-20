@@ -331,7 +331,7 @@ export interface DashboardStats {
     nurses: number;
     social_workers: number;
   };
-  geographic_distribution: Array<{ province: string; count: number }>;
+  geographic_distribution: Array<{ city: string; count: number }>;
   mtc_distribution: Array<{ mtc__code: string; mtc__name: string; count: number }>;
   system_health: {
     unresolved_errors: number;

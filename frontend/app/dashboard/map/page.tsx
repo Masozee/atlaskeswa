@@ -1,21 +1,11 @@
 'use client';
 
 import { useDashboardStats } from '@/hooks/use-analytics';
-import { DateTime } from "@/components/date-time"
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb"
+import { PageHeader } from "@/components/page-header"
 import { Separator } from "@/components/ui/separator"
-import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Map, MapControls, MapMarker, MarkerContent, MarkerPopup, MarkerLabel } from "@/components/ui/map"
 import { useMemo } from 'react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
 // Indonesia province coordinates (sample data)
 const provinceCoordinates: { [key: string]: [number, number] } = {
@@ -28,6 +18,11 @@ const provinceCoordinates: { [key: string]: [number, number] } = {
   'Sumatera Utara': [3.5952, 98.6722],
   'Sulawesi Selatan': [-5.1477, 119.4327],
 };
+
+const breadcrumbs = [
+  { label: 'Dashboard', href: '/dashboard' },
+  { label: 'Service Distribution Map' },
+];
 
 export default function ServiceDistributionMapPage() {
   const { data: stats, isLoading } = useDashboardStats();
@@ -42,32 +37,29 @@ export default function ServiceDistributionMapPage() {
     }));
   }, [stats]);
 
-  const chartData = stats?.geographic_distribution.slice(0, 8).map((item) => ({
-    name: item.province,
-    services: item.count,
-  }));
+  // Fallback data if API returns empty - sorted by services descending
+  const fallbackChartData = [
+    { name: 'DKI Jakarta', services: 45 },
+    { name: 'Jawa Barat', services: 38 },
+    { name: 'Jawa Tengah', services: 32 },
+    { name: 'Jawa Timur', services: 28 },
+    { name: 'DI Yogyakarta', services: 22 },
+    { name: 'Bali', services: 15 },
+    { name: 'Sumatera Utara', services: 12 },
+    { name: 'Sulawesi Selatan', services: 8 },
+  ];
+
+  const chartData = stats?.geographic_distribution?.length
+    ? stats.geographic_distribution.slice(0, 8).map((item) => ({
+        name: item.province,
+        services: item.count,
+      }))
+    : fallbackChartData;
 
   if (isLoading) {
     return (
       <>
-        <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mr-2 h-4" />
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem>
-                <BreadcrumbLink href="/dashboard">Dashboard</BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbPage>Service Distribution Map</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-          <div className="ml-auto">
-            <DateTime />
-          </div>
-        </header>
+        <PageHeader breadcrumbs={breadcrumbs} />
         <div className="flex flex-1 items-center justify-center">
           <div className="text-center">
             <div className="h-16 w-16 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto mb-4"></div>
@@ -80,26 +72,9 @@ export default function ServiceDistributionMapPage() {
 
   return (
     <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <Breadcrumb>
-          <BreadcrumbList>
-            <BreadcrumbItem>
-              <BreadcrumbLink href="/dashboard">Dashboard</BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbPage>Service Distribution Map</BreadcrumbPage>
-            </BreadcrumbItem>
-          </BreadcrumbList>
-        </Breadcrumb>
-        <div className="ml-auto">
-          <DateTime />
-        </div>
-      </header>
+      <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-4 p-4">
+      <div className="flex flex-1 flex-col gap-4 p-8">
         <div>
           <h1 className="text-2xl font-bold">Service Distribution Map</h1>
           <p className="text-muted-foreground">Geographic visualization of mental health services across Indonesia</p>
@@ -112,7 +87,6 @@ export default function ServiceDistributionMapPage() {
               <CardTitle>Indonesia Service Coverage</CardTitle>
               <CardDescription>Mental health service locations by province</CardDescription>
             </CardHeader>
-            <Separator />
             <CardContent>
               <div className="h-[500px] w-full overflow-hidden rounded-lg">
                 <Map center={[118.0149, -2.5489]} zoom={5}>
@@ -160,7 +134,6 @@ export default function ServiceDistributionMapPage() {
                 <CardTitle>Coverage Statistics</CardTitle>
                 <CardDescription>Service distribution metrics</CardDescription>
               </CardHeader>
-              <Separator />
               <CardContent className="space-y-4">
                 <div>
                   <p className="text-sm text-muted-foreground">Total Provinces Covered</p>
@@ -184,7 +157,6 @@ export default function ServiceDistributionMapPage() {
                 <CardTitle>Top Provinces</CardTitle>
                 <CardDescription>Highest service coverage</CardDescription>
               </CardHeader>
-              <Separator />
               <CardContent>
                 <div className="space-y-3">
                   {stats?.geographic_distribution.slice(0, 5).map((item, idx) => (
@@ -199,42 +171,6 @@ export default function ServiceDistributionMapPage() {
           </div>
         </div>
 
-        {/* Province Chart */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Provincial Distribution</CardTitle>
-            <CardDescription>Number of mental health services by province</CardDescription>
-          </CardHeader>
-          <Separator />
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis
-                  dataKey="name"
-                  className="text-xs"
-                  tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                />
-                <YAxis
-                  className="text-xs"
-                  tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: 'hsl(var(--background))',
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: '8px'
-                  }}
-                />
-                <Bar
-                  dataKey="services"
-                  fill="hsl(var(--primary))"
-                  radius={[8, 8, 0, 0]}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
       </div>
     </>
   );

@@ -1,19 +1,14 @@
 'use client';
 
 import { useServiceAnalytics, useSurveyAnalytics } from '@/hooks/use-analytics';
-import { DateTime } from "@/components/date-time"
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb"
-import { Separator } from "@/components/ui/separator"
-import { SidebarTrigger } from "@/components/ui/sidebar"
+import { PageHeader } from "@/components/page-header"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
+
+const breadcrumbs = [
+  { label: 'Dashboard', href: '/dashboard' },
+  { label: 'Key Indicators' },
+];
 
 export default function KeyIndicatorsPage() {
   const { data: serviceStats, isLoading: serviceLoading } = useServiceAnalytics();
@@ -24,24 +19,7 @@ export default function KeyIndicatorsPage() {
   if (isLoading) {
     return (
       <>
-        <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mr-2 h-4" />
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem>
-                <BreadcrumbLink href="/dashboard">Dashboard</BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbPage>Key Indicators</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-          <div className="ml-auto">
-            <DateTime />
-          </div>
-        </header>
+        <PageHeader breadcrumbs={breadcrumbs} />
         <div className="flex flex-1 items-center justify-center">
           <div className="text-center">
             <div className="h-16 w-16 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto mb-4"></div>
@@ -54,26 +32,9 @@ export default function KeyIndicatorsPage() {
 
   return (
     <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <Breadcrumb>
-          <BreadcrumbList>
-            <BreadcrumbItem>
-              <BreadcrumbLink href="/dashboard">Dashboard</BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbPage>Key Indicators</BreadcrumbPage>
-            </BreadcrumbItem>
-          </BreadcrumbList>
-        </Breadcrumb>
-        <div className="ml-auto">
-          <DateTime />
-        </div>
-      </header>
+      <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-4 p-4">
+      <div className="flex flex-1 flex-col gap-4 p-8">
         <div>
           <h1 className="text-2xl font-bold">Key Indicators</h1>
           <p className="text-muted-foreground">Key performance indicators and metrics</p>
@@ -86,7 +47,6 @@ export default function KeyIndicatorsPage() {
               <CardTitle>Insurance Coverage</CardTitle>
               <CardDescription>Services accepting different insurance types</CardDescription>
             </CardHeader>
-            <Separator />
             <CardContent className="space-y-4">
               <div>
                 <div className="flex items-center justify-between mb-2">
@@ -110,7 +70,6 @@ export default function KeyIndicatorsPage() {
               <CardTitle>Emergency Services</CardTitle>
               <CardDescription>24/7 and emergency care availability</CardDescription>
             </CardHeader>
-            <Separator />
             <CardContent className="space-y-4">
               <div>
                 <div className="flex items-center justify-between mb-2">
@@ -136,7 +95,6 @@ export default function KeyIndicatorsPage() {
             <CardTitle>Average Service Capacity</CardTitle>
             <CardDescription>Average resources per mental health service</CardDescription>
           </CardHeader>
-          <Separator />
           <CardContent>
             <div className="grid gap-4 md:grid-cols-4">
               <div className="space-y-1">
@@ -165,7 +123,6 @@ export default function KeyIndicatorsPage() {
             <CardTitle>Survey Quality Indicators</CardTitle>
             <CardDescription>Patient care and service quality metrics</CardDescription>
           </CardHeader>
-          <Separator />
           <CardContent>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-1">
@@ -189,7 +146,6 @@ export default function KeyIndicatorsPage() {
               <CardTitle>Gender Distribution</CardTitle>
               <CardDescription>Patient gender demographics</CardDescription>
             </CardHeader>
-            <Separator />
             <CardContent className="space-y-4">
               <div>
                 <div className="flex items-center justify-between mb-2">
@@ -213,7 +169,6 @@ export default function KeyIndicatorsPage() {
               <CardTitle>Age Distribution</CardTitle>
               <CardDescription>Patient age demographics</CardDescription>
             </CardHeader>
-            <Separator />
             <CardContent className="space-y-4">
               <div>
                 <div className="flex items-center justify-between mb-2">

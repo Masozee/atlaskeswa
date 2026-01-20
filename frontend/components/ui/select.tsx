@@ -40,7 +40,7 @@ function SelectValue({ className, placeholder, ...props }: SelectPrimitive.Value
   return (
     <SelectPrimitive.Value
       data-slot="select-value"
-      className={cn("flex flex-1 text-left text-left data-[placeholder]:text-muted-foreground", className)}
+      className={cn("flex flex-1 text-left data-[placeholder]:text-muted-foreground", className)}
       {...props}
     >
       {(value) => value ?? placeholder}
@@ -69,7 +69,7 @@ function SelectTrigger({
       {children}
       <SelectPrimitive.Icon
         render={
-          <HugeiconsIcon icon={UnfoldMoreIcon} strokeWidth={2} className="text-muted-foreground size-4 pointer-events-none" />
+          <HugeiconsIcon icon={UnfoldMoreIcon} strokeWidth={2} className="text-muted-foreground size-4 pointer-events-none" aria-hidden="true" />
         }
       />
     </SelectPrimitive.Trigger>
@@ -147,7 +147,7 @@ function SelectItem({
       <SelectPrimitive.ItemIndicator
         render={<span className="pointer-events-none absolute right-2 flex size-4 items-center justify-center" />}
       >
-        <HugeiconsIcon icon={Tick02Icon} strokeWidth={2} className="pointer-events-none" />
+        <HugeiconsIcon icon={Tick02Icon} strokeWidth={2} className="pointer-events-none" aria-hidden="true" />
       </SelectPrimitive.ItemIndicator>
     </SelectPrimitive.Item>
   )
@@ -173,10 +173,11 @@ function SelectScrollUpButton({
   return (
     <SelectPrimitive.ScrollUpArrow
       data-slot="select-scroll-up-button"
+      aria-label="Scroll up"
       className={cn("bg-popover z-10 flex cursor-default items-center justify-center py-1 [&_svg:not([class*='size-'])]:size-4 top-0 w-full", className)}
       {...props}
     >
-      <HugeiconsIcon icon={ArrowUp01Icon} strokeWidth={2} />
+      <HugeiconsIcon icon={ArrowUp01Icon} strokeWidth={2} aria-hidden="true" />
     </SelectPrimitive.ScrollUpArrow>
   )
 }
@@ -188,10 +189,11 @@ function SelectScrollDownButton({
   return (
     <SelectPrimitive.ScrollDownArrow
       data-slot="select-scroll-down-button"
+      aria-label="Scroll down"
       className={cn("bg-popover z-10 flex cursor-default items-center justify-center py-1 [&_svg:not([class*='size-'])]:size-4 bottom-0 w-full", className)}
       {...props}
     >
-      <HugeiconsIcon icon={ArrowDown01Icon} strokeWidth={2} />
+      <HugeiconsIcon icon={ArrowDown01Icon} strokeWidth={2} aria-hidden="true" />
     </SelectPrimitive.ScrollDownArrow>
   )
 }

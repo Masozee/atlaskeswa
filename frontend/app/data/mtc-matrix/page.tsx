@@ -3,17 +3,8 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
-import { DateTime } from '@/components/date-time';
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from '@/components/ui/breadcrumb';
+import { PageHeader, BreadcrumbItemType } from '@/components/page-header';
 import { Separator } from '@/components/ui/separator';
-import { SidebarTrigger } from '@/components/ui/sidebar';
 import {
   Card,
   CardContent,
@@ -42,6 +33,11 @@ interface Service {
   bed_capacity: number;
   total_professional_staff: number;
 }
+
+const breadcrumbs: BreadcrumbItemType[] = [
+  { label: 'Data Explorer', href: '/data' },
+  { label: 'MTC Matrix View' },
+];
 
 export default function MTCMatrixPage() {
   const { data: servicesData } = useQuery({
@@ -138,24 +134,7 @@ export default function MTCMatrixPage() {
 
   return (
     <div className="flex flex-col">
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <div className="flex flex-1 items-center gap-2">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mr-2 h-4" />
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem>
-                <BreadcrumbLink href="/data">Data Explorer</BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbPage>MTC Matrix View</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-        </div>
-        <DateTime />
-      </header>
+      <PageHeader breadcrumbs={breadcrumbs} />
 
       <div className="flex-1 p-6 space-y-6">
         <div>

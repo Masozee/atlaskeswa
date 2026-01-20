@@ -4,16 +4,7 @@ import { useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
-import { DateTime } from '@/components/date-time';
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from '@/components/ui/breadcrumb';
-import { Separator } from '@/components/ui/separator';
-import { SidebarTrigger } from '@/components/ui/sidebar';
+import { PageHeader, BreadcrumbItemType } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -45,6 +36,11 @@ interface AuditLog {
   notes: string;
   timestamp: string;
 }
+
+const breadcrumbs: BreadcrumbItemType[] = [
+  { label: 'Verification & QC', href: '/verification' },
+  { label: 'Verification History' },
+];
 
 export default function VerificationHistoryPage() {
   const router = useRouter();
@@ -219,22 +215,7 @@ export default function VerificationHistoryPage() {
 
   return (
     <div className="flex flex-col">
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <div className="flex flex-1 items-center gap-2">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mr-2 h-4" />
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem>Verification & QC</BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbPage>Verification History</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-        </div>
-        <DateTime />
-      </header>
+      <PageHeader breadcrumbs={breadcrumbs} />
 
       <div className="flex-1 p-6 space-y-6">
         <div className="flex items-center justify-between">

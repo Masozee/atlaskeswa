@@ -3,17 +3,8 @@
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import { PDFDownloadLink } from '@react-pdf/renderer';
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from '@/components/ui/breadcrumb';
+import { PageHeader, BreadcrumbItemType } from '@/components/page-header';
 import { Separator } from '@/components/ui/separator';
-import { SidebarTrigger } from '@/components/ui/sidebar';
-import { DateTime } from '@/components/date-time';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -36,6 +27,12 @@ import {Download01Icon,
   CheckmarkCircle02Icon,} from "@hugeicons/core-free-icons";
 import { ServiceAvailabilityPDF } from '@/lib/pdf-generator';
 import { apiClient } from '@/lib/api-client';
+
+const breadcrumbs: BreadcrumbItemType[] = [
+  { label: 'Dashboard', href: '/dashboard' },
+  { label: 'Reports & Analytics', href: '/reports' },
+  { label: 'Export & Download' },
+];
 
 const REPORT_TYPES = [
   {
@@ -183,28 +180,7 @@ export default function ExportReportPage() {
 
   return (
     <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <Breadcrumb>
-          <BreadcrumbList>
-            <BreadcrumbItem>
-              <BreadcrumbLink href="/dashboard">Dashboard</BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbLink href="/reports">Reports & Analytics</BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbPage>Export & Download</BreadcrumbPage>
-            </BreadcrumbItem>
-          </BreadcrumbList>
-        </Breadcrumb>
-        <div className="ml-auto">
-          <DateTime />
-        </div>
-      </header>
+      <PageHeader breadcrumbs={breadcrumbs} />
 
       <div className="flex flex-1 flex-col gap-4 p-6">
         <div>

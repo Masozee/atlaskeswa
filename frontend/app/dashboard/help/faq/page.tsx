@@ -1,18 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from '@/components/ui/breadcrumb';
-import { Separator } from '@/components/ui/separator';
-import { SidebarTrigger } from '@/components/ui/sidebar';
-import { DateTime } from '@/components/date-time';
-import { Card, CardContent } from '@/components/ui/card';
+import { PageHeader } from '@/components/page-header';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -22,7 +11,7 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import { HugeiconsIcon } from "@hugeicons/react"
-import {Search01Icon, HelpCircleIcon} from "@hugeicons/core-free-icons";
+import { Search01Icon } from "@hugeicons/core-free-icons";
 
 const faqs = [
   {
@@ -93,6 +82,12 @@ const faqs = [
   },
 ];
 
+const breadcrumbs = [
+  { label: 'Dashboard', href: '/dashboard' },
+  { label: 'Help & Documentation', href: '/dashboard/help' },
+  { label: 'FAQ' },
+];
+
 export default function FAQPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -112,30 +107,9 @@ export default function FAQPage() {
 
   return (
     <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <Breadcrumb>
-          <BreadcrumbList>
-            <BreadcrumbItem>
-              <BreadcrumbLink href="/dashboard">Dashboard</BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbLink href="/dashboard/help">Help & Documentation</BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbPage>FAQ</BreadcrumbPage>
-            </BreadcrumbItem>
-          </BreadcrumbList>
-        </Breadcrumb>
-        <div className="ml-auto">
-          <DateTime />
-        </div>
-      </header>
+      <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-4 p-4">
+      <div className="flex flex-1 flex-col gap-6 p-8">
         {/* Page Header */}
         <div>
           <h1 className="text-2xl font-bold">Frequently Asked Questions</h1>
@@ -173,60 +147,48 @@ export default function FAQPage() {
 
         {/* FAQs */}
         {filteredFAQs.length > 0 ? (
-          <Card>
-            <CardContent className="pt-6">
-              <Accordion type="single" collapsible className="w-full">
-                {filteredFAQs.map((faq) => (
-                  <AccordionItem key={faq.id} value={`faq-${faq.id}`}>
-                    <AccordionTrigger className="text-left">
-                      <div className="flex items-start gap-3">
-                        <HugeiconsIcon icon={HelpCircleIcon} size={20} className="text-primary shrink-0 mt-0.5" />
-                        <span>{faq.question}</span>
-                      </div>
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      <div className="pl-8 pt-2 space-y-2">
-                        <Badge variant="outline" className="mb-2">
-                          {faq.category}
-                        </Badge>
-                        <div className="text-sm text-muted-foreground whitespace-pre-line">
-                          {faq.answer}
-                        </div>
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
-                ))}
-              </Accordion>
-            </CardContent>
-          </Card>
+          <Accordion type="single" collapsible className="w-full">
+            {filteredFAQs.map((faq) => (
+              <AccordionItem key={faq.id} value={`faq-${faq.id}`}>
+                <AccordionTrigger className="text-left">
+                  <span>{faq.question}</span>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="pt-2 space-y-2">
+                    <Badge variant="outline" className="mb-2">
+                      {faq.category}
+                    </Badge>
+                    <div className="text-sm text-muted-foreground whitespace-pre-line">
+                      {faq.answer}
+                    </div>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
         ) : (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <HugeiconsIcon icon={HelpCircleIcon} size={48} className="text-muted-foreground mb-4" />
-              <p className="text-muted-foreground text-center">
-                No FAQs found matching your search.
-              </p>
-            </CardContent>
-          </Card>
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">
+              No FAQs found matching your search.
+            </p>
+          </div>
         )}
 
         {/* Still have questions */}
-        <Card className="bg-blue-50 border-blue-200">
-          <CardContent className="py-6">
-            <div className="text-center">
-              <h3 className="font-semibold text-blue-900 mb-2">Still have questions?</h3>
-              <p className="text-sm text-blue-700 mb-4">
-                Can't find what you're looking for? Contact our support team for assistance.
-              </p>
-              <a
-                href="/dashboard/help/support"
-                className="inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-              >
-                Contact Support
-              </a>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="bg-blue-50 rounded-lg p-6">
+          <div className="text-center">
+            <h3 className="font-semibold text-blue-900 mb-2">Still have questions?</h3>
+            <p className="text-sm text-blue-700 mb-4">
+              Can't find what you're looking for? Contact our support team for assistance.
+            </p>
+            <a
+              href="/dashboard/help/support"
+              className="inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            >
+              Contact Support
+            </a>
+          </div>
+        </div>
       </div>
     </>
   );

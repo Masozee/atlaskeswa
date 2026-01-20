@@ -4,17 +4,7 @@ import { useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
-import { DateTime } from '@/components/date-time';
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from '@/components/ui/breadcrumb';
-import { Separator } from '@/components/ui/separator';
-import { SidebarTrigger } from '@/components/ui/sidebar';
+import { PageHeader, BreadcrumbItemType } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
 import {
   Select,
@@ -71,6 +61,11 @@ const STATUS_COLORS = {
   DRAFT: '#f59e0b',
   REJECTED: '#ef4444',
 };
+
+const breadcrumbs: BreadcrumbItemType[] = [
+  { label: 'Enumerator Management', href: '/enumerators' },
+  { label: 'Performance Report' },
+];
 
 export default function PerformanceReportPage() {
   const router = useRouter();
@@ -222,26 +217,7 @@ export default function PerformanceReportPage() {
 
   return (
     <div className="flex flex-col">
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <div className="flex flex-1 items-center gap-2">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mr-2 h-4" />
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem>
-                <BreadcrumbLink href="/enumerators">
-                  Enumerator Management
-                </BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbPage>Performance Report</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-        </div>
-        <DateTime />
-      </header>
+      <PageHeader breadcrumbs={breadcrumbs} />
 
       <div className="flex-1 p-6 space-y-6">
         <div className="flex items-center justify-between gap-4">
