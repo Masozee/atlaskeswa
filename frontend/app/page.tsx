@@ -12,6 +12,7 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
+import { KebumenMap } from '@/components/kebumen-map';
 import { HugeiconsIcon } from "@hugeicons/react"
 import {DashboardSquare01Icon,
   Hospital01Icon,
@@ -94,9 +95,8 @@ export default function HomePage() {
               </Link>
             </div>
             <Button asChild>
-              <Link href="/dashboard" className="gap-2">
-                Ke Dasbor
-                <HugeiconsIcon icon={ArrowRight01Icon} size={16} />
+              <Link href="/login">
+                Masuk
               </Link>
             </Button>
           </div>
@@ -110,9 +110,9 @@ export default function HomePage() {
             <HugeiconsIcon icon={CheckmarkCircle02Icon} size={16} className="text-primary" />
             <span>Sistem Layanan Kesehatan Jiwa DESDE-LTC</span>
           </Badge>
-          <h1 className="text-4xl md:text-6xl font-bold tracking-tight">
+          <h2 className="text-3xl md:text-5xl font-bold tracking-tight">
             Direktori Layanan Kesehatan Jiwa & Manajemen Survei
-          </h1>
+          </h2>
           <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
             Platform komprehensif untuk mengelola direktori layanan kesehatan jiwa, melakukan survei,
             dan memantau kualitas layanan di seluruh Indonesia.
@@ -154,141 +154,159 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Grid Fitur */}
-      <section id="features" className="container max-w-7xl mx-auto px-4 py-20">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold mb-3">Fitur Utama</h2>
-          <p className="text-muted-foreground text-lg">
-            Semua yang Anda butuhkan untuk mengelola layanan kesehatan jiwa secara efisien
-          </p>
+      {/* Map & Stats Section */}
+      <section className="bg-muted/30 py-20">
+        <div className="container max-w-7xl mx-auto px-4">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold mb-3">Peta Layanan Kesehatan Jiwa</h2>
+            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+              Visualisasi sebaran fasilitas kesehatan jiwa di Kabupaten Kebumen berdasarkan hasil pemetaan DESDE-LTC
+            </p>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Map - 8 columns */}
+          <div className="lg:col-span-8">
+            <div className="relative rounded-xl overflow-hidden border h-full min-h-[450px]">
+              <KebumenMap height="h-full" showControls />
+              <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-background/90 to-transparent">
+                <Badge variant="secondary" className="gap-2 px-3 py-1 bg-background/80 backdrop-blur">
+                  <HugeiconsIcon icon={Location01Icon} size={14} className="text-primary" />
+                  <span className="text-xs">Kabupaten Kebumen, Jawa Tengah</span>
+                </Badge>
+              </div>
+            </div>
+          </div>
+
+          {/* Stats - 4 columns */}
+          <div className="lg:col-span-4 flex flex-col gap-4">
+            {/* Pie Chart Card */}
+            <Card className="flex-1">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Distribusi Layanan</CardTitle>
+                <CardDescription className="text-xs">Berdasarkan jenis layanan</CardDescription>
+              </CardHeader>
+              <CardContent className="pb-4">
+                <div className="h-[180px] flex items-center justify-center">
+                  <div className="relative">
+                    <svg viewBox="0 0 100 100" className="w-36 h-36 -rotate-90">
+                      {/* Background circle */}
+                      <circle cx="50" cy="50" r="40" fill="none" stroke="hsl(var(--muted))" strokeWidth="12" />
+                      {/* Puskesmas - 14 of 48 = 29% */}
+                      <circle
+                        cx="50" cy="50" r="40"
+                        fill="none"
+                        stroke="#3b82f6"
+                        strokeWidth="12"
+                        strokeDasharray="73.3 251.33"
+                        strokeDashoffset="0"
+                        strokeLinecap="round"
+                      />
+                      {/* RSU - 10 of 48 = 21% */}
+                      <circle
+                        cx="50" cy="50" r="40"
+                        fill="none"
+                        stroke="#10b981"
+                        strokeWidth="12"
+                        strokeDasharray="52.4 251.33"
+                        strokeDashoffset="-73.3"
+                        strokeLinecap="round"
+                      />
+                      {/* Klinik - 7 of 48 = 15% */}
+                      <circle
+                        cx="50" cy="50" r="40"
+                        fill="none"
+                        stroke="#f59e0b"
+                        strokeWidth="12"
+                        strokeDasharray="36.7 251.33"
+                        strokeDashoffset="-125.7"
+                        strokeLinecap="round"
+                      />
+                      {/* Lainnya - 17 of 48 = 35% */}
+                      <circle
+                        cx="50" cy="50" r="40"
+                        fill="none"
+                        stroke="#8b5cf6"
+                        strokeWidth="12"
+                        strokeDasharray="88.97 251.33"
+                        strokeDashoffset="-162.4"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                    {/* Center text */}
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <span className="text-2xl font-bold">48</span>
+                      <span className="text-[10px] text-muted-foreground">Total</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#3b82f6]" />
+                    <span className="text-muted-foreground">Puskesmas: 14 (29%)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#10b981]" />
+                    <span className="text-muted-foreground">RSU: 10 (21%)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#f59e0b]" />
+                    <span className="text-muted-foreground">Klinik: 7 (15%)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#8b5cf6]" />
+                    <span className="text-muted-foreground">Lainnya: 17 (35%)</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Stats Card */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Fasilitas Kesehatan Jiwa</CardTitle>
+                <CardDescription className="text-xs">Data Kabupaten Kebumen</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                      <HugeiconsIcon icon={Hospital01Icon} size={16} className="text-blue-500" />
+                    </div>
+                    <span className="text-sm">Total Fasilitas</span>
+                  </div>
+                  <span className="text-xl font-bold">48</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-green-500/10 flex items-center justify-center">
+                      <HugeiconsIcon icon={CheckmarkCircle02Icon} size={16} className="text-green-500" />
+                    </div>
+                    <span className="text-sm">Terverifikasi</span>
+                  </div>
+                  <span className="text-xl font-bold">42</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                      <HugeiconsIcon icon={ClipboardIcon} size={16} className="text-amber-500" />
+                    </div>
+                    <span className="text-sm">Survei Aktif</span>
+                  </div>
+                  <span className="text-xl font-bold">12</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                      <HugeiconsIcon icon={Location01Icon} size={16} className="text-purple-500" />
+                    </div>
+                    <span className="text-sm">Kecamatan</span>
+                  </div>
+                  <span className="text-xl font-bold">26</span>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
-
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 max-w-6xl mx-auto">
-          {/* Dasbor & Analitik */}
-          <Card className="group relative overflow-hidden transition-all hover:shadow-lg hover:border-primary/50">
-            <CardHeader>
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 mb-4">
-                <HugeiconsIcon icon={DashboardSquare01Icon} size={24} className="text-primary" />
-              </div>
-              <CardTitle className="text-lg">Dasbor & Wawasan</CardTitle>
-              <CardDescription>
-                Ikhtisar real-time dari indikator utama, distribusi layanan, dan pengajuan terbaru dengan analitik komprehensif.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button asChild variant="link" className="p-0 h-auto gap-1 text-sm font-medium">
-                <Link href="/dashboard" className="inline-flex items-center hover:gap-2 transition-all">
-                  Lihat Dasbor
-                  <HugeiconsIcon icon={ArrowRight01Icon} size={16} />
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Manajemen Layanan */}
-          <Card className="group relative overflow-hidden transition-all hover:shadow-lg hover:border-primary/50">
-            <CardHeader>
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 mb-4">
-                <HugeiconsIcon icon={Hospital01Icon} size={24} className="text-primary" />
-              </div>
-              <CardTitle className="text-lg">Direktori Layanan</CardTitle>
-              <CardDescription>
-                Kelola layanan kesehatan jiwa, kategori (BSIC), jenis perawatan utama (MTC), dan populasi sasaran.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button asChild variant="link" className="p-0 h-auto gap-1 text-sm font-medium">
-                <Link href="/dashboard/services" className="inline-flex items-center hover:gap-2 transition-all">
-                  Telusuri Layanan
-                  <HugeiconsIcon icon={ArrowRight01Icon} size={16} />
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Manajemen Survei */}
-          <Card className="group relative overflow-hidden transition-all hover:shadow-lg hover:border-primary/50">
-            <CardHeader>
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 mb-4">
-                <HugeiconsIcon icon={ClipboardIcon} size={24} className="text-primary" />
-              </div>
-              <CardTitle className="text-lg">Manajemen Survei</CardTitle>
-              <CardDescription>
-                Buat, kelola, dan analisis survei dengan kemampuan unggah massal dan log audit komprehensif.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button asChild variant="link" className="p-0 h-auto gap-1 text-sm font-medium">
-                <Link href="/dashboard/survey" className="inline-flex items-center hover:gap-2 transition-all">
-                  Kelola Survei
-                  <HugeiconsIcon icon={ArrowRight01Icon} size={16} />
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Verifikasi & QC */}
-          <Card className="group relative overflow-hidden transition-all hover:shadow-lg hover:border-primary/50">
-            <CardHeader>
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 mb-4">
-                <HugeiconsIcon icon={ShieldUserIcon} size={24} className="text-primary" />
-              </div>
-              <CardTitle className="text-lg">Verifikasi & Kontrol Kualitas</CardTitle>
-              <CardDescription>
-                Tinjau pengajuan, verifikasi detail layanan, validasi klasifikasi MTC, dan kelola bukti.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button asChild variant="link" className="p-0 h-auto gap-1 text-sm font-medium">
-                <Link href="/dashboard/queue" className="inline-flex items-center hover:gap-2 transition-all">
-                  Lihat Antrian
-                  <HugeiconsIcon icon={ArrowRight01Icon} size={16} />
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Peta & Geospasial */}
-          <Card className="group relative overflow-hidden transition-all hover:shadow-lg hover:border-primary/50">
-            <CardHeader>
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 mb-4">
-                <HugeiconsIcon icon={Location01Icon} size={24} className="text-primary" />
-              </div>
-              <CardTitle className="text-lg">Peta & Analisis Geospasial</CardTitle>
-              <CardDescription>
-                Visualisasikan lokasi layanan, analisis pola distribusi, dan bandingkan cakupan regional.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button asChild variant="link" className="p-0 h-auto gap-1 text-sm font-medium">
-                <Link href="/dashboard/map" className="inline-flex items-center hover:gap-2 transition-all">
-                  Lihat Peta
-                  <HugeiconsIcon icon={ArrowRight01Icon} size={16} />
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Laporan & Analitik */}
-          <Card className="group relative overflow-hidden transition-all hover:shadow-lg hover:border-primary/50">
-            <CardHeader>
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 mb-4">
-                <HugeiconsIcon icon={Analytics01Icon} size={24} className="text-primary" />
-              </div>
-              <CardTitle className="text-lg">Laporan & Analitik</CardTitle>
-              <CardDescription>
-                Buat laporan komprehensif tentang ketersediaan layanan, distribusi MTC, tenaga kerja, dan fasilitas.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button asChild variant="link" className="p-0 h-auto gap-1 text-sm font-medium">
-                <Link href="/dashboard/indicators" className="inline-flex items-center hover:gap-2 transition-all">
-                  Lihat Laporan
-                  <HugeiconsIcon icon={ArrowRight01Icon} size={16} />
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
         </div>
       </section>
 
@@ -357,6 +375,102 @@ export default function HomePage() {
               </Link>
             </Button>
           </div>
+        </div>
+      </section>
+
+      {/* Publications Section */}
+      <section className="bg-muted/30 py-20">
+        <div className="container max-w-7xl mx-auto px-4">
+        <div className="text-center mb-12">
+          <h2 className="text-3xl font-bold mb-3">Publikasi & Referensi</h2>
+          <p className="text-muted-foreground text-lg">
+            Jurnal dan artikel ilmiah terkait kesehatan jiwa dan sistem DESDE-LTC
+          </p>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 max-w-6xl mx-auto">
+          {/* Publication 1 */}
+          <Card className="group hover:shadow-lg transition-all">
+            <CardHeader className="pb-3">
+              <div className="flex items-start justify-between gap-2">
+                <Badge variant="secondary" className="text-[10px]">Jurnal</Badge>
+                <span className="text-xs text-muted-foreground">2024</span>
+              </div>
+              <CardTitle className="text-base leading-tight mt-2">
+                Mental Health Atlas 2020: WHO Global Report on Mental Health Services
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-muted-foreground line-clamp-3">
+                Laporan komprehensif WHO tentang status layanan kesehatan jiwa global, termasuk ketersediaan sumber daya dan kebijakan di berbagai negara.
+              </p>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span>World Health Organization</span>
+              </div>
+              <Button asChild variant="outline" size="sm" className="w-full gap-2">
+                <Link href="https://www.who.int/publications/i/item/9789240036703" target="_blank">
+                  Baca Selengkapnya
+                  <HugeiconsIcon icon={ArrowRight01Icon} size={14} />
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Publication 2 */}
+          <Card className="group hover:shadow-lg transition-all">
+            <CardHeader className="pb-3">
+              <div className="flex items-start justify-between gap-2">
+                <Badge variant="secondary" className="text-[10px]">Artikel</Badge>
+                <span className="text-xs text-muted-foreground">2023</span>
+              </div>
+              <CardTitle className="text-base leading-tight mt-2">
+                DESDE-LTC: A Standardized Tool for Mental Health Service Mapping
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-muted-foreground line-clamp-3">
+                Penjelasan lengkap tentang metodologi DESDE-LTC dan penerapannya dalam pemetaan layanan kesehatan jiwa di berbagai negara Eropa.
+              </p>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span>European Journal of Psychiatry</span>
+              </div>
+              <Button asChild variant="outline" size="sm" className="w-full gap-2">
+                <Link href="https://pubmed.ncbi.nlm.nih.gov/" target="_blank">
+                  Baca Selengkapnya
+                  <HugeiconsIcon icon={ArrowRight01Icon} size={14} />
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Publication 3 */}
+          <Card className="group hover:shadow-lg transition-all">
+            <CardHeader className="pb-3">
+              <div className="flex items-start justify-between gap-2">
+                <Badge variant="secondary" className="text-[10px]">Laporan</Badge>
+                <span className="text-xs text-muted-foreground">2023</span>
+              </div>
+              <CardTitle className="text-base leading-tight mt-2">
+                Situasi Kesehatan Jiwa di Indonesia: Data dan Tantangan
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-muted-foreground line-clamp-3">
+                Analisis situasi kesehatan jiwa di Indonesia berdasarkan data Riskesdas dan tantangan dalam penyediaan layanan kesehatan jiwa.
+              </p>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span>Kementerian Kesehatan RI</span>
+              </div>
+              <Button asChild variant="outline" size="sm" className="w-full gap-2">
+                <Link href="https://www.kemkes.go.id" target="_blank">
+                  Baca Selengkapnya
+                  <HugeiconsIcon icon={ArrowRight01Icon} size={14} />
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+
+        </div>
         </div>
       </section>
 

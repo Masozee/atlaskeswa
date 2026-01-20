@@ -63,13 +63,16 @@ STORAGES = {
 }
 
 # CORS Settings - Restrict in production
+# Web origins that are allowed
 CORS_ALLOWED_ORIGINS = [
     'https://atlaskeswa.id',
     'https://www.atlaskeswa.id',
     'https://api.atlaskeswa.id',
 ]
-CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOW_CREDENTIALS = True
+
+# Note: Mobile apps (React Native/Expo) don't send Origin headers,
+# so they bypass CORS. Authentication is handled via JWT tokens.
 
 # CSRF Trusted Origins (required for Django 4.0+)
 CSRF_TRUSTED_ORIGINS = [
