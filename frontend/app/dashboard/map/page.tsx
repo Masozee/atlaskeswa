@@ -7,8 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Map, MapControls, MapMarker, MarkerContent, MarkerPopup, MarkerLabel } from "@/components/ui/map"
 import { useMemo } from 'react'
 
-// Indonesia province coordinates (sample data)
-const provinceCoordinates: { [key: string]: [number, number] } = {
+// City/region coordinates (sample data)
+const cityCoordinates: { [key: string]: [number, number] } = {
   'DI Yogyakarta': [-7.7956, 110.3695],
   'Jawa Tengah': [-7.1508, 110.1403],
   'Jawa Timur': [-7.5361, 112.2384],
@@ -17,6 +17,7 @@ const provinceCoordinates: { [key: string]: [number, number] } = {
   'Bali': [-8.3405, 115.0920],
   'Sumatera Utara': [3.5952, 98.6722],
   'Sulawesi Selatan': [-5.1477, 119.4327],
+  'Kebumen': [-7.6680, 109.6523],
 };
 
 const breadcrumbs = [
@@ -27,13 +28,13 @@ const breadcrumbs = [
 export default function ServiceDistributionMapPage() {
   const { data: stats, isLoading } = useDashboardStats();
 
-  const provinceData = useMemo(() => {
+  const locationData = useMemo(() => {
     if (!stats?.geographic_distribution) return [];
 
     return stats.geographic_distribution.map(item => ({
-      province: item.province,
+      city: item.city,
       count: item.count,
-      coordinates: provinceCoordinates[item.province] || [-2.5489, 118.0149], // Default to Indonesia center
+      coordinates: cityCoordinates[item.city] || [-2.5489, 118.0149], // Default to Indonesia center
     }));
   }, [stats]);
 
@@ -51,7 +52,7 @@ export default function ServiceDistributionMapPage() {
 
   const chartData = stats?.geographic_distribution?.length
     ? stats.geographic_distribution.slice(0, 8).map((item) => ({
-        name: item.province,
+        name: item.city,
         services: item.count,
       }))
     : fallbackChartData;
@@ -91,7 +92,7 @@ export default function ServiceDistributionMapPage() {
               <div className="h-[500px] w-full overflow-hidden rounded-lg">
                 <Map center={[118.0149, -2.5489]} zoom={5}>
                   <MapControls position="bottom-right" showZoom showCompass showLocate />
-                  {provinceData.map((location, idx) => {
+                  {locationData.map((location, idx) => {
                     const markerSize = Math.sqrt(location.count) * 6;
                     return (
                       <MapMarker
@@ -110,7 +111,7 @@ export default function ServiceDistributionMapPage() {
                         </MarkerContent>
                         <MarkerPopup>
                           <div className="space-y-1">
-                            <p className="font-semibold text-sm">{location.province}</p>
+                            <p className="font-semibold text-sm">{location.city}</p>
                             <p className="text-xs text-muted-foreground">
                               {location.count} {location.count === 1 ? 'service' : 'services'}
                             </p>
@@ -136,7 +137,7 @@ export default function ServiceDistributionMapPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <p className="text-sm text-muted-foreground">Total Provinces Covered</p>
+                  <p className="text-sm text-muted-foreground">Total Cities Covered</p>
                   <p className="text-3xl font-bold">{stats?.geographic_distribution.length || 0}</p>
                 </div>
                 <Separator />
@@ -154,14 +155,14 @@ export default function ServiceDistributionMapPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Top Provinces</CardTitle>
+                <CardTitle>Top Cities</CardTitle>
                 <CardDescription>Highest service coverage</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
                   {stats?.geographic_distribution.slice(0, 5).map((item, idx) => (
                     <div key={idx} className="flex items-center justify-between">
-                      <span className="text-sm font-medium">{item.province}</span>
+                      <span className="text-sm font-medium">{item.city}</span>
                       <span className="text-sm text-muted-foreground">{item.count} services</span>
                     </div>
                   ))}
