@@ -116,7 +116,7 @@ export async function proxy(request: NextRequest) {
 
   // If already logged in and trying to access login page, redirect to dashboard
   if (token && pathname === '/login') {
-    return NextResponse.redirect(new URL('/dashboard/overview', request.url));
+    return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
   return NextResponse.next();
