@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from '@tanstack/react-form';
 import { useCreateUser } from '@/hooks/use-users';
-import { createUserSchema, type CreateUserFormData } from '@/lib/validations/user';
+import { createUserBaseSchema, type CreateUserFormData } from '@/lib/validations/user';
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -117,7 +117,7 @@ export default function AddUserPage() {
                   name="email"
                   validators={{
                     onChange: ({ value }) => {
-                      const result = createUserSchema.shape.email.safeParse(value);
+                      const result = createUserBaseSchema.shape.email.safeParse(value);
                       return result.success ? undefined : result.error.issues[0]?.message;
                     },
                   }}
@@ -145,7 +145,7 @@ export default function AddUserPage() {
                     name="password"
                     validators={{
                       onChange: ({ value }) => {
-                        const result = createUserSchema.shape.password.safeParse(value);
+                        const result = createUserBaseSchema.shape.password.safeParse(value);
                         return result.success ? undefined : result.error.issues[0]?.message;
                       },
                     }}
