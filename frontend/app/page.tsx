@@ -36,7 +36,7 @@ const partnerLogos = [
   { src: '/koneksi.png', alt: 'Koneksi' },
   { src: '/brin.png', alt: 'BRIN' },
   { src: '/kemenkes.png', alt: 'Kemenkes' },
-  { src: '/atamajaya.png', alt: 'Atma Jaya' },
+  { src: '/atmajaya.png', alt: 'Atma Jaya' },
 ];
 
 export default function HomePage() {
