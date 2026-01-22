@@ -1,19 +1,47 @@
 "use client"
 
-import { useMemo, useState, useEffect, Suspense } from "react"
+import { useMemo, useState, useEffect } from "react"
 import dynamic from "next/dynamic"
-import { useQuery } from "@tanstack/react-query"
-import { apiClient } from "@/lib/api-client"
 import { PageHeader, BreadcrumbItemType } from "@/components/page-header"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {Location01Icon,
   Hospital01Icon,
-  Search01Icon,} from "@hugeicons/core-free-icons"
+  Search01Icon,
+  FilterIcon,} from "@hugeicons/core-free-icons"
 import { mockIndonesianServices, getServiceCoordinates } from "@/lib/indonesia-locations"
+
+// Facility types based on service name patterns
+const FACILITY_TYPES = [
+  { value: "all", label: "Semua Fasilitas" },
+  { value: "rs_jiwa", label: "RS Jiwa" },
+  { value: "rsud", label: "RSUD/RSU" },
+  { value: "puskesmas", label: "Puskesmas" },
+  { value: "klinik", label: "Klinik" },
+  { value: "other", label: "Lainnya" },
+]
+
+// Service types based on MTC code
+const SERVICE_TYPES = [
+  { value: "all", label: "Semua Jenis Layanan" },
+  { value: "R1", label: "R1 - RS Jiwa Khusus" },
+  { value: "R2", label: "R2 - RS Umum dengan Unit Jiwa" },
+  { value: "O1", label: "O1 - Klinik Psikologi" },
+  { value: "O2", label: "O2 - Puskesmas" },
+  { value: "O3", label: "O3 - Pusat Kesehatan Jiwa" },
+  { value: "O4", label: "O4 - Layanan Krisis" },
+]
 
 // Dynamically import Leaflet map to avoid SSR issues
 const LeafletMap = dynamic(() => import("@/components/leaflet-map").then((mod) => mod.LeafletMap), {
@@ -48,12 +76,33 @@ export default function ServiceLocationMapPage() {
   const [selectedService, setSelectedService] = useState<Service | null>(null)
   const [mounted, setMounted] = useState(false)
 
+  // Filter states
+  const [facilityFilter, setFacilityFilter] = useState("all")
+  const [serviceTypeFilter, setServiceTypeFilter] = useState("all")
+  const [regionFilter, setRegionFilter] = useState("all")
+
   useEffect(() => {
     setMounted(true)
   }, [])
 
   // Use mock data for now (fallback to API if available)
   const servicesData = mockIndonesianServices
+
+  // Get unique regions (cities) for filter dropdown
+  const regions = useMemo(() => {
+    const cities = [...new Set(servicesData.map((s) => s.city))].sort()
+    return [{ value: "all", label: "Semua Kecamatan/Kota" }, ...cities.map((c) => ({ value: c, label: c }))]
+  }, [])
+
+  // Helper function to determine facility type from service name
+  const getFacilityType = (serviceName: string): string => {
+    const name = serviceName.toLowerCase()
+    if (name.includes("rs jiwa") || name.includes("rsj")) return "rs_jiwa"
+    if (name.includes("rsud") || name.includes("rsu ") || name.includes("rsup")) return "rsud"
+    if (name.includes("puskesmas")) return "puskesmas"
+    if (name.includes("klinik")) return "klinik"
+    return "other"
+  }
 
   // Statistics
   const stats = useMemo(() => {
@@ -69,18 +118,46 @@ export default function ServiceLocationMapPage() {
     }
   }, [])
 
-  // Filter services based on search
+  // Filter services based on search and filters
   const filteredServices = useMemo(() => {
-    if (!searchQuery) return servicesData
+    return servicesData.filter((service) => {
+      // Search query filter
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase()
+        const matchesSearch =
+          service.service_name.toLowerCase().includes(query) ||
+          service.province.toLowerCase().includes(query) ||
+          service.city.toLowerCase().includes(query)
+        if (!matchesSearch) return false
+      }
 
-    const query = searchQuery.toLowerCase()
-    return servicesData.filter(
-      (service) =>
-        service.service_name.toLowerCase().includes(query) ||
-        service.province.toLowerCase().includes(query) ||
-        service.city.toLowerCase().includes(query)
-    )
-  }, [searchQuery])
+      // Facility type filter
+      if (facilityFilter !== "all") {
+        const facilityType = getFacilityType(service.service_name)
+        if (facilityType !== facilityFilter) return false
+      }
+
+      // Service type filter (MTC code)
+      if (serviceTypeFilter !== "all") {
+        if (service.mtc_code !== serviceTypeFilter) return false
+      }
+
+      // Region filter
+      if (regionFilter !== "all") {
+        if (service.city !== regionFilter) return false
+      }
+
+      return true
+    })
+  }, [searchQuery, facilityFilter, serviceTypeFilter, regionFilter])
+
+  // Reset all filters
+  const resetFilters = () => {
+    setFacilityFilter("all")
+    setServiceTypeFilter("all")
+    setRegionFilter("all")
+    setSearchQuery("")
+  }
 
   // Prepare markers for Leaflet with real Indonesian coordinates
   const mapMarkers = useMemo(() => {
@@ -173,13 +250,87 @@ export default function ServiceLocationMapPage() {
         </div>
 
         {/* Map and Service List */}
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-4">
+          {/* Filter Panel - Left Side */}
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <HugeiconsIcon icon={FilterIcon} size={18} />
+                  Filter
+                </CardTitle>
+                <Button variant="ghost" size="sm" onClick={resetFilters} className="text-xs h-7">
+                  Reset
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Facility Type Filter */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Fasilitas</Label>
+                <Select value={facilityFilter} onValueChange={setFacilityFilter}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Pilih fasilitas" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {FACILITY_TYPES.map((type) => (
+                      <SelectItem key={type.value} value={type.value}>
+                        {type.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Service Type Filter */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Jenis Layanan</Label>
+                <Select value={serviceTypeFilter} onValueChange={setServiceTypeFilter}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Pilih jenis layanan" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SERVICE_TYPES.map((type) => (
+                      <SelectItem key={type.value} value={type.value}>
+                        {type.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Region Filter */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Kecamatan/Kota</Label>
+                <Select value={regionFilter} onValueChange={setRegionFilter}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Pilih kecamatan" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {regions.map((region) => (
+                      <SelectItem key={region.value} value={region.value}>
+                        {region.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Filter Summary */}
+              <div className="pt-2 border-t">
+                <p className="text-xs text-muted-foreground">
+                  Menampilkan {filteredServices.length} dari {servicesData.length} layanan
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Map Container */}
           <Card className="md:col-span-2">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle>Interactive Service Map</CardTitle>
+                  <CardTitle>Peta Layanan Kesehatan Jiwa</CardTitle>
                   <CardDescription>Mental health services across Indonesia</CardDescription>
                 </div>
               </div>
@@ -197,15 +348,15 @@ export default function ServiceLocationMapPage() {
                 <div className="flex gap-4">
                   <div className="flex items-center gap-2 text-xs">
                     <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                    <span>Verified ({servicesData.filter((s) => s.verification_status === "VERIFIED").length})</span>
+                    <span>Verified ({filteredServices.filter((s) => s.verification_status === "VERIFIED").length})</span>
                   </div>
                   <div className="flex items-center gap-2 text-xs">
                     <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                    <span>Submitted ({servicesData.filter((s) => s.verification_status === "SUBMITTED").length})</span>
+                    <span>Submitted ({filteredServices.filter((s) => s.verification_status === "SUBMITTED").length})</span>
                   </div>
                   <div className="flex items-center gap-2 text-xs">
                     <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                    <span>Rejected ({servicesData.filter((s) => s.verification_status === "REJECTED").length})</span>
+                    <span>Rejected ({filteredServices.filter((s) => s.verification_status === "REJECTED").length})</span>
                   </div>
                 </div>
               </div>
