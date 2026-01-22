@@ -250,9 +250,9 @@ export default function ServiceLocationMapPage() {
         </div>
 
         {/* Map and Service List */}
-        <div className="grid gap-4 md:grid-cols-4">
-          {/* Filter Panel - Left Side */}
-          <Card>
+        <div className="grid gap-4 grid-cols-12">
+          {/* Filter Panel - Left Side (2/12) */}
+          <Card className="col-span-12 md:col-span-2">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base flex items-center gap-2">
@@ -325,8 +325,8 @@ export default function ServiceLocationMapPage() {
             </CardContent>
           </Card>
 
-          {/* Map Container */}
-          <Card className="md:col-span-2">
+          {/* Map Container (7/12) */}
+          <Card className="col-span-12 md:col-span-7">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
@@ -363,8 +363,8 @@ export default function ServiceLocationMapPage() {
             </CardContent>
           </Card>
 
-          {/* Service Details Sidebar */}
-          <Card>
+          {/* Service Details Sidebar (3/12) */}
+          <Card className="col-span-12 md:col-span-3">
             <CardHeader>
               <CardTitle>Service Details</CardTitle>
               <CardDescription>
