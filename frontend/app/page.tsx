@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
@@ -12,7 +12,9 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
-import { KebumenMap } from '@/components/kebumen-map';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
+import { KebumenMap, FACILITY_TYPES, SERVICE_TYPES, KEBUMEN_KECAMATAN } from '@/components/kebumen-map';
 import { HugeiconsIcon } from "@hugeicons/react"
 import {DashboardSquare01Icon,
   Hospital01Icon,
@@ -37,6 +39,11 @@ const partnerLogos = [
 ];
 
 export default function HomePage() {
+  // Filter states
+  const [facilityFilter, setFacilityFilter] = useState("Semua");
+  const [serviceFilter, setServiceFilter] = useState("Semua");
+  const [kecamatanFilter, setKecamatanFilter] = useState("Semua");
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
       {/* Development Notice Banner */}
@@ -164,10 +171,77 @@ export default function HomePage() {
             </p>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Map - 8 columns */}
-          <div className="lg:col-span-8">
+          {/* Filter Panel - 2 columns */}
+          <div className="lg:col-span-2">
+            <Card className="h-full">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm">Filter</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Facility Type Filter */}
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium text-muted-foreground">Fasilitas</Label>
+                  <RadioGroup value={facilityFilter} onValueChange={setFacilityFilter} className="space-y-1">
+                    {FACILITY_TYPES.map((type) => (
+                      <div key={type} className="flex items-center space-x-2">
+                        <RadioGroupItem value={type} id={`facility-${type}`} className="h-3 w-3" />
+                        <Label htmlFor={`facility-${type}`} className="text-xs font-normal cursor-pointer">
+                          {type}
+                        </Label>
+                      </div>
+                    ))}
+                  </RadioGroup>
+                </div>
+
+                {/* Service Type Filter */}
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium text-muted-foreground">Jenis Layanan</Label>
+                  <RadioGroup value={serviceFilter} onValueChange={setServiceFilter} className="space-y-1">
+                    {SERVICE_TYPES.slice(0, 6).map((type) => (
+                      <div key={type} className="flex items-center space-x-2">
+                        <RadioGroupItem value={type} id={`service-${type}`} className="h-3 w-3" />
+                        <Label htmlFor={`service-${type}`} className="text-xs font-normal cursor-pointer">
+                          {type}
+                        </Label>
+                      </div>
+                    ))}
+                  </RadioGroup>
+                </div>
+
+                {/* Kecamatan Filter */}
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium text-muted-foreground">Kecamatan</Label>
+                  <RadioGroup value={kecamatanFilter} onValueChange={setKecamatanFilter} className="space-y-1 max-h-32 overflow-y-auto">
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="Semua" id="kecamatan-all" className="h-3 w-3" />
+                      <Label htmlFor="kecamatan-all" className="text-xs font-normal cursor-pointer">
+                        Semua
+                      </Label>
+                    </div>
+                    {KEBUMEN_KECAMATAN.slice(0, 10).map((kec) => (
+                      <div key={kec} className="flex items-center space-x-2">
+                        <RadioGroupItem value={kec} id={`kecamatan-${kec}`} className="h-3 w-3" />
+                        <Label htmlFor={`kecamatan-${kec}`} className="text-xs font-normal cursor-pointer">
+                          {kec}
+                        </Label>
+                      </div>
+                    ))}
+                  </RadioGroup>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Map - 7 columns */}
+          <div className="lg:col-span-7">
             <div className="relative rounded-xl overflow-hidden border h-full min-h-[450px]">
-              <KebumenMap height="h-full" showControls />
+              <KebumenMap
+                height="h-full"
+                showControls
+                facilityFilter={facilityFilter}
+                serviceFilter={serviceFilter}
+                kecamatanFilter={kecamatanFilter}
+              />
               <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-background/90 to-transparent">
                 <Badge variant="secondary" className="gap-2 px-3 py-1 bg-background/80 backdrop-blur">
                   <HugeiconsIcon icon={Location01Icon} size={14} className="text-primary" />
@@ -177,8 +251,8 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Stats - 4 columns */}
-          <div className="lg:col-span-4 flex flex-col gap-4">
+          {/* Stats - 3 columns */}
+          <div className="lg:col-span-3 flex flex-col gap-4">
             {/* Pie Chart Card */}
             <Card className="flex-1">
               <CardHeader className="pb-2">

@@ -14,12 +14,28 @@ const KEBUMEN_BOUNDS: [[number, number], [number, number]] = [
   [110.0, -7.4], // Northeast
 ];
 
+// Kecamatan list in Kebumen
+export const KEBUMEN_KECAMATAN = [
+  "Kebumen", "Gombong", "Kutowinangun", "Karanganyar", "Pejagoan", "Prembun",
+  "Sruweng", "Buluspesantren", "Ambal", "Mirit", "Petanahan", "Klirong",
+  "Puring", "Buayan", "Ayah", "Rowokele", "Sempor", "Karanggayam",
+  "Sadang", "Karangsambung", "Alian", "Poncowarno", "Padureso", "Bonorowo",
+  "Kuwarasan", "Adimulyo"
+];
+
+// Facility types
+export const FACILITY_TYPES = ["Semua", "Rumah Sakit Umum", "Puskesmas", "Klinik"];
+
+// Service types
+export const SERVICE_TYPES = ["Semua", "Rawat Inap", "Rawat Jalan", "IGD Psikiatri", "Konseling", "Rujukan", "Deteksi Dini", "Konsultasi Psikiater", "Terapi", "Penyuluhan"];
+
 // Sample healthcare facilities data
-const healthcareFacilities = [
+export const healthcareFacilities = [
   {
     id: 1,
     name: "RSUD Kebumen",
     type: "Rumah Sakit Umum",
+    kecamatan: "Kebumen",
     address: "Jl. Tentara Pelajar No.17, Kebumen",
     latitude: -7.6714,
     longitude: 109.6503,
@@ -32,6 +48,7 @@ const healthcareFacilities = [
     id: 2,
     name: "Puskesmas Gombong I",
     type: "Puskesmas",
+    kecamatan: "Gombong",
     address: "Jl. Yos Sudarso No.45, Gombong",
     latitude: -7.6089,
     longitude: 109.5089,
@@ -44,6 +61,7 @@ const healthcareFacilities = [
     id: 3,
     name: "Puskesmas Kutowinangun",
     type: "Puskesmas",
+    kecamatan: "Kutowinangun",
     address: "Jl. Pahlawan No.12, Kutowinangun",
     latitude: -7.6456,
     longitude: 109.6978,
@@ -56,6 +74,7 @@ const healthcareFacilities = [
     id: 4,
     name: "Klinik Jiwa Sehat",
     type: "Klinik",
+    kecamatan: "Kebumen",
     address: "Jl. Pemuda No.88, Kebumen",
     latitude: -7.6612,
     longitude: 109.6612,
@@ -68,6 +87,7 @@ const healthcareFacilities = [
     id: 5,
     name: "Puskesmas Karanganyar",
     type: "Puskesmas",
+    kecamatan: "Karanganyar",
     address: "Jl. Raya Karanganyar No.1, Karanganyar",
     latitude: -7.5789,
     longitude: 109.5867,
@@ -80,6 +100,7 @@ const healthcareFacilities = [
     id: 6,
     name: "Puskesmas Pejagoan",
     type: "Puskesmas",
+    kecamatan: "Pejagoan",
     address: "Jl. Pejagoan Raya No.5, Pejagoan",
     latitude: -7.6234,
     longitude: 109.6234,
@@ -90,11 +111,16 @@ const healthcareFacilities = [
   },
 ];
 
+export type HealthcareFacility = typeof healthcareFacilities[0];
+
 type KebumenMapProps = {
   className?: string;
   showControls?: boolean;
   height?: string;
   showMarkers?: boolean;
+  facilityFilter?: string;
+  serviceFilter?: string;
+  kecamatanFilter?: string;
 };
 
 function KebumenGeoJSONLayer() {
@@ -268,7 +294,27 @@ export function KebumenMap({
   showControls = true,
   height = "h-[300px]",
   showMarkers = true,
+  facilityFilter = "Semua",
+  serviceFilter = "Semua",
+  kecamatanFilter = "Semua",
 }: KebumenMapProps) {
+  // Filter facilities based on props
+  const filteredFacilities = healthcareFacilities.filter((facility) => {
+    // Facility type filter
+    if (facilityFilter !== "Semua" && facility.type !== facilityFilter) {
+      return false;
+    }
+    // Service filter
+    if (serviceFilter !== "Semua" && !facility.services.includes(serviceFilter)) {
+      return false;
+    }
+    // Kecamatan filter
+    if (kecamatanFilter !== "Semua" && facility.kecamatan !== kecamatanFilter) {
+      return false;
+    }
+    return true;
+  });
+
   return (
     <div className={cn(height, "w-full overflow-hidden", className)}>
       <Map
@@ -279,7 +325,7 @@ export function KebumenMap({
         maxZoom={14}
       >
         <KebumenGeoJSONLayer />
-        {showMarkers && healthcareFacilities.map((facility) => (
+        {showMarkers && filteredFacilities.map((facility) => (
           <FacilityMarker key={facility.id} facility={facility} />
         ))}
         {showControls && (
