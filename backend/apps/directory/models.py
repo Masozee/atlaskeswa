@@ -5,8 +5,8 @@ from django.core.validators import MinValueValidator
 class MainTypeOfCare(models.Model):
     """MTC - Main Type of Care classification from DESDE-LTC"""
 
-    code = models.CharField(max_length=10, unique=True, db_index=True)
-    name = models.CharField(max_length=200)
+    code = models.CharField(max_length=20, unique=True, db_index=True)
+    name = models.CharField(max_length=500)
     description = models.TextField(blank=True)
     parent = models.ForeignKey(
         'self',
@@ -15,6 +15,30 @@ class MainTypeOfCare(models.Model):
         blank=True,
         related_name='children'
     )
+
+    # DESDE-LTC Enhanced Fields
+    is_healthcare = models.BooleanField(
+        default=True,
+        help_text='True for healthcare facilities (R/D/O/A/I), False for non-healthcare (SR/SD/SO/SA/SI)'
+    )
+    service_delivery_type = models.CharField(
+        max_length=20,
+        choices=[
+            ('RESIDENTIAL', 'Residential'),
+            ('DAY_CARE', 'Day Care'),
+            ('OUTPATIENT', 'Outpatient'),
+            ('ACCESSIBILITY', 'Accessibility'),
+            ('INFORMATION', 'Information'),
+        ],
+        null=True,
+        blank=True,
+        help_text='Main service delivery mode'
+    )
+    level = models.IntegerField(
+        default=0,
+        help_text='Hierarchy depth: 0=root, 1=first level, 2=second level, etc.'
+    )
+
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -24,9 +48,22 @@ class MainTypeOfCare(models.Model):
         ordering = ['code']
         verbose_name = 'Main Type of Care'
         verbose_name_plural = 'Main Types of Care'
+        indexes = [
+            models.Index(fields=['is_healthcare', 'is_active']),
+            models.Index(fields=['service_delivery_type', 'is_active']),
+        ]
 
     def __str__(self):
         return f"{self.code} - {self.name}"
+
+    def get_hierarchy_level(self):
+        """Calculate hierarchy level from parent chain"""
+        level = 0
+        current = self.parent
+        while current:
+            level += 1
+            current = current.parent
+        return level
 
 
 class BasicStableInputsOfCare(models.Model):
