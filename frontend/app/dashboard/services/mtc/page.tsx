@@ -63,7 +63,7 @@ export default function MTCPage() {
         accessorKey: "name",
         header: "Nama Layanan",
         cell: ({ row }) => (
-          <div className="max-w-[280px] text-sm leading-relaxed whitespace-normal break-words py-2">
+          <div className="w-[280px] min-w-0 text-sm leading-relaxed break-all py-3">
             {row.getValue("name")}
           </div>
         ),
