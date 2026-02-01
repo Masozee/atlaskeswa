@@ -55,6 +55,9 @@ export default function MTCPage() {
       {
         accessorKey: "code",
         header: "Kode",
+        size: 80,
+        minSize: 80,
+        maxSize: 80,
         cell: ({ row }) => (
           <div className="font-mono font-medium whitespace-nowrap">{row.getValue("code")}</div>
         ),
@@ -62,9 +65,9 @@ export default function MTCPage() {
       {
         accessorKey: "name",
         header: "Nama Layanan",
-        size: 300,
-        minSize: 300,
-        maxSize: 300,
+        size: 320,
+        minSize: 320,
+        maxSize: 320,
         cell: ({ row }) => (
           <div className="text-sm leading-snug break-words py-1.5 whitespace-normal">
             {row.getValue("name")}
