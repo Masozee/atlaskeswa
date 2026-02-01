@@ -32,8 +32,8 @@ import {
 
 const breadcrumbs = [
   { label: 'Dashboard', href: '/dashboard' },
-  { label: 'Services', href: '/dashboard/services' },
-  { label: 'Main Types of Care (MTC)' },
+  { label: 'Layanan', href: '/dashboard/services' },
+  { label: 'Klasifikasi DESDE-LTC' },
 ];
 
 export default function MTCPage() {
@@ -47,44 +47,46 @@ export default function MTCPage() {
     () => [
       {
         accessorKey: "code",
-        header: "Code",
+        header: "Kode",
         cell: ({ row }) => (
-          <div className="font-mono font-medium">{row.getValue("code")}</div>
+          <div className="font-mono font-medium whitespace-nowrap">{row.getValue("code")}</div>
         ),
       },
       {
         accessorKey: "name",
-        header: "Name",
+        header: "Nama Layanan",
         cell: ({ row }) => (
-          <div className="max-w-[300px]">{row.getValue("name")}</div>
+          <div className="max-w-[400px] text-sm leading-tight">
+            {row.getValue("name")}
+          </div>
         ),
       },
       {
         accessorKey: "is_healthcare",
-        header: "Type",
+        header: "Tipe",
         cell: ({ row }) => {
           const isHealthcare = row.getValue("is_healthcare");
           return (
-            <Badge variant={isHealthcare ? "default" : "outline"}>
-              {isHealthcare ? "Healthcare" : "Non-Healthcare"}
+            <Badge variant={isHealthcare ? "default" : "outline"} className="whitespace-nowrap">
+              {isHealthcare ? "Kesehatan" : "Non-Kesehatan"}
             </Badge>
           );
         },
       },
       {
         accessorKey: "service_delivery_type",
-        header: "Delivery Mode",
+        header: "Mode Layanan",
         cell: ({ row }) => {
           const type = row.getValue("service_delivery_type") as string;
           const typeLabels: Record<string, string> = {
-            RESIDENTIAL: "Residential",
-            DAY_CARE: "Day Care",
-            OUTPATIENT: "Outpatient",
-            ACCESSIBILITY: "Accessibility",
-            INFORMATION: "Information",
+            RESIDENTIAL: "Rawat Inap",
+            DAY_CARE: "Harian",
+            OUTPATIENT: "Rawat Jalan",
+            ACCESSIBILITY: "Aksesibilitas",
+            INFORMATION: "Informasi",
           };
           return (
-            <span className="text-sm text-muted-foreground">
+            <span className="text-sm text-muted-foreground whitespace-nowrap">
               {type ? typeLabels[type] : "-"}
             </span>
           );
@@ -92,20 +94,20 @@ export default function MTCPage() {
       },
       {
         accessorKey: "level",
-        header: "Level",
+        header: "Tingkat",
         cell: ({ row }) => (
           <div className="text-center">
-            <Badge variant="secondary">{row.getValue("level")}</Badge>
+            <Badge variant="secondary" className="whitespace-nowrap">{row.getValue("level")}</Badge>
           </div>
         ),
       },
       {
         accessorKey: "parent_code",
-        header: "Parent",
+        header: "Induk",
         cell: ({ row }) => {
           const parentCode = row.getValue("parent_code") as string;
           return (
-            <span className="font-mono text-sm text-muted-foreground">
+            <span className="font-mono text-sm text-muted-foreground whitespace-nowrap">
               {parentCode || "-"}
             </span>
           );
@@ -113,7 +115,7 @@ export default function MTCPage() {
       },
       {
         accessorKey: "children_count",
-        header: "Children",
+        header: "Anak",
         cell: ({ row }) => (
           <div className="text-center text-muted-foreground">
             {row.getValue("children_count")}
