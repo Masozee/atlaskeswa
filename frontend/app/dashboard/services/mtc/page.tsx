@@ -77,6 +77,9 @@ export default function MTCPage() {
       {
         accessorKey: "is_healthcare",
         header: "Tipe",
+        size: 120,
+        minSize: 120,
+        maxSize: 120,
         cell: ({ row }) => {
           const isHealthcare = row.getValue("is_healthcare");
           return (
@@ -89,6 +92,9 @@ export default function MTCPage() {
       {
         accessorKey: "service_delivery_type",
         header: "Mode Layanan",
+        size: 120,
+        minSize: 120,
+        maxSize: 120,
         cell: ({ row }) => {
           const type = row.getValue("service_delivery_type") as string;
           const typeLabels: Record<string, string> = {
@@ -108,6 +114,9 @@ export default function MTCPage() {
       {
         accessorKey: "level",
         header: "Tingkat",
+        size: 70,
+        minSize: 70,
+        maxSize: 70,
         cell: ({ row }) => (
           <div className="text-center">
             <Badge variant="secondary" className="whitespace-nowrap">{row.getValue("level")}</Badge>
@@ -117,6 +126,9 @@ export default function MTCPage() {
       {
         accessorKey: "parent_code",
         header: "Induk",
+        size: 70,
+        minSize: 70,
+        maxSize: 70,
         cell: ({ row }) => {
           const parentCode = row.getValue("parent_code") as string;
           return (
@@ -129,6 +141,9 @@ export default function MTCPage() {
       {
         accessorKey: "children_count",
         header: "Anak",
+        size: 60,
+        minSize: 60,
+        maxSize: 60,
         cell: ({ row }) => (
           <div className="text-center text-muted-foreground">
             {row.getValue("children_count")}
@@ -138,6 +153,9 @@ export default function MTCPage() {
       {
         accessorKey: "is_active",
         header: "Status",
+        size: 90,
+        minSize: 90,
+        maxSize: 90,
         cell: ({ row }) => {
           const isActive = row.getValue("is_active");
           return (
