@@ -233,11 +233,12 @@ export default function MTCPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-64"
+            aria-label="Search MTC codes"
           />
 
           <div className="flex gap-2">
             <Select value={healthcareFilter} onValueChange={setHealthcareFilter}>
-              <SelectTrigger className="w-40 !h-9">
+              <SelectTrigger className="w-40 !h-9" aria-label="Filter by healthcare type">
                 <SelectValue placeholder="Type" />
               </SelectTrigger>
               <SelectContent>
@@ -248,7 +249,7 @@ export default function MTCPage() {
             </Select>
 
             <Select value={deliveryTypeFilter} onValueChange={setDeliveryTypeFilter}>
-              <SelectTrigger className="w-44 !h-9">
+              <SelectTrigger className="w-44 !h-9" aria-label="Filter by delivery mode">
                 <SelectValue placeholder="Delivery Mode" />
               </SelectTrigger>
               <SelectContent>
@@ -287,7 +288,7 @@ export default function MTCPage() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={columns.length} className="h-24 text-center">
+                  <TableCell colSpan={columns.length} className="h-24 text-center" role="status" aria-live="polite">
                     Loading...
                   </TableCell>
                 </TableRow>
@@ -317,7 +318,7 @@ export default function MTCPage() {
 
         {filteredData && filteredData.length > 0 && (
           <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground" role="status" aria-live="polite">
               Showing {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1} to{' '}
               {Math.min(
                 (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize,
@@ -325,16 +326,17 @@ export default function MTCPage() {
               )}{' '}
               of {filteredData.length} MTC code{filteredData.length !== 1 ? 's' : ''}
             </p>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2" role="navigation" aria-label="Pagination">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => table.previousPage()}
                 disabled={!table.getCanPreviousPage()}
+                aria-label="Go to previous page"
               >
                 Previous
               </Button>
-              <span className="text-sm text-muted-foreground">
+              <span className="text-sm text-muted-foreground" aria-current="page">
                 Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
               </span>
               <Button
@@ -342,6 +344,7 @@ export default function MTCPage() {
                 size="sm"
                 onClick={() => table.nextPage()}
                 disabled={!table.getCanNextPage()}
+                aria-label="Go to next page"
               >
                 Next
               </Button>
