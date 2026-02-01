@@ -6,12 +6,15 @@ import {
   flexRender,
   getCoreRowModel,
   getSortedRowModel,
+  getPaginationRowModel,
   SortingState,
+  PaginationState,
   useReactTable,
 } from "@tanstack/react-table";
 import { useMainTypesOfCare } from "@/hooks/use-services";
 import { MainTypeOfCare } from "@/lib/types/api";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/page-header";
 import {
   Table,
@@ -40,6 +43,10 @@ export default function MTCPage() {
   const { data: mtcData, isLoading } = useMainTypesOfCare();
   const [search, setSearch] = useState("");
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 15,
+  });
   const [healthcareFilter, setHealthcareFilter] = useState<string>("all");
   const [deliveryTypeFilter, setDeliveryTypeFilter] = useState<string>("all");
 
@@ -56,7 +63,7 @@ export default function MTCPage() {
         accessorKey: "name",
         header: "Nama Layanan",
         cell: ({ row }) => (
-          <div className="max-w-[400px] text-sm leading-tight">
+          <div className="max-w-[400px] text-sm leading-relaxed break-words py-2">
             {row.getValue("name")}
           </div>
         ),
@@ -174,9 +181,12 @@ export default function MTCPage() {
     columns,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
     onSortingChange: setSorting,
+    onPaginationChange: setPagination,
     state: {
       sorting,
+      pagination,
     },
   });
 
@@ -277,8 +287,34 @@ export default function MTCPage() {
         {filteredData && filteredData.length > 0 && (
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
-              Showing {filteredData.length} MTC code{filteredData.length !== 1 ? 's' : ''}
+              Showing {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1} to{' '}
+              {Math.min(
+                (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize,
+                filteredData.length
+              )}{' '}
+              of {filteredData.length} MTC code{filteredData.length !== 1 ? 's' : ''}
             </p>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => table.previousPage()}
+                disabled={!table.getCanPreviousPage()}
+              >
+                Previous
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => table.nextPage()}
+                disabled={!table.getCanNextPage()}
+              >
+                Next
+              </Button>
+            </div>
           </div>
         )}
       </div>
