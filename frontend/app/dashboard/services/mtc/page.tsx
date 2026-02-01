@@ -62,8 +62,11 @@ export default function MTCPage() {
       {
         accessorKey: "name",
         header: "Nama Layanan",
+        size: 300,
+        minSize: 300,
+        maxSize: 300,
         cell: ({ row }) => (
-          <div className="w-[280px] min-w-0 text-sm leading-relaxed break-all py-3">
+          <div className="text-sm leading-relaxed break-words py-3 whitespace-normal">
             {row.getValue("name")}
           </div>
         ),
@@ -188,6 +191,7 @@ export default function MTCPage() {
       sorting,
       pagination,
     },
+    columnResizeMode: 'onChange',
   });
 
   return (
@@ -239,12 +243,15 @@ export default function MTCPage() {
         </div>
 
         <div className="rounded-lg border">
-          <Table>
+          <Table style={{ tableLayout: 'fixed', width: '100%' }}>
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => (
-                    <TableHead key={header.id}>
+                    <TableHead
+                      key={header.id}
+                      style={{ width: header.getSize() }}
+                    >
                       {header.isPlaceholder
                         ? null
                         : flexRender(
@@ -267,7 +274,10 @@ export default function MTCPage() {
                 table.getRowModel().rows.map((row) => (
                   <TableRow key={row.id}>
                     {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
+                      <TableCell
+                        key={cell.id}
+                        style={{ width: cell.column.getSize() }}
+                      >
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </TableCell>
                     ))}
