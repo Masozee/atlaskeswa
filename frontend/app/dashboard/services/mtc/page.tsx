@@ -198,7 +198,7 @@ export default function MTCPage() {
     <>
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-4 p-8 pt-0">
+      <div className="flex flex-1 flex-col gap-4 p-8 pt-6">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">DESDE-LTC Classification Codes</h1>
           <p className="text-muted-foreground">
