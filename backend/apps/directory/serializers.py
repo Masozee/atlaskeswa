@@ -6,10 +6,15 @@ class MainTypeOfCareSerializer(serializers.ModelSerializer):
     """Serializer for MTC classification"""
 
     children_count = serializers.SerializerMethodField()
+    parent_code = serializers.CharField(source='parent.code', read_only=True, allow_null=True)
 
     class Meta:
         model = MainTypeOfCare
-        fields = ['id', 'code', 'name', 'description', 'parent', 'is_active', 'children_count', 'created_at', 'updated_at']
+        fields = [
+            'id', 'code', 'name', 'description', 'parent', 'parent_code',
+            'is_healthcare', 'service_delivery_type', 'level',
+            'is_active', 'children_count', 'created_at', 'updated_at'
+        ]
 
     def get_children_count(self, obj):
         return obj.children.count()

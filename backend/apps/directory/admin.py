@@ -4,10 +4,23 @@ from .models import MainTypeOfCare, BasicStableInputsOfCare, TargetPopulation, S
 
 @admin.register(MainTypeOfCare)
 class MainTypeOfCareAdmin(admin.ModelAdmin):
-    list_display = ('code', 'name', 'parent', 'is_active', 'created_at')
-    list_filter = ('is_active', 'created_at')
+    list_display = ('code', 'name', 'is_healthcare', 'service_delivery_type', 'level', 'parent', 'is_active')
+    list_filter = ('is_healthcare', 'service_delivery_type', 'is_active', 'level')
     search_fields = ('code', 'name', 'description')
     ordering = ('code',)
+    readonly_fields = ('level', 'created_at', 'updated_at')
+
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('code', 'name', 'description')
+        }),
+        ('DESDE-LTC Classification', {
+            'fields': ('parent', 'is_healthcare', 'service_delivery_type', 'level')
+        }),
+        ('Status', {
+            'fields': ('is_active', 'created_at', 'updated_at')
+        }),
+    )
 
 
 @admin.register(BasicStableInputsOfCare)
