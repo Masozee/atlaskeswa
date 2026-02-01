@@ -22,6 +22,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const breadcrumbs = [
   { label: 'Dashboard', href: '/dashboard' },
@@ -33,12 +40,14 @@ export default function MTCPage() {
   const { data: mtcData, isLoading } = useMainTypesOfCare();
   const [search, setSearch] = useState("");
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [healthcareFilter, setHealthcareFilter] = useState<string>("all");
+  const [deliveryTypeFilter, setDeliveryTypeFilter] = useState<string>("all");
 
   const columns = useMemo<ColumnDef<MainTypeOfCare, any>[]>(
     () => [
       {
         accessorKey: "code",
-        header: "MTC Code",
+        header: "Code",
         cell: ({ row }) => (
           <div className="font-mono font-medium">{row.getValue("code")}</div>
         ),
@@ -47,20 +56,69 @@ export default function MTCPage() {
         accessorKey: "name",
         header: "Name",
         cell: ({ row }) => (
-          <div className="font-medium">{row.getValue("name")}</div>
+          <div className="max-w-[300px]">{row.getValue("name")}</div>
         ),
       },
       {
-        accessorKey: "description",
-        header: "Description",
+        accessorKey: "is_healthcare",
+        header: "Type",
         cell: ({ row }) => {
-          const description = row.getValue("description") as string;
+          const isHealthcare = row.getValue("is_healthcare");
           return (
-            <div className="max-w-[500px] truncate text-muted-foreground">
-              {description || "-"}
-            </div>
+            <Badge variant={isHealthcare ? "default" : "outline"}>
+              {isHealthcare ? "Healthcare" : "Non-Healthcare"}
+            </Badge>
           );
         },
+      },
+      {
+        accessorKey: "service_delivery_type",
+        header: "Delivery Mode",
+        cell: ({ row }) => {
+          const type = row.getValue("service_delivery_type") as string;
+          const typeLabels: Record<string, string> = {
+            RESIDENTIAL: "Residential",
+            DAY_CARE: "Day Care",
+            OUTPATIENT: "Outpatient",
+            ACCESSIBILITY: "Accessibility",
+            INFORMATION: "Information",
+          };
+          return (
+            <span className="text-sm text-muted-foreground">
+              {type ? typeLabels[type] : "-"}
+            </span>
+          );
+        },
+      },
+      {
+        accessorKey: "level",
+        header: "Level",
+        cell: ({ row }) => (
+          <div className="text-center">
+            <Badge variant="secondary">{row.getValue("level")}</Badge>
+          </div>
+        ),
+      },
+      {
+        accessorKey: "parent_code",
+        header: "Parent",
+        cell: ({ row }) => {
+          const parentCode = row.getValue("parent_code") as string;
+          return (
+            <span className="font-mono text-sm text-muted-foreground">
+              {parentCode || "-"}
+            </span>
+          );
+        },
+      },
+      {
+        accessorKey: "children_count",
+        header: "Children",
+        cell: ({ row }) => (
+          <div className="text-center text-muted-foreground">
+            {row.getValue("children_count")}
+          </div>
+        ),
       },
       {
         accessorKey: "is_active",
@@ -78,19 +136,36 @@ export default function MTCPage() {
     []
   );
 
-  // Filter data based on search
+  // Filter data based on search and filters
   const filteredData = useMemo(() => {
     if (!mtcData) return [];
-    if (!search) return mtcData;
 
-    const searchLower = search.toLowerCase();
-    return mtcData.filter(
-      (item) =>
-        item.code.toLowerCase().includes(searchLower) ||
-        item.name.toLowerCase().includes(searchLower) ||
-        (item.description && item.description.toLowerCase().includes(searchLower))
-    );
-  }, [mtcData, search]);
+    let filtered = mtcData;
+
+    // Search filter
+    if (search) {
+      const searchLower = search.toLowerCase();
+      filtered = filtered.filter(
+        (item) =>
+          item.code.toLowerCase().includes(searchLower) ||
+          item.name.toLowerCase().includes(searchLower) ||
+          (item.description && item.description.toLowerCase().includes(searchLower))
+      );
+    }
+
+    // Healthcare type filter
+    if (healthcareFilter !== "all") {
+      const isHealthcare = healthcareFilter === "healthcare";
+      filtered = filtered.filter((item) => item.is_healthcare === isHealthcare);
+    }
+
+    // Delivery type filter
+    if (deliveryTypeFilter !== "all") {
+      filtered = filtered.filter((item) => item.service_delivery_type === deliveryTypeFilter);
+    }
+
+    return filtered;
+  }, [mtcData, search, healthcareFilter, deliveryTypeFilter]);
 
   const table = useReactTable({
     data: filteredData,
@@ -109,9 +184,9 @@ export default function MTCPage() {
 
       <div className="flex flex-1 flex-col gap-4 p-8 pt-0">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Main Types of Care (MTC)</h1>
+          <h1 className="text-2xl font-bold tracking-tight">DESDE-LTC Classification Codes</h1>
           <p className="text-muted-foreground">
-            DESDE-LTC classification of main types of mental health care
+            Comprehensive classification system for mental health and long-term care services
           </p>
         </div>
 
@@ -122,6 +197,33 @@ export default function MTCPage() {
             onChange={(e) => setSearch(e.target.value)}
             className="w-64"
           />
+
+          <div className="flex gap-2">
+            <Select value={healthcareFilter} onValueChange={setHealthcareFilter}>
+              <SelectTrigger className="w-40 !h-9">
+                <SelectValue placeholder="Type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="healthcare">Healthcare</SelectItem>
+                <SelectItem value="non-healthcare">Non-Healthcare</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={deliveryTypeFilter} onValueChange={setDeliveryTypeFilter}>
+              <SelectTrigger className="w-44 !h-9">
+                <SelectValue placeholder="Delivery Mode" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Modes</SelectItem>
+                <SelectItem value="RESIDENTIAL">Residential</SelectItem>
+                <SelectItem value="DAY_CARE">Day Care</SelectItem>
+                <SelectItem value="OUTPATIENT">Outpatient</SelectItem>
+                <SelectItem value="ACCESSIBILITY">Accessibility</SelectItem>
+                <SelectItem value="INFORMATION">Information</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         <div className="rounded-lg border">

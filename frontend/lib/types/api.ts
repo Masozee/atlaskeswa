@@ -46,8 +46,14 @@ export interface MainTypeOfCare {
   name: string;
   description?: string;
   parent?: number;
+  parent_code?: string;
+  is_healthcare: boolean;
+  service_delivery_type?: 'RESIDENTIAL' | 'DAY_CARE' | 'OUTPATIENT' | 'ACCESSIBILITY' | 'INFORMATION';
+  level: number;
   is_active: boolean;
   children_count: number;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface BasicStableInputsOfCare {
