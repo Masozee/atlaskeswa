@@ -277,59 +277,85 @@ def seed_desde_ltc():
     print(f"  Total: {len(DESDE_LTC_CODES)}\n")
 
     # Process first phase: root codes (codes without parents)
-    print("Phase 1: Creating root codes...")
+    print("Phase 1: Creating/Updating root codes...")
     root_codes_created = 0
+    root_codes_updated = 0
     for data in DESDE_LTC_CODES:
         if data['parent'] is None:
             code = data['code']
-            if not MainTypeOfCare.objects.filter(code=code).exists():
-                MainTypeOfCare.objects.create(
-                    code=code,
-                    name=data['name'],
-                    description=data['name'],  # Use name as description
-                    parent=None,
-                    is_active=True
-                )
+            obj, created = MainTypeOfCare.objects.update_or_create(
+                code=code,
+                defaults={
+                    'name': data['name'],
+                    'description': data['name'],  # Use name as description
+                    'parent': None,
+                    'is_healthcare': is_healthcare_code(code),
+                    'service_delivery_type': get_service_delivery_type(code),
+                    'is_active': True
+                }
+            )
+            if created:
                 root_codes_created += 1
                 print(f"✓ Created root: {code} - {data['name'][:60]}...")
-    print(f"Phase 1 Complete: {root_codes_created} root codes created\n")
+            else:
+                root_codes_updated += 1
+                print(f"✓ Updated root: {code} - {data['name'][:60]}...")
+    print(f"Phase 1 Complete: {root_codes_created} created, {root_codes_updated} updated\n")
 
     # Process remaining codes in multiple passes (to handle hierarchies)
     max_passes = 5
     for pass_num in range(1, max_passes + 1):
-        print(f"Phase {pass_num + 1}: Creating level {pass_num} codes...")
+        print(f"Phase {pass_num + 1}: Creating/Updating level {pass_num} codes...")
         created_in_pass = 0
+        updated_in_pass = 0
 
         for data in DESDE_LTC_CODES:
             if data['parent'] is not None:
                 code = data['code']
                 parent_code = data['parent']
 
-                # Check if code already exists
-                if MainTypeOfCare.objects.filter(code=code).exists():
-                    continue
-
                 # Check if parent exists
                 parent_obj = MainTypeOfCare.objects.filter(code=parent_code).first()
                 if parent_obj:
-                    MainTypeOfCare.objects.create(
+                    obj, created = MainTypeOfCare.objects.update_or_create(
                         code=code,
-                        name=data['name'],
-                        description=data['name'],  # Use name as description
-                        parent=parent_obj,
-                        is_active=True
+                        defaults={
+                            'name': data['name'],
+                            'description': data['name'],  # Use name as description
+                            'parent': parent_obj,
+                            'is_healthcare': is_healthcare_code(code),
+                            'service_delivery_type': get_service_delivery_type(code),
+                            'is_active': True
+                        }
                     )
-                    created_in_pass += 1
-                    if created_in_pass <= 10:  # Show first 10 of each phase
-                        print(f"✓ Created {code} (parent: {parent_code})")
+                    if created:
+                        created_in_pass += 1
+                        if created_in_pass <= 10:  # Show first 10 of each phase
+                            print(f"✓ Created {code} (parent: {parent_code})")
+                    else:
+                        updated_in_pass += 1
+                        if updated_in_pass <= 10:
+                            print(f"✓ Updated {code} (parent: {parent_code})")
 
-        if created_in_pass > 10:
-            print(f"  ... and {created_in_pass - 10} more codes")
-        print(f"Phase {pass_num + 1} Complete: {created_in_pass} codes created\n")
+        total_changes = created_in_pass + updated_in_pass
+        if total_changes > 10:
+            print(f"  ... and {total_changes - 10} more codes")
+        print(f"Phase {pass_num + 1} Complete: {created_in_pass} created, {updated_in_pass} updated\n")
 
-        if created_in_pass == 0:
-            print("All codes created successfully!")
+        if total_changes == 0:
+            print("All codes processed successfully!")
             break
+
+    # Update levels for all codes based on parent chain
+    print("Updating hierarchy levels...")
+    updated_levels = 0
+    for mtc in MainTypeOfCare.objects.all():
+        calculated_level = mtc.get_hierarchy_level()
+        if mtc.level != calculated_level:
+            mtc.level = calculated_level
+            mtc.save(update_fields=['level'])
+            updated_levels += 1
+    print(f"✓ Updated {updated_levels} hierarchy levels\n")
 
     # Final summary
     total_created = MainTypeOfCare.objects.count()
