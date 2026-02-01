@@ -66,7 +66,7 @@ export default function MTCPage() {
         minSize: 300,
         maxSize: 300,
         cell: ({ row }) => (
-          <div className="text-sm leading-relaxed break-words py-3 whitespace-normal">
+          <div className="text-sm leading-snug break-words py-1.5 whitespace-normal">
             {row.getValue("name")}
           </div>
         ),
@@ -198,10 +198,10 @@ export default function MTCPage() {
     <>
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-4 p-8 pt-6">
+      <div className="flex flex-1 flex-col gap-3 p-6 pt-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">DESDE-LTC Classification Codes</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-xl font-bold tracking-tight">DESDE-LTC Classification Codes</h1>
+          <p className="text-sm text-muted-foreground">
             Comprehensive classification system for mental health and long-term care services
           </p>
         </div>
