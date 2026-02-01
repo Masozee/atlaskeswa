@@ -33,7 +33,9 @@ import {
   flexRender,
   getCoreRowModel,
   getSortedRowModel,
+  getPaginationRowModel,
   SortingState,
+  PaginationState,
   useReactTable,
 } from "@tanstack/react-table";
 import { ServiceListItem } from "@/lib/types/api";
@@ -48,6 +50,10 @@ export default function AllServicesPage() {
   const [provinceFilter, setProvinceFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 15,
+  });
 
   const { data, isLoading } = useServices({
     search,
@@ -61,41 +67,64 @@ export default function AllServicesPage() {
     {
       accessorKey: "id",
       header: "ID",
-      cell: ({ row }) => <div className="w-12">{row.getValue("id")}</div>,
+      size: 60,
+      minSize: 60,
+      maxSize: 60,
+      cell: ({ row }) => <div className="font-mono text-sm">{row.getValue("id")}</div>,
     },
     {
       accessorKey: "name",
       header: "Nama Layanan",
+      size: 280,
+      minSize: 280,
+      maxSize: 280,
       cell: ({ row }) => {
-        return <div className="font-medium max-w-xs truncate">{row.getValue("name")}</div>
+        return <div className="font-medium text-sm leading-snug break-words py-1.5 whitespace-normal">{row.getValue("name")}</div>
       },
     },
     {
       accessorKey: "mtc_name",
       header: "Jenis Perawatan",
+      size: 200,
+      minSize: 200,
+      maxSize: 200,
       cell: ({ row }) => {
-        return <div className="text-sm">{row.getValue("mtc_name") || '-'}</div>
+        return <div className="text-sm leading-snug break-words py-1.5 whitespace-normal">{row.getValue("mtc_name") || '-'}</div>
       },
     },
     {
       accessorKey: "city",
       header: "Kota",
+      size: 120,
+      minSize: 120,
+      maxSize: 120,
+      cell: ({ row }) => <div className="text-sm whitespace-nowrap">{row.getValue("city")}</div>,
     },
     {
       accessorKey: "province",
       header: "Provinsi",
+      size: 120,
+      minSize: 120,
+      maxSize: 120,
+      cell: ({ row }) => <div className="text-sm whitespace-nowrap">{row.getValue("province")}</div>,
     },
     {
       accessorKey: "bed_capacity",
       header: "Kapasitas",
+      size: 80,
+      minSize: 80,
+      maxSize: 80,
       cell: ({ row }) => {
         const capacity = row.getValue("bed_capacity") as number | null;
-        return <div>{capacity !== null ? capacity : '-'}</div>
+        return <div className="text-center text-sm">{capacity !== null ? capacity : '-'}</div>
       },
     },
     {
       accessorKey: "accepts_bpjs",
       header: "BPJS",
+      size: 80,
+      minSize: 80,
+      maxSize: 80,
       cell: ({ row }) => {
         const accepts = row.getValue("accepts_bpjs");
         return accepts ? <Badge variant="default">Ya</Badge> : <Badge variant="outline">Tidak</Badge>
@@ -104,6 +133,9 @@ export default function AllServicesPage() {
     {
       accessorKey: "is_verified",
       header: "Status",
+      size: 130,
+      minSize: 130,
+      maxSize: 130,
       cell: ({ row }) => {
         const isVerified = row.getValue("is_verified");
         const isActive = row.original.is_active;
@@ -119,13 +151,16 @@ export default function AllServicesPage() {
     },
     {
       id: "actions",
+      size: 60,
+      minSize: 60,
+      maxSize: 60,
       cell: ({ row }) => {
         const service = row.original;
 
         return (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0">
+              <Button variant="ghost" className="h-8 w-8 p-0" aria-label="Buka menu aksi">
                 <span className="sr-only">Buka menu</span>
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
@@ -152,10 +187,14 @@ export default function AllServicesPage() {
     columns,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
     onSortingChange: setSorting,
+    onPaginationChange: setPagination,
     state: {
       sorting,
+      pagination,
     },
+    columnResizeMode: 'onChange',
   });
 
   // Extract unique provinces from data
@@ -183,10 +222,10 @@ export default function AllServicesPage() {
     <>
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-4 p-8">
+      <div className="flex flex-1 flex-col gap-3 p-6 pt-4">
         <div>
-          <h1 className="text-2xl font-bold">Semua Layanan</h1>
-          <p className="text-muted-foreground">Direktori layanan kesehatan jiwa</p>
+          <h1 className="text-xl font-bold">Semua Layanan</h1>
+          <p className="text-sm text-muted-foreground">Direktori layanan kesehatan jiwa</p>
         </div>
 
         <div className="flex gap-2 justify-between items-center">
@@ -195,10 +234,11 @@ export default function AllServicesPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-64"
+            aria-label="Cari layanan"
           />
           <div className="flex gap-2">
             <Select value={provinceFilter} onValueChange={setProvinceFilter}>
-              <SelectTrigger className="w-40 !h-9">
+              <SelectTrigger className="w-40 !h-9" aria-label="Filter berdasarkan provinsi">
                 <SelectValue placeholder="Filter berdasarkan provinsi" />
               </SelectTrigger>
               <SelectContent>
@@ -209,7 +249,7 @@ export default function AllServicesPage() {
               </SelectContent>
             </Select>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-40 !h-9">
+              <SelectTrigger className="w-40 !h-9" aria-label="Filter berdasarkan status">
                 <SelectValue placeholder="Filter berdasarkan status" />
               </SelectTrigger>
               <SelectContent>
@@ -222,12 +262,15 @@ export default function AllServicesPage() {
         </div>
 
         <div className="rounded-lg border">
-          <Table>
+          <Table style={{ tableLayout: 'fixed', width: '100%' }}>
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => (
-                    <TableHead key={header.id}>
+                    <TableHead
+                      key={header.id}
+                      style={{ width: header.getSize() }}
+                    >
                       {header.isPlaceholder
                         ? null
                         : flexRender(
@@ -244,7 +287,10 @@ export default function AllServicesPage() {
                 table.getRowModel().rows.map((row) => (
                   <TableRow key={row.id}>
                     {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
+                      <TableCell
+                        key={cell.id}
+                        style={{ width: cell.column.getSize() }}
+                      >
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </TableCell>
                     ))}
@@ -252,7 +298,7 @@ export default function AllServicesPage() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={columns.length} className="h-24 text-center">
+                  <TableCell colSpan={columns.length} className="h-24 text-center" role="status">
                     Tidak ada layanan ditemukan.
                   </TableCell>
                 </TableRow>
@@ -261,11 +307,39 @@ export default function AllServicesPage() {
           </Table>
         </div>
 
-        {data && data.count > 0 && (
+        {table.getRowModel().rows?.length > 0 && (
           <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
-              Menampilkan {data.results.length} dari {data.count} layanan
+            <p className="text-sm text-muted-foreground" role="status" aria-live="polite">
+              Menampilkan {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1} sampai{' '}
+              {Math.min(
+                (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize,
+                data?.results.length || 0
+              )}{' '}
+              dari {data?.results.length || 0} layanan
             </p>
+            <div className="flex items-center gap-2" role="navigation" aria-label="Pagination">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => table.previousPage()}
+                disabled={!table.getCanPreviousPage()}
+                aria-label="Halaman sebelumnya"
+              >
+                Sebelumnya
+              </Button>
+              <span className="text-sm text-muted-foreground" aria-current="page">
+                Halaman {table.getState().pagination.pageIndex + 1} dari {table.getPageCount()}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => table.nextPage()}
+                disabled={!table.getCanNextPage()}
+                aria-label="Halaman selanjutnya"
+              >
+                Selanjutnya
+              </Button>
+            </div>
           </div>
         )}
       </div>
