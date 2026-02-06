@@ -36,14 +36,14 @@ function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
   )
 }
 
-function SelectValue({ className, placeholder, ...props }: SelectPrimitive.Value.Props & { placeholder?: string }) {
+function SelectValue({ className, placeholder, children, ...props }: SelectPrimitive.Value.Props & { placeholder?: string; children?: React.ReactNode }) {
   return (
     <SelectPrimitive.Value
       data-slot="select-value"
       className={cn("flex flex-1 text-left data-[placeholder]:text-muted-foreground", className)}
       {...props}
     >
-      {(value) => value ?? placeholder}
+      {(value) => (value ? (children ?? value) : placeholder)}
     </SelectPrimitive.Value>
   )
 }
@@ -98,11 +98,11 @@ function SelectContent({
         align={align}
         alignOffset={alignOffset}
         alignItemWithTrigger={alignItemWithTrigger}
-        className="isolate z-[9999]"
+        className="z-[99999]"
       >
         <SelectPrimitive.Popup
           data-slot="select-content"
-          className={cn("bg-popover text-popover-foreground data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 ring-foreground/10 min-w-36 rounded-none shadow-md ring-1 duration-100 relative isolate z-[9999] max-h-(--available-height) w-(--anchor-width) origin-(--transform-origin) overflow-x-hidden overflow-y-auto", className )}
+          className={cn("bg-popover text-popover-foreground data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 ring-foreground/10 min-w-36 rounded-none shadow-md ring-1 duration-100 relative z-[99999] max-h-(--available-height) w-(--anchor-width) origin-(--transform-origin) overflow-x-hidden overflow-y-auto", className )}
           {...props}
         >
           <SelectScrollUpButton />

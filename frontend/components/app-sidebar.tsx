@@ -20,6 +20,7 @@ import {
   Mail01Icon,
   BookOpen01Icon,
   ArrowRight01Icon,
+  Search01Icon,
 } from "@hugeicons/core-free-icons"
 
 import { NavUser } from "@/components/nav-user"
@@ -30,7 +31,6 @@ import {
   SidebarGroup,
   SidebarGroupContent,
   SidebarHeader,
-  SidebarInput,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -40,6 +40,15 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import {
+  Command,
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
+import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
@@ -47,14 +56,10 @@ import {
 import { useStore } from "@tanstack/react-store"
 import { authStore } from "@/store/auth-store"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { cn } from "@/lib/utils"
 
 // Application data
 const data = {
-  user: {
-    name: "Admin User",
-    email: "admin@atlaskeswa.id",
-    avatar: "/avatars/admin.jpg",
-  },
   navMain: [
     {
       title: "Dasbor",
@@ -94,7 +99,7 @@ const data = {
         { title: "Pengajuan Tertunda", url: "/dashboard/survey/pending" },
         { title: "Survei Disetujui", url: "/dashboard/survey/approved" },
         { title: "Survei Ditolak", url: "/dashboard/survey/rejected" },
-        { title: "Unggah Massal", url: "/dashboard/survey/bulk-upload" },
+        { title: "Template Survei", url: "/dashboard/survey/templates" },
         { title: "Log Audit Survei", url: "/dashboard/survey/audit" },
       ],
     },
@@ -278,9 +283,9 @@ function filterMenuByRole(menuItems: typeof data.navMain, userRole?: string) {
           return ['ADMIN', 'SURVEYOR'].includes(userRole)
         }
 
-        // Bulk Upload - ADMIN and SURVEYOR only
-        if (submenu.title.includes('Unggah Massal')) {
-          return ['ADMIN', 'SURVEYOR'].includes(userRole)
+        // Survey Templates - ADMIN only
+        if (submenu.title.includes('Template Survei')) {
+          return userRole === 'ADMIN'
         }
 
         // Pending/Rejected/Audit - ADMIN and VERIFIER only
@@ -376,7 +381,7 @@ function MobileSidebar({ filteredNavMain, pathname }: { filteredNavMain: typeof 
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter className="border-t p-2">
-        <NavUser user={data.user} />
+        <NavUser />
       </SidebarFooter>
     </Sidebar>
   )
@@ -396,6 +401,20 @@ function DesktopSidebar({
   setManualActiveItem: (item: typeof data.navMain[0] | null) => void
   setOpen: (open: boolean) => void
 }) {
+  const [commandOpen, setCommandOpen] = React.useState(false)
+
+  // Keyboard shortcut for command palette (Cmd+K / Ctrl+K)
+  React.useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault()
+        setCommandOpen((open) => !open)
+      }
+    }
+    document.addEventListener("keydown", down)
+    return () => document.removeEventListener("keydown", down)
+  }, [])
+
   return (
     <Sidebar
       collapsible="icon"
@@ -406,7 +425,7 @@ function DesktopSidebar({
       {/* This will make the sidebar appear as icons. */}
       <Sidebar
         collapsible="none"
-        className="w-[calc(var(--sidebar-width-icon)+1px)]! border-r"
+        className="w-[calc(var(--sidebar-width-icon)+1px)]! border-r bg-sidebar"
       >
         <SidebarHeader>
           <SidebarMenu>
@@ -479,20 +498,49 @@ function DesktopSidebar({
               </SidebarMenuItem>
             ))}
           </SidebarMenu>
-          <NavUser user={data.user} />
+          <NavUser />
         </SidebarFooter>
       </Sidebar>
 
       {/* This is the second sidebar */}
       {/* We disable collapsible and let it fill remaining space */}
-      <Sidebar collapsible="none" className="hidden flex-1 md:flex">
+      <Sidebar collapsible="none" className="hidden flex-1 md:flex bg-background text-foreground">
         <SidebarHeader className="gap-3.5 border-b p-4">
           <div className="flex w-full items-center justify-between">
             <div className="text-foreground text-base font-medium">
               {activeItem?.title}
             </div>
           </div>
-          <SidebarInput placeholder="Cari submenu..." />
+          <button
+            onClick={() => setCommandOpen(true)}
+            className="flex h-9 w-full items-center gap-2 rounded-md border border-input bg-background px-3 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+          >
+            <HugeiconsIcon icon={Search01Icon} size={16} />
+            <span>Cari submenu...</span>
+            <kbd className="ml-auto pointer-events-none hidden h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 sm:flex">
+              <span className="text-xs">⌘</span>K
+            </kbd>
+          </button>
+          <CommandDialog open={commandOpen} onOpenChange={setCommandOpen}>
+            <CommandInput placeholder="Cari submenu..." />
+            <CommandList>
+              <CommandEmpty>Tidak ada hasil.</CommandEmpty>
+              <CommandGroup heading={activeItem?.title}>
+                {activeItem?.submenus?.map((submenu) => (
+                  <CommandItem
+                    key={submenu.url}
+                    value={submenu.title}
+                    onSelect={() => {
+                      setCommandOpen(false)
+                      window.location.href = submenu.url
+                    }}
+                  >
+                    {submenu.title}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </CommandDialog>
         </SidebarHeader>
         <SidebarContent>
           <SidebarGroup className="px-0">

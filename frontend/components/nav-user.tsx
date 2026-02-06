@@ -2,12 +2,13 @@
 
 import { useRouter } from "next/navigation"
 import { HugeiconsIcon } from "@hugeicons/react"
-import {CheckmarkBadge01Icon,
+import {
+  CheckmarkBadge01Icon,
   Notification03Icon,
   ArrowUpDownIcon,
   CreditCardIcon,
   Logout01Icon,
-  SparklesIcon,} from "@hugeicons/core-free-icons"
+} from "@hugeicons/core-free-icons"
 
 import {
   Avatar,
@@ -29,23 +30,33 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
-import { authActions } from "@/store/auth-store"
+import { authStore, authActions } from "@/store/auth-store"
+import { useStore } from "@tanstack/react-store"
 
-export function NavUser({
-  user,
-}: {
-  user: {
-    name: string
-    email: string
-    avatar: string
-  }
-}) {
+export function NavUser() {
   const { isMobile } = useSidebar()
   const router = useRouter()
+  const authState = useStore(authStore)
+
+  const user = authState.user
 
   const handleLogout = () => {
     authActions.logout()
     router.push('/login')
+  }
+
+  // Get initials from user name
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2)
+  }
+
+  if (!user) {
+    return null
   }
 
   return (
@@ -58,8 +69,7 @@ export function NavUser({
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground md:h-8 md:p-0"
             >
               <Avatar className="h-8 w-8 rounded-lg">
-                <AvatarImage src={user.avatar} alt={user.name} />
-                <AvatarFallback className="rounded-lg">CN</AvatarFallback>
+                <AvatarFallback className="rounded-lg">{getInitials(user.name)}</AvatarFallback>
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-medium">{user.name}</span>
@@ -77,8 +87,7 @@ export function NavUser({
             <DropdownMenuLabel className="p-0 font-normal">
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                 <Avatar className="h-8 w-8 rounded-lg">
-                  <AvatarImage src={user.avatar} alt={user.name} />
-                  <AvatarFallback className="rounded-lg">CN</AvatarFallback>
+                  <AvatarFallback className="rounded-lg">{getInitials(user.name)}</AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-medium">{user.name}</span>
@@ -86,13 +95,6 @@ export function NavUser({
                 </div>
               </div>
             </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuItem>
-                <HugeiconsIcon icon={SparklesIcon} size={24} />
-                Tingkatkan ke Pro
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuItem>
