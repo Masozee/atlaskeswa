@@ -101,7 +101,7 @@ export default function ApprovedSurveysPage() {
   ], []);
 
   const table = useReactTable({
-    data: data?.results ?? [],
+    data: (data?.results ?? []) as SurveyResponseItem[],
     columns,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),

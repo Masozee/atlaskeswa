@@ -201,10 +201,10 @@ export default function SurveyDetailPage({
             <div className="space-y-2">
               <div className="flex items-center gap-3">
                 <h1 className="text-3xl font-bold">Survei #{survey.id}</h1>
-                {getStatusBadge(survey.verification_status, survey.status_display)}
+                {getStatusBadge(survey.verification_status || 'DRAFT', survey.status_display)}
               </div>
               <p className="text-lg text-muted-foreground">
-                {survey.service?.name || 'Layanan Tidak Diketahui'}
+                {(typeof survey.service === 'object' ? survey.service?.name : survey.service_name) || 'Layanan Tidak Diketahui'}
               </p>
             </div>
 
@@ -262,11 +262,11 @@ export default function SurveyDetailPage({
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <div className="text-sm font-medium mb-1">Nama Layanan</div>
-                    <div className="text-sm text-muted-foreground">{survey.service?.name || '-'}</div>
+                    <div className="text-sm text-muted-foreground">{(typeof survey.service === 'object' ? survey.service?.name : survey.service_name) || '-'}</div>
                   </div>
                   <div>
                     <div className="text-sm font-medium mb-1">Kota</div>
-                    <div className="text-sm text-muted-foreground">{survey.service?.city || '-'}</div>
+                    <div className="text-sm text-muted-foreground">{(typeof survey.service === 'object' ? survey.service?.city : survey.service_city) || '-'}</div>
                   </div>
                 </div>
               </CardContent>
@@ -342,11 +342,11 @@ export default function SurveyDetailPage({
                 <h3 className="text-sm font-semibold">Metadata Survei</h3>
                 <div>
                   <div className="text-xs font-medium text-muted-foreground mb-1">Status</div>
-                  {getStatusBadge(survey.verification_status, survey.status_display)}
+                  {getStatusBadge(survey.verification_status || 'DRAFT', survey.status_display)}
                 </div>
                 <div>
                   <div className="text-xs font-medium text-muted-foreground mb-1">Template</div>
-                  <div className="text-sm font-medium">{survey.template?.name || '-'}</div>
+                  <div className="text-sm font-medium">{(typeof survey.template === 'object' ? survey.template?.name : survey.template_name) || '-'}</div>
                 </div>
                 <div>
                   <div className="text-xs font-medium text-muted-foreground mb-1">Surveyor</div>

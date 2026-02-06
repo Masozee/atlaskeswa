@@ -161,7 +161,7 @@ export interface SurveyResponse {
   id?: number;
   template: number | SurveyTemplate;
   template_name?: string;
-  service: number;
+  service: number | { id: number; name?: string; city?: string };
   service_name?: string;
   service_city?: string;
   survey_date: string;
@@ -184,6 +184,7 @@ export interface SurveyResponse {
   rejection_reason?: string;
   legacy_data?: any;
   question_responses?: QuestionResponse[];
+  answers?: QuestionResponse[];
   created_at?: string;
   updated_at?: string;
   submitted_at?: string | null;
