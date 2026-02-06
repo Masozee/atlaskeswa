@@ -170,7 +170,7 @@ export default function ServiceLocationMapPage() {
           service.verification_status === "VERIFIED"
             ? "#22c55e"
             : service.verification_status === "SUBMITTED"
-            ? "#3b82f6"
+            ? "#00979D"
             : "#ef4444"
 
         return {

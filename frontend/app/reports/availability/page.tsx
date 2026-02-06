@@ -105,7 +105,7 @@ export default function ServiceAvailabilityReportPage() {
   // Verification status distribution
   const verificationData = [
     { name: 'Verified', value: stats.verified, color: '#22c55e' },
-    { name: 'Pending', value: stats.pending, color: '#3b82f6' },
+    { name: 'Pending', value: stats.pending, color: '#00979D' },
     { name: 'Rejected', value: stats.rejected, color: '#ef4444' },
   ];
 
@@ -234,7 +234,7 @@ export default function ServiceAvailabilityReportPage() {
                   <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} fontSize={12} />
                   <YAxis />
                   <Tooltip />
-                  <Bar dataKey="count" fill="#3b82f6" />
+                  <Bar dataKey="count" fill="#00979D" />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
@@ -302,7 +302,7 @@ export default function ServiceAvailabilityReportPage() {
                   <YAxis />
                   <Tooltip />
                   <Legend />
-                  <Line type="monotone" dataKey="beds" stroke="#3b82f6" strokeWidth={2} name="Total Beds" />
+                  <Line type="monotone" dataKey="beds" stroke="#00979D" strokeWidth={2} name="Total Beds" />
                   <Line type="monotone" dataKey="staff" stroke="#22c55e" strokeWidth={2} name="Total Staff" />
                 </LineChart>
               </ResponsiveContainer>

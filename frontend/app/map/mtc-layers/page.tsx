@@ -68,14 +68,14 @@ export default function MTCLayersPage() {
   // MTC layer configurations with colors
   const mtcLayers = useMemo(() => {
     const colors = [
-      { bg: "bg-blue-500", border: "border-blue-500", hex: "#3b82f6" },
-      { bg: "bg-green-500", border: "border-green-500", hex: "#22c55e" },
-      { bg: "bg-purple-500", border: "border-purple-500", hex: "#a855f7" },
-      { bg: "bg-orange-500", border: "border-orange-500", hex: "#f97316" },
-      { bg: "bg-pink-500", border: "border-pink-500", hex: "#ec4899" },
-      { bg: "bg-cyan-500", border: "border-cyan-500", hex: "#06b6d4" },
-      { bg: "bg-yellow-500", border: "border-yellow-500", hex: "#eab308" },
-      { bg: "bg-red-500", border: "border-red-500", hex: "#ef4444" },
+      { bg: "bg-[#00979D]", border: "border-[#00979D]", hex: "#00979D" },
+      { bg: "bg-[#4DB6AC]", border: "border-[#4DB6AC]", hex: "#4DB6AC" },
+      { bg: "bg-[#9575CD]", border: "border-[#9575CD]", hex: "#9575CD" },
+      { bg: "bg-[#FFBF47]", border: "border-[#FFBF47]", hex: "#FFBF47" },
+      { bg: "bg-[#FF8A65]", border: "border-[#FF8A65]", hex: "#FF8A65" },
+      { bg: "bg-[#81C784]", border: "border-[#81C784]", hex: "#81C784" },
+      { bg: "bg-[#64B5F6]", border: "border-[#64B5F6]", hex: "#64B5F6" },
+      { bg: "bg-[#E57373]", border: "border-[#E57373]", hex: "#E57373" },
     ]
 
     const mtcCodes = Array.from(servicesByMTC.keys()).sort()

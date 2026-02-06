@@ -1,17 +1,15 @@
 "use client";
 
-import { Map, useMap, MapControls, MapMarker, MarkerContent, MarkerPopup } from "@/components/ui/map";
-import { useEffect, useState } from "react";
-import type MapLibreGL from "maplibre-gl";
+import { Map, MapControls, MapMarker, MarkerContent, MarkerPopup, MapGeoJSON } from "@/components/ui/map";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import Image from "next/image";
 
-// Kebumen center coordinates
-const KEBUMEN_CENTER: [number, number] = [109.6753, -7.6079];
+// Kebumen center coordinates (based on 33.05_kecamatan.geojson bounds)
+const KEBUMEN_CENTER: [number, number] = [109.6090, -7.6385];
 const KEBUMEN_BOUNDS: [[number, number], [number, number]] = [
-  [109.4, -7.9], // Southwest
-  [110.0, -7.4], // Northeast
+  [109.35, -7.85], // Southwest
+  [109.86, -7.42], // Northeast
 ];
 
 // Kecamatan list in Kebumen
@@ -121,97 +119,8 @@ type KebumenMapProps = {
   facilityFilter?: string;
   serviceFilter?: string;
   kecamatanFilter?: string;
+  onHoverKecamatan?: (name: string | null) => void;
 };
-
-function KebumenGeoJSONLayer() {
-  const { map, isLoaded } = useMap();
-  const [geoJsonLoaded, setGeoJsonLoaded] = useState(false);
-
-  useEffect(() => {
-    if (!isLoaded || !map || geoJsonLoaded) return;
-
-    const addGeoJSON = async () => {
-      try {
-        const response = await fetch("/geojson/Kebumen.geojson");
-        const geojson = await response.json();
-
-        // Add source
-        if (!map.getSource("kebumen-boundary")) {
-          map.addSource("kebumen-boundary", {
-            type: "geojson",
-            data: geojson,
-          });
-        }
-
-        // Add fill layer
-        if (!map.getLayer("kebumen-fill")) {
-          map.addLayer({
-            id: "kebumen-fill",
-            type: "fill",
-            source: "kebumen-boundary",
-            paint: {
-              "fill-color": "#4DA1DB",
-              "fill-opacity": 0.15,
-            },
-          });
-        }
-
-        // Add outline layer
-        if (!map.getLayer("kebumen-outline")) {
-          map.addLayer({
-            id: "kebumen-outline",
-            type: "line",
-            source: "kebumen-boundary",
-            paint: {
-              "line-color": "#4DA1DB",
-              "line-width": 2,
-              "line-opacity": 0.8,
-            },
-          });
-        }
-
-        setGeoJsonLoaded(true);
-      } catch (error) {
-        console.error("Failed to load Kebumen GeoJSON:", error);
-      }
-    };
-
-    // Wait for style to be fully loaded
-    if (map.isStyleLoaded()) {
-      addGeoJSON();
-    } else {
-      map.once("styledata", addGeoJSON);
-    }
-
-    return () => {
-      // Cleanup on unmount
-      try {
-        if (map.getLayer("kebumen-fill")) map.removeLayer("kebumen-fill");
-        if (map.getLayer("kebumen-outline")) map.removeLayer("kebumen-outline");
-        if (map.getSource("kebumen-boundary")) map.removeSource("kebumen-boundary");
-      } catch {
-        // Ignore cleanup errors
-      }
-    };
-  }, [isLoaded, map, geoJsonLoaded]);
-
-  // Re-add layers when style changes (dark/light mode)
-  useEffect(() => {
-    if (!map) return;
-
-    const handleStyleData = () => {
-      setGeoJsonLoaded(false);
-    };
-
-    map.on("style.load", handleStyleData);
-
-    return () => {
-      map.off("style.load", handleStyleData);
-    };
-  }, [map]);
-
-  return null;
-}
 
 function FacilityMarker({ facility }: { facility: typeof healthcareFacilities[0] }) {
   const getMarkerColor = (type: string) => {
@@ -297,6 +206,7 @@ export function KebumenMap({
   facilityFilter = "Semua",
   serviceFilter = "Semua",
   kecamatanFilter = "Semua",
+  onHoverKecamatan,
 }: KebumenMapProps) {
   // Filter facilities based on props
   const filteredFacilities = healthcareFacilities.filter((facility) => {
@@ -315,16 +225,35 @@ export function KebumenMap({
     return true;
   });
 
+  const handleFeatureHover = (feature: GeoJSON.Feature | null) => {
+    if (onHoverKecamatan) {
+      if (feature) {
+        const kecamatanName = feature.properties?.nm_kecamatan;
+        onHoverKecamatan(kecamatanName || null);
+      } else {
+        onHoverKecamatan(null);
+      }
+    }
+  };
+
   return (
     <div className={cn(height, "w-full overflow-hidden", className)}>
       <Map
         center={KEBUMEN_CENTER}
-        zoom={9}
+        zoom={10}
         maxBounds={KEBUMEN_BOUNDS}
-        minZoom={8}
-        maxZoom={14}
+        minZoom={9}
+        maxZoom={15}
       >
-        <KebumenGeoJSONLayer />
+        <MapGeoJSON
+          data="/data/33.05_kecamatan.geojson"
+          fillColor="#00979D"
+          fillOpacity={0.2}
+          strokeColor="#007A80"
+          strokeWidth={1.5}
+          strokeOpacity={0.8}
+          onFeatureHover={handleFeatureHover}
+        />
         {showMarkers && filteredFacilities.map((facility) => (
           <FacilityMarker key={facility.id} facility={facility} />
         ))}

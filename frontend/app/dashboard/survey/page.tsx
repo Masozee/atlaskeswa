@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
-import { useSurveys } from '@/hooks/use-surveys';
+import Link from 'next/link';
+import { useSurveyResponses } from '@/hooks/use-survey-responses';
 import { PageHeader } from "@/components/page-header";
 import { Input } from "@/components/ui/input";
 import {
@@ -20,15 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MoreHorizontal } from "lucide-react";
 import {
   ColumnDef,
   flexRender,
@@ -37,7 +29,17 @@ import {
   SortingState,
   useReactTable,
 } from "@tanstack/react-table";
-import { SurveyListItem } from "@/lib/types/api";
+
+interface SurveyResponseItem {
+  id: number;
+  service_name: string;
+  service_city: string;
+  survey_date: string;
+  surveyor_name: string;
+  verification_status: string;
+  status_display: string;
+  created_at: string;
+}
 
 const breadcrumbs = [
   { label: 'Dasbor', href: '/dashboard' },
@@ -45,19 +47,18 @@ const breadcrumbs = [
 ];
 
 export default function AllSurveysPage() {
-  const router = useRouter();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sorting, setSorting] = useState<SortingState>([]);
 
-  const { data, isLoading } = useSurveys({
+  const { data, isLoading } = useSurveyResponses({
     search,
     verification_status: statusFilter !== 'all' ? statusFilter : undefined,
     ordering: '-survey_date',
     page_size: 50,
   });
 
-  const columns = useMemo<ColumnDef<SurveyListItem, any>[]>(() => [
+  const columns = useMemo<ColumnDef<SurveyResponseItem, any>[]>(() => [
     {
       accessorKey: "id",
       header: "ID",
@@ -67,7 +68,15 @@ export default function AllSurveysPage() {
       accessorKey: "service_name",
       header: "Nama Layanan",
       cell: ({ row }) => {
-        return <div className="font-medium max-w-xs truncate">{row.getValue("service_name")}</div>
+        const survey = row.original;
+        return (
+          <Link
+            href={`/dashboard/survey/${survey.id}`}
+            className="font-medium max-w-xs truncate text-primary hover:underline"
+          >
+            {row.getValue("service_name")}
+          </Link>
+        );
       },
     },
     {
@@ -90,25 +99,6 @@ export default function AllSurveysPage() {
       },
     },
     {
-      accessorKey: "total_patients_served",
-      header: "Pasien",
-      cell: ({ row }) => {
-        return <div className="text-center">{row.getValue("total_patients_served")}</div>
-      },
-    },
-    {
-      accessorKey: "occupancy_rate",
-      header: "Okupansi",
-      cell: ({ row }) => {
-        const rate = row.getValue("occupancy_rate") as number | null;
-        return rate !== null ? (
-          <div className="text-center">{rate.toFixed(1)}%</div>
-        ) : (
-          <div className="text-center text-muted-foreground">-</div>
-        );
-      },
-    },
-    {
       accessorKey: "verification_status",
       header: "Status",
       cell: ({ row }) => {
@@ -122,36 +112,6 @@ export default function AllSurveysPage() {
           'outline';
 
         return <Badge variant={variant}>{statusDisplay}</Badge>;
-      },
-    },
-    {
-      id: "actions",
-      cell: ({ row }) => {
-        const survey = row.original;
-
-        return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0">
-                <span className="sr-only">Buka menu</span>
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => router.push(`/dashboard/survey/${survey.id}`)}>
-                Lihat detail
-              </DropdownMenuItem>
-              <DropdownMenuItem>Edit survei</DropdownMenuItem>
-              <DropdownMenuItem>Lihat lampiran</DropdownMenuItem>
-              <DropdownMenuItem
-                className="text-destructive"
-                onClick={() => console.log('Delete survey', survey.id)}
-              >
-                Hapus survei
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        );
       },
     },
   ], []);

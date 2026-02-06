@@ -820,6 +820,158 @@ type MapRouteProps = {
   dashArray?: [number, number];
 };
 
+type MapGeoJSONProps = {
+  data: GeoJSON.FeatureCollection | GeoJSON.Feature | string;
+  fillColor?: string;
+  fillOpacity?: number;
+  strokeColor?: string;
+  strokeWidth?: number;
+  strokeOpacity?: number;
+  onFeatureClick?: (feature: GeoJSON.Feature, e: MapLibreGL.MapMouseEvent) => void;
+  onFeatureHover?: (feature: GeoJSON.Feature | null, e: MapLibreGL.MapMouseEvent) => void;
+};
+
+function MapGeoJSON({
+  data,
+  fillColor = "#00979D",
+  fillOpacity = 0.3,
+  strokeColor = "#007A80",
+  strokeWidth = 2,
+  strokeOpacity = 0.8,
+  onFeatureClick,
+  onFeatureHover,
+}: MapGeoJSONProps) {
+  const { map, isLoaded } = useMap();
+  const id = useId();
+  const sourceId = `geojson-source-${id}`;
+  const fillLayerId = `geojson-fill-${id}`;
+  const strokeLayerId = `geojson-stroke-${id}`;
+  const [geoJsonData, setGeoJsonData] = useState<GeoJSON.FeatureCollection | GeoJSON.Feature | null>(null);
+
+  // Use refs to avoid re-running the effect when callbacks change
+  const onFeatureClickRef = useRef(onFeatureClick);
+  const onFeatureHoverRef = useRef(onFeatureHover);
+
+  useEffect(() => {
+    onFeatureClickRef.current = onFeatureClick;
+  }, [onFeatureClick]);
+
+  useEffect(() => {
+    onFeatureHoverRef.current = onFeatureHover;
+  }, [onFeatureHover]);
+
+  // Load GeoJSON data if URL is provided
+  useEffect(() => {
+    if (typeof data === "string") {
+      fetch(data)
+        .then((res) => res.json())
+        .then((json) => setGeoJsonData(json))
+        .catch((err) => console.error("Failed to load GeoJSON:", err));
+    } else {
+      setGeoJsonData(data);
+    }
+  }, [data]);
+
+  // Add source and layers on mount
+  useEffect(() => {
+    if (!isLoaded || !map || !geoJsonData) return;
+
+    // Add source
+    if (!map.getSource(sourceId)) {
+      map.addSource(sourceId, {
+        type: "geojson",
+        data: geoJsonData,
+      });
+    }
+
+    // Add fill layer
+    if (!map.getLayer(fillLayerId)) {
+      map.addLayer({
+        id: fillLayerId,
+        type: "fill",
+        source: sourceId,
+        paint: {
+          "fill-color": fillColor,
+          "fill-opacity": fillOpacity,
+        },
+      });
+    }
+
+    // Add stroke layer
+    if (!map.getLayer(strokeLayerId)) {
+      map.addLayer({
+        id: strokeLayerId,
+        type: "line",
+        source: sourceId,
+        paint: {
+          "line-color": strokeColor,
+          "line-width": strokeWidth,
+          "line-opacity": strokeOpacity,
+        },
+      });
+    }
+
+    // Event handlers using refs to get latest callbacks
+    const handleClick = (e: MapLibreGL.MapMouseEvent) => {
+      if (!onFeatureClickRef.current) return;
+      const features = map.queryRenderedFeatures(e.point, { layers: [fillLayerId] });
+      if (features.length > 0) {
+        onFeatureClickRef.current(features[0] as unknown as GeoJSON.Feature, e);
+      }
+    };
+
+    const handleMouseMove = (e: MapLibreGL.MapMouseEvent) => {
+      const features = map.queryRenderedFeatures(e.point, { layers: [fillLayerId] });
+      map.getCanvas().style.cursor = features.length > 0 ? "pointer" : "";
+      if (onFeatureHoverRef.current) {
+        onFeatureHoverRef.current(features.length > 0 ? (features[0] as unknown as GeoJSON.Feature) : null, e);
+      }
+    };
+
+    const handleMouseLeave = (e: MapLibreGL.MapMouseEvent) => {
+      map.getCanvas().style.cursor = "";
+      if (onFeatureHoverRef.current) {
+        onFeatureHoverRef.current(null, e);
+      }
+    };
+
+    map.on("click", fillLayerId, handleClick);
+    map.on("mousemove", fillLayerId, handleMouseMove);
+    map.on("mouseleave", fillLayerId, handleMouseLeave);
+
+    return () => {
+      map.off("click", fillLayerId, handleClick);
+      map.off("mousemove", fillLayerId, handleMouseMove);
+      map.off("mouseleave", fillLayerId, handleMouseLeave);
+
+      try {
+        if (map.getLayer(strokeLayerId)) map.removeLayer(strokeLayerId);
+        if (map.getLayer(fillLayerId)) map.removeLayer(fillLayerId);
+        if (map.getSource(sourceId)) map.removeSource(sourceId);
+      } catch {
+        // ignore
+      }
+    };
+  }, [isLoaded, map, geoJsonData, sourceId, fillLayerId, strokeLayerId]);
+
+  // Update paint properties when they change
+  useEffect(() => {
+    if (!isLoaded || !map) return;
+
+    if (map.getLayer(fillLayerId)) {
+      map.setPaintProperty(fillLayerId, "fill-color", fillColor);
+      map.setPaintProperty(fillLayerId, "fill-opacity", fillOpacity);
+    }
+    if (map.getLayer(strokeLayerId)) {
+      map.setPaintProperty(strokeLayerId, "line-color", strokeColor);
+      map.setPaintProperty(strokeLayerId, "line-width", strokeWidth);
+      map.setPaintProperty(strokeLayerId, "line-opacity", strokeOpacity);
+    }
+  }, [isLoaded, map, fillLayerId, strokeLayerId, fillColor, fillOpacity, strokeColor, strokeWidth, strokeOpacity]);
+
+  return null;
+}
+
 function MapRoute({
   coordinates,
   color = "#4285F4",
@@ -907,4 +1059,5 @@ export {
   MapPopup,
   MapControls,
   MapRoute,
+  MapGeoJSON,
 };

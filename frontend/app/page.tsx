@@ -44,6 +44,7 @@ export default function HomePage() {
   const [facilityFilter, setFacilityFilter] = useState("Semua");
   const [serviceFilter, setServiceFilter] = useState("Semua");
   const [kecamatanFilter, setKecamatanFilter] = useState("Semua");
+  const [hoveredKecamatan, setHoveredKecamatan] = useState<string | null>(null);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
@@ -242,11 +243,16 @@ export default function HomePage() {
                 facilityFilter={facilityFilter}
                 serviceFilter={serviceFilter}
                 kecamatanFilter={kecamatanFilter}
+                onHoverKecamatan={setHoveredKecamatan}
               />
               <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-background/90 to-transparent">
                 <Badge variant="secondary" className="gap-2 px-3 py-1 bg-background/80 backdrop-blur">
                   <HugeiconsIcon icon={Location01Icon} size={14} className="text-primary" />
-                  <span className="text-xs">Kabupaten Kebumen, Jawa Tengah</span>
+                  <span className="text-xs">
+                    {hoveredKecamatan
+                      ? `Kecamatan ${hoveredKecamatan}, Kebumen`
+                      : "Kabupaten Kebumen, Jawa Tengah"}
+                  </span>
                 </Badge>
               </div>
             </div>
@@ -270,7 +276,7 @@ export default function HomePage() {
                       <circle
                         cx="50" cy="50" r="40"
                         fill="none"
-                        stroke="#3b82f6"
+                        stroke="#00979D"
                         strokeWidth="12"
                         strokeDasharray="73.3 251.33"
                         strokeDashoffset="0"
@@ -280,7 +286,7 @@ export default function HomePage() {
                       <circle
                         cx="50" cy="50" r="40"
                         fill="none"
-                        stroke="#10b981"
+                        stroke="#4DB6AC"
                         strokeWidth="12"
                         strokeDasharray="52.4 251.33"
                         strokeDashoffset="-73.3"
@@ -290,7 +296,7 @@ export default function HomePage() {
                       <circle
                         cx="50" cy="50" r="40"
                         fill="none"
-                        stroke="#f59e0b"
+                        stroke="#FFBF47"
                         strokeWidth="12"
                         strokeDasharray="36.7 251.33"
                         strokeDashoffset="-125.7"
@@ -300,7 +306,7 @@ export default function HomePage() {
                       <circle
                         cx="50" cy="50" r="40"
                         fill="none"
-                        stroke="#8b5cf6"
+                        stroke="#9575CD"
                         strokeWidth="12"
                         strokeDasharray="88.97 251.33"
                         strokeDashoffset="-162.4"
@@ -316,19 +322,19 @@ export default function HomePage() {
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full bg-[#3b82f6]" />
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#00979D]" />
                     <span className="text-muted-foreground">Puskesmas: 14 (29%)</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full bg-[#10b981]" />
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#4DB6AC]" />
                     <span className="text-muted-foreground">RSU: 10 (21%)</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full bg-[#f59e0b]" />
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#FFBF47]" />
                     <span className="text-muted-foreground">Klinik: 7 (15%)</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full bg-[#8b5cf6]" />
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#9575CD]" />
                     <span className="text-muted-foreground">Lainnya: 17 (35%)</span>
                   </div>
                 </div>
@@ -344,8 +350,8 @@ export default function HomePage() {
               <CardContent className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                      <HugeiconsIcon icon={Hospital01Icon} size={16} className="text-blue-500" />
+                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                      <HugeiconsIcon icon={Hospital01Icon} size={16} className="text-primary" />
                     </div>
                     <span className="text-sm">Total Fasilitas</span>
                   </div>
@@ -353,8 +359,8 @@ export default function HomePage() {
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-green-500/10 flex items-center justify-center">
-                      <HugeiconsIcon icon={CheckmarkCircle02Icon} size={16} className="text-green-500" />
+                    <div className="w-8 h-8 rounded-lg bg-[#4DB6AC]/10 flex items-center justify-center">
+                      <HugeiconsIcon icon={CheckmarkCircle02Icon} size={16} className="text-[#4DB6AC]" />
                     </div>
                     <span className="text-sm">Terverifikasi</span>
                   </div>
@@ -362,8 +368,8 @@ export default function HomePage() {
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                      <HugeiconsIcon icon={Hospital01Icon} size={16} className="text-amber-500" />
+                    <div className="w-8 h-8 rounded-lg bg-[#FFBF47]/10 flex items-center justify-center">
+                      <HugeiconsIcon icon={Hospital01Icon} size={16} className="text-[#FFBF47]" />
                     </div>
                     <span className="text-sm">Jenis Layanan</span>
                   </div>
@@ -371,8 +377,8 @@ export default function HomePage() {
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
-                      <HugeiconsIcon icon={Location01Icon} size={16} className="text-purple-500" />
+                    <div className="w-8 h-8 rounded-lg bg-[#9575CD]/10 flex items-center justify-center">
+                      <HugeiconsIcon icon={Location01Icon} size={16} className="text-[#9575CD]" />
                     </div>
                     <span className="text-sm">Kecamatan</span>
                   </div>

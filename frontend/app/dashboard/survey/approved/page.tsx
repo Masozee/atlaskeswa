@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { useSurveys } from '@/hooks/use-surveys';
+import Link from 'next/link';
+import { useSurveyResponses } from '@/hooks/use-survey-responses';
 import { PageHeader } from "@/components/page-header";
 import { Input } from "@/components/ui/input";
 import {
@@ -12,15 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MoreHorizontal, Eye, Download, FileText } from "lucide-react";
 import {
   ColumnDef,
   flexRender,
@@ -29,26 +22,35 @@ import {
   SortingState,
   useReactTable,
 } from "@tanstack/react-table";
-import { SurveyListItem } from "@/lib/types/api";
+
+interface SurveyResponseItem {
+  id: number;
+  service_name: string;
+  service_city: string;
+  survey_date: string;
+  surveyor_name: string;
+  verification_status: string;
+  status_display: string;
+  created_at: string;
+}
 
 const breadcrumbs = [
-  { label: 'Dashboard', href: '/dashboard' },
-  { label: 'Surveys', href: '/dashboard/survey' },
-  { label: 'Approved Surveys' },
+  { label: 'Dasbor', href: '/dashboard' },
+  { label: 'Survei Terverifikasi' },
 ];
 
 export default function ApprovedSurveysPage() {
   const [search, setSearch] = useState('');
   const [sorting, setSorting] = useState<SortingState>([]);
 
-  const { data, isLoading } = useSurveys({
+  const { data, isLoading } = useSurveyResponses({
     search,
     verification_status: 'VERIFIED',
     ordering: '-survey_date',
     page_size: 50,
   });
 
-  const columns = useMemo<ColumnDef<SurveyListItem, any>[]>(() => [
+  const columns = useMemo<ColumnDef<SurveyResponseItem, any>[]>(() => [
     {
       accessorKey: "id",
       header: "ID",
@@ -56,18 +58,26 @@ export default function ApprovedSurveysPage() {
     },
     {
       accessorKey: "service_name",
-      header: "Service Name",
+      header: "Nama Layanan",
       cell: ({ row }) => {
-        return <div className="font-medium max-w-xs truncate">{row.getValue("service_name")}</div>
+        const survey = row.original;
+        return (
+          <Link
+            href={`/dashboard/survey/${survey.id}`}
+            className="font-medium max-w-xs truncate text-primary hover:underline"
+          >
+            {row.getValue("service_name")}
+          </Link>
+        );
       },
     },
     {
       accessorKey: "service_city",
-      header: "City",
+      header: "Kota",
     },
     {
       accessorKey: "survey_date",
-      header: "Survey Date",
+      header: "Tanggal Survei",
       cell: ({ row }) => {
         const date = new Date(row.getValue("survey_date"));
         return <div>{date.toLocaleDateString('id-ID')}</div>
@@ -81,72 +91,11 @@ export default function ApprovedSurveysPage() {
       },
     },
     {
-      accessorKey: "verifier_name",
-      header: "Verified By",
-      cell: ({ row }) => {
-        const verifier = row.getValue("verifier_name") as string | null;
-        return verifier ? (
-          <div className="text-sm">{verifier}</div>
-        ) : (
-          <span className="text-muted-foreground">-</span>
-        );
-      },
-    },
-    {
-      accessorKey: "total_patients_served",
-      header: "Patients",
-      cell: ({ row }) => {
-        return <div className="text-center">{row.getValue("total_patients_served")}</div>
-      },
-    },
-    {
-      accessorKey: "occupancy_rate",
-      header: "Occupancy",
-      cell: ({ row }) => {
-        const rate = row.getValue("occupancy_rate") as number | null;
-        return rate !== null ? (
-          <div className="text-center">{rate.toFixed(1)}%</div>
-        ) : (
-          <div className="text-center text-muted-foreground">-</div>
-        );
-      },
-    },
-    {
       accessorKey: "verification_status",
       header: "Status",
-      cell: () => {
-        return <Badge variant="default">Verified</Badge>;
-      },
-    },
-    {
-      id: "actions",
       cell: ({ row }) => {
-        const survey = row.original;
-
-        return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0">
-                <span className="sr-only">Open menu</span>
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem>
-                <Eye className="mr-2 h-4 w-4" />
-                View details
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <FileText className="mr-2 h-4 w-4" />
-                View report
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <Download className="mr-2 h-4 w-4" />
-                Export data
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        );
+        const statusDisplay = row.original.status_display;
+        return <Badge variant="default">{statusDisplay}</Badge>;
       },
     },
   ], []);
@@ -169,7 +118,7 @@ export default function ApprovedSurveysPage() {
         <div className="flex flex-1 items-center justify-center">
           <div className="text-center">
             <div className="h-16 w-16 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto mb-4"></div>
-            <p className="text-sm text-muted-foreground">Loading approved surveys...</p>
+            <p className="text-sm text-muted-foreground">Memuat survei...</p>
           </div>
         </div>
       </>
@@ -182,22 +131,17 @@ export default function ApprovedSurveysPage() {
 
       <div className="flex flex-1 flex-col gap-4 p-8">
         <div>
-          <h1 className="text-2xl font-bold">Approved Surveys</h1>
-          <p className="text-muted-foreground">Verified and approved survey records</p>
+          <h1 className="text-2xl font-bold">Survei Terverifikasi</h1>
+          <p className="text-muted-foreground">Daftar survei yang sudah diverifikasi</p>
         </div>
 
         <div className="flex gap-2 justify-between items-center">
           <Input
-            placeholder="Search by service name, city..."
+            placeholder="Cari berdasarkan nama layanan, kota..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-64"
           />
-          <div className="flex items-center gap-2">
-            <Badge variant="default" className="text-sm">
-              {data?.count || 0} Approved
-            </Badge>
-          </div>
         </div>
 
         <div className="rounded-lg border">
@@ -232,7 +176,7 @@ export default function ApprovedSurveysPage() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={columns.length} className="h-24 text-center">
-                    No approved surveys found.
+                    Tidak ada survei terverifikasi.
                   </TableCell>
                 </TableRow>
               )}
@@ -243,7 +187,7 @@ export default function ApprovedSurveysPage() {
         {data && data.count > 0 && (
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
-              Showing {data.results.length} of {data.count} approved surveys
+              Menampilkan {data.results.length} dari {data.count} survei
             </p>
           </div>
         )}

@@ -40,7 +40,7 @@ const breadcrumbs: BreadcrumbItemType[] = [
 ];
 
 const MTC_CATEGORIES = [
-  { code: 'R1', name: 'Residential, 24-hour Inpatient Care', color: '#3b82f6' },
+  { code: 'R1', name: 'Residential, 24-hour Inpatient Care', color: '#00979D' },
   { code: 'R2', name: 'Residential, Non-hospital Care', color: '#22c55e' },
   { code: 'O1', name: 'Outpatient, Ambulatory Mental Health Care', color: '#a855f7' },
   { code: 'O2', name: 'Outpatient, Day Care', color: '#f97316' },
@@ -266,7 +266,7 @@ export default function MTCDistributionReportPage() {
                       return null;
                     }}
                   />
-                  <Bar dataKey="count" fill="#3b82f6" />
+                  <Bar dataKey="count" fill="#00979D" />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
@@ -330,7 +330,7 @@ export default function MTCDistributionReportPage() {
                     }}
                   />
                   <Legend />
-                  <Bar dataKey="beds" fill="#3b82f6" name="Beds" />
+                  <Bar dataKey="beds" fill="#00979D" name="Beds" />
                   <Bar dataKey="staff" fill="#22c55e" name="Staff" />
                 </BarChart>
               </ResponsiveContainer>
@@ -349,7 +349,7 @@ export default function MTCDistributionReportPage() {
                   <PolarGrid />
                   <PolarAngleAxis dataKey="category" />
                   <PolarRadiusAxis angle={90} domain={[0, 100]} />
-                  <Radar name="Services" dataKey="services" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.6} />
+                  <Radar name="Services" dataKey="services" stroke="#00979D" fill="#00979D" fillOpacity={0.6} />
                   <Radar name="Beds" dataKey="beds" stroke="#22c55e" fill="#22c55e" fillOpacity={0.6} />
                   <Radar name="Staff" dataKey="staff" stroke="#a855f7" fill="#a855f7" fillOpacity={0.6} />
                   <Legend />

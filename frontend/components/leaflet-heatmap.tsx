@@ -40,10 +40,10 @@ export function LeafletHeatmap({ center, zoom, heatmapData, className }: Leaflet
           : normalized > 0.6
           ? "#ea580c"
           : normalized > 0.4
-          ? "#facc15"
+          ? "#FFBF47"
           : normalized > 0.2
-          ? "#22c55e"
-          : "#3b82f6"
+          ? "#4DB6AC"
+          : "#00979D"
 
       L.circle([point.lat, point.lng], {
         color: color,

@@ -10,7 +10,19 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Save, RefreshCw } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { FloppyDiskIcon, RefreshIcon, Loading03Icon } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
 
 const breadcrumbs = [
@@ -44,21 +56,20 @@ export default function SettingsPage() {
   };
 
   const handleReset = async () => {
-    if (confirm('Are you sure you want to reset all settings to default values?')) {
-      try {
-        await resetSettings.mutateAsync();
-        toast.success('Settings reset to defaults');
-        setFormData({});
-      } catch (error) {
-        toast.error('Failed to reset settings');
-      }
+    try {
+      await resetSettings.mutateAsync();
+      toast.success('Settings reset to defaults');
+      setFormData({});
+    } catch (error) {
+      toast.error('Failed to reset settings');
     }
   };
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-muted-foreground">Loading settings...</div>
+      <div className="flex items-center justify-center h-full gap-2" role="status" aria-live="polite" aria-busy="true">
+        <HugeiconsIcon icon={Loading03Icon} size={20} className="animate-spin text-muted-foreground" aria-hidden="true" />
+        <span className="text-muted-foreground">Loading settings...</span>
       </div>
     );
   }
@@ -74,12 +85,28 @@ export default function SettingsPage() {
             <p className="text-muted-foreground">Manage system-wide configuration</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={handleReset}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Reset to Defaults
-            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger
+                render={<Button variant="outline" disabled={resetSettings.isPending} />}
+              >
+                <HugeiconsIcon icon={RefreshIcon} size={16} className="mr-2" aria-hidden="true" />
+                {resetSettings.isPending ? 'Resetting...' : 'Reset to Defaults'}
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Reset Settings</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Are you sure you want to reset all settings to default values? This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleReset}>Reset</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
             <Button onClick={handleSave} disabled={updateSettings.isPending}>
-              <Save className="h-4 w-4 mr-2" />
+              <HugeiconsIcon icon={FloppyDiskIcon} size={16} className="mr-2" aria-hidden="true" />
               {updateSettings.isPending ? 'Saving...' : 'Save Changes'}
             </Button>
           </div>
@@ -136,8 +163,9 @@ export default function SettingsPage() {
                     max="100"
                     value={formData.default_page_size || 10}
                     onChange={(e) => handleChange('default_page_size', parseInt(e.target.value))}
+                    aria-describedby="default_page_size_desc"
                   />
-                  <p className="text-sm text-muted-foreground">Number of items per page (5-100)</p>
+                  <p id="default_page_size_desc" className="text-sm text-muted-foreground">Number of items per page (5-100)</p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="max_page_size">Maximum Page Size</Label>
@@ -148,8 +176,9 @@ export default function SettingsPage() {
                     max="500"
                     value={formData.max_page_size || 100}
                     onChange={(e) => handleChange('max_page_size', parseInt(e.target.value))}
+                    aria-describedby="max_page_size_desc"
                   />
-                  <p className="text-sm text-muted-foreground">Maximum items per page (10-500)</p>
+                  <p id="max_page_size_desc" className="text-sm text-muted-foreground">Maximum items per page (10-500)</p>
                 </div>
               </CardContent>
             </Card>
@@ -162,12 +191,14 @@ export default function SettingsPage() {
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label>Maintenance Mode</Label>
-                    <p className="text-sm text-muted-foreground">System is currently in maintenance</p>
+                    <Label htmlFor="maintenance_mode">Maintenance Mode</Label>
+                    <p id="maintenance_mode_desc" className="text-sm text-muted-foreground">System is currently in maintenance</p>
                   </div>
                   <Switch
+                    id="maintenance_mode"
                     checked={formData.maintenance_mode || false}
                     onCheckedChange={(checked) => handleChange('maintenance_mode', checked)}
+                    aria-describedby="maintenance_mode_desc"
                   />
                 </div>
                 <div className="space-y-2">
@@ -192,12 +223,14 @@ export default function SettingsPage() {
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label>Email Notifications</Label>
-                    <p className="text-sm text-muted-foreground">Enable system email notifications</p>
+                    <Label htmlFor="email_notifications_enabled">Email Notifications</Label>
+                    <p id="email_notifications_desc" className="text-sm text-muted-foreground">Enable system email notifications</p>
                   </div>
                   <Switch
+                    id="email_notifications_enabled"
                     checked={formData.email_notifications_enabled || false}
                     onCheckedChange={(checked) => handleChange('email_notifications_enabled', checked)}
+                    aria-describedby="email_notifications_desc"
                   />
                 </div>
                 <div className="space-y-2">
@@ -237,8 +270,9 @@ export default function SettingsPage() {
                     max="1440"
                     value={formData.session_timeout || 30}
                     onChange={(e) => handleChange('session_timeout', parseInt(e.target.value))}
+                    aria-describedby="session_timeout_desc"
                   />
-                  <p className="text-sm text-muted-foreground">Session timeout in minutes (5-1440)</p>
+                  <p id="session_timeout_desc" className="text-sm text-muted-foreground">Session timeout in minutes (5-1440)</p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="password_min_length">Minimum Password Length</Label>
@@ -249,27 +283,32 @@ export default function SettingsPage() {
                     max="32"
                     value={formData.password_min_length || 8}
                     onChange={(e) => handleChange('password_min_length', parseInt(e.target.value))}
+                    aria-describedby="password_min_length_desc"
                   />
-                  <p className="text-sm text-muted-foreground">Minimum password length (6-32)</p>
+                  <p id="password_min_length_desc" className="text-sm text-muted-foreground">Minimum password length (6-32)</p>
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label>Require Email Verification</Label>
-                    <p className="text-sm text-muted-foreground">Users must verify email before login</p>
+                    <Label htmlFor="require_email_verification">Require Email Verification</Label>
+                    <p id="require_email_verification_desc" className="text-sm text-muted-foreground">Users must verify email before login</p>
                   </div>
                   <Switch
+                    id="require_email_verification"
                     checked={formData.require_email_verification || false}
                     onCheckedChange={(checked) => handleChange('require_email_verification', checked)}
+                    aria-describedby="require_email_verification_desc"
                   />
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label>Enable Two-Factor Authentication</Label>
-                    <p className="text-sm text-muted-foreground">Require 2FA for user accounts</p>
+                    <Label htmlFor="enable_two_factor_auth">Enable Two-Factor Authentication</Label>
+                    <p id="enable_two_factor_auth_desc" className="text-sm text-muted-foreground">Require 2FA for user accounts</p>
                   </div>
                   <Switch
+                    id="enable_two_factor_auth"
                     checked={formData.enable_two_factor_auth || false}
                     onCheckedChange={(checked) => handleChange('enable_two_factor_auth', checked)}
+                    aria-describedby="enable_two_factor_auth_desc"
                   />
                 </div>
               </CardContent>
@@ -285,12 +324,14 @@ export default function SettingsPage() {
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label>Auto-Approve Surveys</Label>
-                    <p className="text-sm text-muted-foreground">Skip verification workflow</p>
+                    <Label htmlFor="survey_auto_approval">Auto-Approve Surveys</Label>
+                    <p id="survey_auto_approval_desc" className="text-sm text-muted-foreground">Skip verification workflow</p>
                   </div>
                   <Switch
+                    id="survey_auto_approval"
                     checked={formData.survey_auto_approval || false}
                     onCheckedChange={(checked) => handleChange('survey_auto_approval', checked)}
+                    aria-describedby="survey_auto_approval_desc"
                   />
                 </div>
                 <div className="space-y-2">
@@ -302,8 +343,9 @@ export default function SettingsPage() {
                     max="180"
                     value={formData.survey_draft_expiry_days || 30}
                     onChange={(e) => handleChange('survey_draft_expiry_days', parseInt(e.target.value))}
+                    aria-describedby="survey_draft_expiry_days_desc"
                   />
-                  <p className="text-sm text-muted-foreground">Days before draft surveys expire (7-180)</p>
+                  <p id="survey_draft_expiry_days_desc" className="text-sm text-muted-foreground">Days before draft surveys expire (7-180)</p>
                 </div>
               </CardContent>
             </Card>
@@ -325,17 +367,20 @@ export default function SettingsPage() {
                     max="3650"
                     value={formData.data_retention_days || 365}
                     onChange={(e) => handleChange('data_retention_days', parseInt(e.target.value))}
+                    aria-describedby="data_retention_days_desc"
                   />
-                  <p className="text-sm text-muted-foreground">Days to retain data (30-3650)</p>
+                  <p id="data_retention_days_desc" className="text-sm text-muted-foreground">Days to retain data (30-3650)</p>
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label>Enable Audit Logs</Label>
-                    <p className="text-sm text-muted-foreground">Track all system changes</p>
+                    <Label htmlFor="enable_audit_logs">Enable Audit Logs</Label>
+                    <p id="enable_audit_logs_desc" className="text-sm text-muted-foreground">Track all system changes</p>
                   </div>
                   <Switch
+                    id="enable_audit_logs"
                     checked={formData.enable_audit_logs || false}
                     onCheckedChange={(checked) => handleChange('enable_audit_logs', checked)}
+                    aria-describedby="enable_audit_logs_desc"
                   />
                 </div>
               </CardContent>

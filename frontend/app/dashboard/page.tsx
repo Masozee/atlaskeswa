@@ -24,7 +24,8 @@ import {
   LabelList,
 } from 'recharts';
 
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+// Chart colors based on primary teal #00979D
+const COLORS = ['#00979D', '#4DB6AC', '#FFBF47', '#FF8A65', '#9575CD', '#81C784'];
 
 // Dummy data for Kebumen kecamatan distribution
 const KEBUMEN_KECAMATAN_DATA = [
@@ -320,8 +321,8 @@ export default function DashboardPage() {
                 <BarChart data={KEBUMEN_KECAMATAN_DATA.slice(0, 10)} margin={{ top: 20, right: 10, left: 0, bottom: 5 }}>
                   <defs>
                     <linearGradient id="colorServices" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#4DA1DB" stopOpacity={1}/>
-                      <stop offset="100%" stopColor="#4DA1DB" stopOpacity={0.7}/>
+                      <stop offset="0%" stopColor="#00979D" stopOpacity={1}/>
+                      <stop offset="100%" stopColor="#00979D" stopOpacity={0.7}/>
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted-foreground))" strokeOpacity={0.15} strokeWidth={0.5} />

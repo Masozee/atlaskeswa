@@ -188,7 +188,7 @@ export default function CoverageAnalysisPage() {
                   <YAxis />
                   <Tooltip />
                   <Legend />
-                  <Bar dataKey="serviceCount" fill="#3b82f6" name="Services" />
+                  <Bar dataKey="serviceCount" fill="#00979D" name="Services" />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>

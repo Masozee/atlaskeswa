@@ -294,7 +294,7 @@ export default function RegionComparisonPage() {
                     <YAxis />
                     <Tooltip />
                     <Legend />
-                    <Bar dataKey={region1} fill="#3b82f6" name={region1} />
+                    <Bar dataKey={region1} fill="#00979D" name={region1} />
                     <Bar dataKey={region2} fill="#22c55e" name={region2} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -313,7 +313,7 @@ export default function RegionComparisonPage() {
                     <PolarGrid />
                     <PolarAngleAxis dataKey="metric" />
                     <PolarRadiusAxis angle={90} domain={[0, 100]} />
-                    <Radar name={region1} dataKey={region1} stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.6} />
+                    <Radar name={region1} dataKey={region1} stroke="#00979D" fill="#00979D" fillOpacity={0.6} />
                     <Radar name={region2} dataKey={region2} stroke="#22c55e" fill="#22c55e" fillOpacity={0.6} />
                     <Legend />
                     <Tooltip />
