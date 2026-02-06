@@ -6,7 +6,7 @@ import type { NextRequest } from 'next/server';
  * Handles authentication redirects and API proxying to Django backend
  */
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const token = request.cookies.get('access_token')?.value;
   const { pathname } = request.nextUrl;
 
@@ -19,10 +19,8 @@ export async function middleware(request: NextRequest) {
                    process.env.API_URL ||
                    'https://api.atlaskeswa.id';
 
-    // Rewrite /api/ to /v1/ for Django backend
-    let backendPath = pathname.replace(/^\/api\//, '/v1/');
-
     // Ensure trailing slash for Django (Django APPEND_SLASH setting)
+    let backendPath = pathname;
     if (!backendPath.endsWith('/')) {
       backendPath += '/';
     }
