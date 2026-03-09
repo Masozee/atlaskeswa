@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { apiClient } from '@/lib/api-client';
 
 interface GeographicUnit {
   id: number;
@@ -23,17 +24,12 @@ async function fetchGeographicUnits(params: {
   parent?: number;
   search?: string;
 }): Promise<GeographicUnit[]> {
-  const searchParams = new URLSearchParams();
-  if (params.level) searchParams.set('level', params.level);
-  if (params.parent) searchParams.set('parent', params.parent.toString());
-  if (params.search) searchParams.set('search', params.search);
-  searchParams.set('page_size', '100'); // Get all results
+  const queryParams: Record<string, string> = { page_size: '100' };
+  if (params.level) queryParams.level = params.level;
+  if (params.parent) queryParams.parent = params.parent.toString();
+  if (params.search) queryParams.search = params.search;
 
-  const response = await fetch(`/api/surveys/geographic-units/?${searchParams.toString()}`);
-  if (!response.ok) {
-    throw new Error('Failed to fetch geographic units');
-  }
-  const data: GeographicUnitsResponse = await response.json();
+  const data = await apiClient.get<GeographicUnitsResponse>('/surveys/geographic-units/', queryParams);
   return data.results;
 }
 
@@ -47,11 +43,10 @@ export function useGeographicUnits(params: {
     queryKey: ['geographic-units', params],
     queryFn: () => fetchGeographicUnits(params),
     enabled: params.enabled !== false,
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    staleTime: 5 * 60 * 1000,
   });
 }
 
-// Helper hooks for specific levels
 export function useProvinsi() {
   return useGeographicUnits({ level: 'PROVINSI' });
 }
@@ -80,8 +75,6 @@ export function useDesa(kecamatanId?: number) {
   });
 }
 
-// Hook to get Kebumen kecamatan specifically (for fixed Kebumen surveys)
-// Uses the known Kebumen ID (2) directly instead of fetching and searching
 const KEBUMEN_ID = 2;
 
 export function useKebumenKecamatan() {

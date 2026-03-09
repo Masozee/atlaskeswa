@@ -25,6 +25,7 @@ import { HugeiconsIcon } from "@hugeicons/react"
 import {MoreHorizontalIcon} from "@hugeicons/core-free-icons";
 import { DataTable } from '@/components/data-table';
 import { useState } from 'react';
+import { Separator } from '@/components/ui/separator';
 
 interface ActivityLog {
   id: number;
@@ -88,11 +89,11 @@ export default function LoginHistoryPage() {
           const action = row.original.action;
           const variant =
             action === 'LOGIN'
-              ? 'default'
+              ? 'outline-success'
               : action === 'LOGOUT'
-              ? 'secondary'
+              ? 'outline-muted'
               : action === 'LOGIN_FAILED'
-              ? 'destructive'
+              ? 'outline-danger'
               : action === 'CREATE'
               ? 'default'
               : action === 'UPDATE'
@@ -155,7 +156,7 @@ export default function LoginHistoryPage() {
           return (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="h-8 w-8 p-0">
+                <Button variant="outline" className="h-8 w-8 p-0">
                   <span className="sr-only">Open menu</span>
                   <HugeiconsIcon icon={MoreHorizontalIcon} size={16} />
                 </Button>
@@ -209,11 +210,16 @@ export default function LoginHistoryPage() {
     <>
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-4 p-8">
-        <div>
+      <div className="flex flex-1 flex-col gap-4">
+
+        <div className="px-8 pt-8">
           <h1 className="text-2xl font-bold">Login History</h1>
           <p className="text-muted-foreground">User activity and authentication logs</p>
         </div>
+
+        <Separator />
+
+        <div className="flex flex-col gap-4 px-8 pb-8">
 
         <div className="grid grid-cols-4 gap-4">
           <div className="rounded-lg border bg-card p-4">
@@ -259,7 +265,8 @@ export default function LoginHistoryPage() {
             </Select>
           }
         />
-      </div>
+              </div>
+        </div>
     </>
   );
 }

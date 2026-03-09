@@ -161,7 +161,7 @@ export default function VerificationQueuePage() {
           return verifier ? (
             <div className="text-sm">{verifier as string}</div>
           ) : (
-            <Badge variant="outline">Unassigned</Badge>
+            <Badge variant="outline-muted">Unassigned</Badge>
           );
         },
       },
@@ -174,7 +174,7 @@ export default function VerificationQueuePage() {
           return (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="h-8 w-8 p-0">
+                <Button variant="outline" className="h-8 w-8 p-0">
                   <span className="sr-only">Open menu</span>
                   <HugeiconsIcon icon={MoreHorizontalIcon} size={16} />
                 </Button>

@@ -9,7 +9,10 @@ import { API_BASE_URL as ENV_API_BASE_URL } from '@env';
 // API Configuration
 // Configure the API_BASE_URL in the .env file
 // For local development, use your computer's local IP address (not localhost)
-const API_BASE_URL = ENV_API_BASE_URL || 'http://192.168.1.45:8004/api';
+const API_BASE_URL = ENV_API_BASE_URL || 'http://192.168.1.150:8000/v1';
+
+// Export the env-configured URL so App.tsx can determine if .env was explicitly set
+export const ENV_CONFIGURED_URL = ENV_API_BASE_URL || '';
 
 export interface ApiError {
   message: string;
@@ -42,6 +45,14 @@ class ApiClient {
 
   setSessionExpiredCallback(callback: () => void) {
     this.onSessionExpired = callback;
+  }
+
+  setBaseURL(url: string) {
+    this.baseURL = url;
+  }
+
+  getBaseURL(): string {
+    return this.baseURL;
   }
 
   private async loadTokensFromStorage() {
@@ -228,6 +239,17 @@ class ApiClient {
       method: 'POST',
       body: data ? JSON.stringify(data) : undefined,
     });
+  }
+
+  async patch<T>(endpoint: string, data?: any): Promise<T> {
+    return this.request<T>(endpoint, {
+      method: 'PATCH',
+      body: data ? JSON.stringify(data) : undefined,
+    });
+  }
+
+  async delete<T>(endpoint: string): Promise<T> {
+    return this.request<T>(endpoint, { method: 'DELETE' });
   }
 }
 

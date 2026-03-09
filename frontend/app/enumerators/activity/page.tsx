@@ -29,6 +29,7 @@ import {MoreHorizontalIcon,
   FileValidationIcon,
   CancelCircleIcon,} from "@hugeicons/core-free-icons";
 import { DataTable } from '@/components/data-table';
+import { Separator } from '@/components/ui/separator';
 
 interface AuditLog {
   id: number;
@@ -96,11 +97,11 @@ export default function EnumeratorActivityPage() {
           const action = row.getValue('action') as string;
           const variant =
             action === 'VERIFIED'
-              ? 'default'
+              ? 'outline-success'
               : action === 'REJECTED'
-              ? 'destructive'
+              ? 'outline-danger'
               : action === 'SUBMITTED'
-              ? 'secondary'
+              ? 'outline-info'
               : 'outline';
 
           const icon =
@@ -207,7 +208,7 @@ export default function EnumeratorActivityPage() {
           return (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="h-8 w-8 p-0">
+                <Button variant="outline" className="h-8 w-8 p-0">
                   <span className="sr-only">Open menu</span>
                   <HugeiconsIcon icon={MoreHorizontalIcon} size={16} />
                 </Button>
@@ -257,8 +258,9 @@ export default function EnumeratorActivityPage() {
     <div className="flex flex-col">
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex-1 p-6 space-y-6">
-        <div className="flex items-center justify-between gap-4">
+      <div className="flex-1 space-y-6">
+
+        <div className="px-6 pt-6 flex items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold">Enumerator Activity Log</h1>
             <p className="text-muted-foreground mt-1">
@@ -266,6 +268,10 @@ export default function EnumeratorActivityPage() {
             </p>
           </div>
         </div>
+
+        <Separator />
+
+        <div className="space-y-6 px-6 pb-6">
 
         <div className="grid grid-cols-4 gap-4">
           <div className="rounded-lg border bg-card p-4">
@@ -329,7 +335,8 @@ export default function EnumeratorActivityPage() {
             </div>
           }
         />
-      </div>
+              </div>
+        </div>
     </div>
   );
 }

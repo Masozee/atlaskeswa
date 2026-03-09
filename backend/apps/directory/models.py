@@ -69,8 +69,26 @@ class MainTypeOfCare(models.Model):
 class BasicStableInputsOfCare(models.Model):
     """BSIC - Basic Stable Inputs of Care classification from DESDE-LTC"""
 
+    FACILITY_TYPE_CHOICES = [
+        ('KESEHATAN', 'Fasilitas Kesehatan'),
+        ('NON_KESEHATAN', 'Non Kesehatan'),
+    ]
+
     code = models.CharField(max_length=10, unique=True, db_index=True)
     name = models.CharField(max_length=200)
+    kategori_layanan = models.ForeignKey(
+        'KategoriLayanan',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='bsic_categories'
+    )
+    kategori_fasilitas = models.CharField(
+        max_length=20,
+        choices=FACILITY_TYPE_CHOICES,
+        blank=True,
+        default=''
+    )
     description = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -118,6 +136,56 @@ class ServiceType(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class KategoriLayanan(models.Model):
+    """Kategori Layanan - Service category classification"""
+
+    code = models.CharField(max_length=20, unique=True, db_index=True)
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'kategori_layanan'
+        ordering = ['code']
+        verbose_name = 'Kategori Layanan'
+        verbose_name_plural = 'Kategori Layanan'
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
+class KategoriFasilitas(models.Model):
+    """Kategori Fasilitas - Facility category classification"""
+
+    FACILITY_TYPE_CHOICES = [
+        ('KESEHATAN', 'Fasilitas Kesehatan'),
+        ('NON_KESEHATAN', 'Non Kesehatan'),
+    ]
+
+    code = models.CharField(max_length=20, unique=True, db_index=True)
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    facility_type = models.CharField(
+        max_length=20,
+        choices=FACILITY_TYPE_CHOICES,
+        default='KESEHATAN'
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'kategori_fasilitas'
+        ordering = ['code']
+        verbose_name = 'Kategori Fasilitas'
+        verbose_name_plural = 'Kategori Fasilitas'
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
 
 
 class Service(models.Model):

@@ -29,6 +29,7 @@ import {CheckmarkCircle02Icon,
   Search01Icon,
   Download01Icon,
   ViewIcon,} from "@hugeicons/core-free-icons";
+import { Separator } from '@/components/ui/separator';
 
 // Mock verification logs
 const mockVerificationLogs = [
@@ -190,8 +191,9 @@ export default function VerificationLogsPage() {
     <>
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-4 p-8">
-        <div className="flex items-center justify-between">
+      <div className="flex flex-1 flex-col gap-4">
+
+        <div className="px-8 pt-8 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">Verification Logs</h1>
             <p className="text-muted-foreground">
@@ -203,6 +205,10 @@ export default function VerificationLogsPage() {
             Export Logs
           </Button>
         </div>
+
+        <Separator />
+
+        <div className="flex flex-col gap-4 px-8 pb-8">
 
         {/* Statistics */}
         <div className="grid gap-4 md:grid-cols-4">
@@ -379,7 +385,8 @@ export default function VerificationLogsPage() {
             </Table>
           </CardContent>
         </Card>
-      </div>
+              </div>
+        </div>
     </>
   );
 }

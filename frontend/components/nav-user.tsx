@@ -36,7 +36,7 @@ import { useStore } from "@tanstack/react-store"
 export function NavUser() {
   const { isMobile } = useSidebar()
   const router = useRouter()
-  const authState = useStore(authStore)
+  const authState = useStore(authStore, (state) => state)
 
   const user = authState.user
 

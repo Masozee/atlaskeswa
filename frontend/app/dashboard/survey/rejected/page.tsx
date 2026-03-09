@@ -22,6 +22,7 @@ import {
   SortingState,
   useReactTable,
 } from "@tanstack/react-table";
+import { Separator } from '@/components/ui/separator';
 
 interface SurveyResponseItem {
   id: number;
@@ -129,11 +130,16 @@ export default function RejectedSurveysPage() {
     <>
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-4 p-8">
-        <div>
+      <div className="flex flex-1 flex-col gap-4">
+
+        <div className="px-8 pt-8">
           <h1 className="text-2xl font-bold">Survei Ditolak</h1>
           <p className="text-muted-foreground">Daftar survei yang ditolak saat verifikasi</p>
         </div>
+
+        <Separator />
+
+        <div className="flex flex-col gap-4 px-8 pb-8">
 
         <div className="flex gap-2 justify-between items-center">
           <Input
@@ -191,7 +197,8 @@ export default function RejectedSurveysPage() {
             </p>
           </div>
         )}
-      </div>
+              </div>
+        </div>
     </>
   );
 }

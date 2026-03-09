@@ -60,6 +60,10 @@ export interface BasicStableInputsOfCare {
   id: number;
   code: string;
   name: string;
+  kategori_layanan?: number | null;
+  kategori_layanan_name?: string | null;
+  kategori_fasilitas?: 'KESEHATAN' | 'NON_KESEHATAN' | '';
+  kategori_fasilitas_display?: string;
   description?: string;
   is_active: boolean;
 }
@@ -76,6 +80,28 @@ export interface ServiceType {
   name: string;
   description?: string;
   is_active: boolean;
+}
+
+export interface KategoriLayanan {
+  id: number;
+  code: string;
+  name: string;
+  description?: string;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface KategoriFasilitas {
+  id: number;
+  code: string;
+  name: string;
+  description?: string;
+  facility_type: 'KESEHATAN' | 'NON_KESEHATAN';
+  facility_type_display?: string;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Service {
@@ -363,6 +389,39 @@ export interface ActivityLog {
   user_agent?: string;
   success: boolean;
   timestamp: string;
+}
+
+// Questionnaire Models
+export interface QuestionChoice {
+  id: number;
+  question: number;
+  value: string;
+  label: string;
+  order: number;
+  mtc_code?: number;
+  mtc_code_display?: string;
+  keterangan?: string;
+  next_question_code?: string;
+  has_other_input: boolean;
+  other_input_label?: string;
+}
+
+export interface Question {
+  id: number;
+  section: number;
+  section_name?: string;
+  code: string;
+  question_text: string;
+  answer_type: string;
+  is_required: boolean;
+  order: number;
+  mtc_code?: number;
+  mtc_code_display?: string;
+  desde_ltc_description?: string;
+  keterangan?: string;
+  show_condition?: { question_code: string; operator: string; value: string } | null;
+  skip_logic?: { value: string; goto: string }[] | null;
+  choices?: QuestionChoice[];
 }
 
 export interface SystemError {

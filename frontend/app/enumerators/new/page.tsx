@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/card';
 import { HugeiconsIcon } from "@hugeicons/react"
 import {UserAdd02Icon} from "@hugeicons/core-free-icons";
+import { Separator } from '@/components/ui/separator';
 
 const breadcrumbs: BreadcrumbItemType[] = [
   { label: 'Enumerators', href: '/enumerators' },
@@ -67,8 +68,9 @@ export default function NewEnumeratorPage() {
     <>
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-4 p-6">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-1 flex-col gap-4">
+
+        <div className="px-6 pt-6 flex items-center gap-3">
           <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">
             <HugeiconsIcon icon={UserAdd02Icon} size={24} className="text-primary" />
           </div>
@@ -77,6 +79,10 @@ export default function NewEnumeratorPage() {
             <p className="text-muted-foreground">Create a new field surveyor account</p>
           </div>
         </div>
+
+        <Separator />
+
+        <div className="flex flex-col gap-4 px-6 pb-6">
 
         <form
           onSubmit={(e) => {
@@ -293,7 +299,8 @@ export default function NewEnumeratorPage() {
             </div>
           </div>
         </form>
-      </div>
+              </div>
+        </div>
     </>
   );
 }

@@ -3,6 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
 from django_filters.rest_framework import DjangoFilterBackend
+from django.db.models import Count, Q
 from django.utils import timezone
 from .models import HelpCategory, HelpArticle, FAQ, SupportTicket, SupportTicketReply
 from .serializers import (
@@ -16,7 +17,10 @@ class HelpCategoryViewSet(viewsets.ReadOnlyModelViewSet):
     """
     API endpoint for help categories
     """
-    queryset = HelpCategory.objects.filter(is_active=True)
+    queryset = HelpCategory.objects.filter(is_active=True).annotate(
+        articles_count=Count('articles', filter=Q(articles__status='published')),
+        faqs_count=Count('faqs', filter=Q(faqs__is_active=True)),
+    )
     serializer_class = HelpCategorySerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
     lookup_field = 'slug'
@@ -42,7 +46,7 @@ class HelpArticleViewSet(viewsets.ModelViewSet):
     """
     API endpoint for help articles
     """
-    queryset = HelpArticle.objects.filter(status='published')
+    queryset = HelpArticle.objects.filter(status='published').select_related('category', 'author')
     serializer_class = HelpArticleSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
     lookup_field = 'slug'
@@ -77,7 +81,7 @@ class FAQViewSet(viewsets.ReadOnlyModelViewSet):
     """
     API endpoint for FAQs
     """
-    queryset = FAQ.objects.filter(is_active=True)
+    queryset = FAQ.objects.filter(is_active=True).select_related('category')
     serializer_class = FAQSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
@@ -108,9 +112,16 @@ class SupportTicketViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """Users can only see their own tickets unless they're staff"""
         user = self.request.user
+        base_qs = SupportTicket.objects.select_related(
+            'user', 'assigned_to', 'category'
+        ).prefetch_related(
+            'replies__user'
+        ).annotate(
+            replies_count=Count('replies')
+        )
         if user.is_staff or user.role in ['admin', 'data_manager']:
-            return SupportTicket.objects.all()
-        return SupportTicket.objects.filter(user=user)
+            return base_qs
+        return base_qs.filter(user=user)
 
     def get_serializer_class(self):
         if self.action == 'list':

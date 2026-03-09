@@ -23,11 +23,11 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MoreHorizontal } from "lucide-react";
 import {
   ColumnDef,
   flexRender,
@@ -39,6 +39,17 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import { ServiceListItem } from "@/lib/types/api";
+import { Separator } from '@/components/ui/separator';
+import { HugeiconsIcon } from "@hugeicons/react";
+import {
+  SortingZA01Icon,
+  ViewIcon,
+  Edit01Icon,
+  ClipboardIcon,
+  ShoppingCart01Icon,
+  Delete01Icon,
+  MoreHorizontalIcon,
+} from "@hugeicons/core-free-icons";
 
 const breadcrumbs = [
   { label: "Dasbor", href: "/dashboard" },
@@ -127,7 +138,7 @@ export default function AllServicesPage() {
       maxSize: 80,
       cell: ({ row }) => {
         const accepts = row.getValue("accepts_bpjs");
-        return accepts ? <Badge variant="default">Ya</Badge> : <Badge variant="outline">Tidak</Badge>
+        return accepts ? <Badge variant="outline-success">Ya</Badge> : <Badge variant="outline-muted">Tidak</Badge>
       },
     },
     {
@@ -141,12 +152,12 @@ export default function AllServicesPage() {
         const isActive = row.original.is_active;
 
         if (!isActive) {
-          return <Badge variant="destructive">Tidak Aktif</Badge>;
+          return <Badge variant="outline-danger">Tidak Aktif</Badge>;
         }
 
         return isVerified ?
-          <Badge variant="default">Terverifikasi</Badge> :
-          <Badge variant="secondary">Belum Terverifikasi</Badge>;
+          <Badge variant="outline-success">Terverifikasi</Badge> :
+          <Badge variant="outline-warning">Belum Terverifikasi</Badge>;
       },
     },
     {
@@ -160,19 +171,34 @@ export default function AllServicesPage() {
         return (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0" aria-label="Buka menu aksi">
+              <Button variant="outline" className="h-8 w-8 p-0" aria-label="Buka menu aksi">
                 <span className="sr-only">Buka menu</span>
-                <MoreHorizontal className="h-4 w-4" />
+                <HugeiconsIcon icon={MoreHorizontalIcon} size={16} />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem>Lihat detail</DropdownMenuItem>
-              <DropdownMenuItem>Edit layanan</DropdownMenuItem>
-              <DropdownMenuItem>Lihat survei</DropdownMenuItem>
+              <DropdownMenuItem>
+                <HugeiconsIcon icon={ViewIcon} size={16} />
+                Lihat detail
+              </DropdownMenuItem>
+              <DropdownMenuItem>
+                <HugeiconsIcon icon={Edit01Icon} size={16} />
+                Edit layanan
+              </DropdownMenuItem>
+              <DropdownMenuItem>
+                <HugeiconsIcon icon={ClipboardIcon} size={16} />
+                Lihat survei
+              </DropdownMenuItem>
+              <DropdownMenuItem>
+                <HugeiconsIcon icon={ShoppingCart01Icon} size={16} />
+                Pesan survei
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="text-destructive"
                 onClick={() => console.log('Delete service', service.id)}
               >
+                <HugeiconsIcon icon={Delete01Icon} size={16} />
                 Hapus layanan
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -222,43 +248,74 @@ export default function AllServicesPage() {
     <>
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-3 p-6 pt-4">
-        <div>
+      <div className="flex flex-1 flex-col gap-3">
+
+        <div className="px-6 pt-6">
           <h1 className="text-xl font-bold">Semua Layanan</h1>
           <p className="text-sm text-muted-foreground">Direktori layanan kesehatan jiwa</p>
         </div>
 
+        <Separator />
+
+        <div className="flex flex-col gap-3 px-6 pb-6">
+
         <div className="flex gap-2 justify-between items-center">
+          <div className="flex gap-2 items-center">
+            <div className="flex items-center rounded-md border">
+              <Select value={provinceFilter} onValueChange={setProvinceFilter}>
+                <SelectTrigger className="w-40 border-0 rounded-r-none focus:ring-0" aria-label="Filter berdasarkan provinsi">
+                  <SelectValue placeholder="All" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  {provinces.map(province => (
+                    <SelectItem key={province} value={province}>{province}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="w-px self-stretch bg-border" />
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-40 border-0 rounded-l-none focus:ring-0" aria-label="Filter berdasarkan status">
+                  <SelectValue placeholder="All" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="active">Aktif</SelectItem>
+                  <SelectItem value="inactive">Tidak Aktif</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="w-px h-5 bg-border" />
+            <Select value={sorting.length > 0 ? `${sorting[0].id}-${sorting[0].desc ? 'desc' : 'asc'}` : 'default'} onValueChange={(value) => {
+              if (value === 'default') {
+                setSorting([]);
+              } else {
+                const [id, dir] = value.split('-');
+                setSorting([{ id, desc: dir === 'desc' }]);
+              }
+            }}>
+              <SelectTrigger className="w-44 !h-9" aria-label="Urutkan">
+                <HugeiconsIcon icon={SortingZA01Icon} size={16} />
+                <SelectValue placeholder="Urutkan" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="default">Urutkan</SelectItem>
+                <SelectItem value="name-asc">Nama A-Z</SelectItem>
+                <SelectItem value="name-desc">Nama Z-A</SelectItem>
+                <SelectItem value="city-asc">Kota A-Z</SelectItem>
+                <SelectItem value="city-desc">Kota Z-A</SelectItem>
+                <SelectItem value="bed_capacity-desc">Kapasitas Terbanyak</SelectItem>
+                <SelectItem value="bed_capacity-asc">Kapasitas Tersedikit</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <Input
-            placeholder="Cari berdasarkan nama, kota atau deskripsi..."
+            placeholder="Cari layanan..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-64"
             aria-label="Cari layanan"
           />
-          <div className="flex gap-2">
-            <Select value={provinceFilter} onValueChange={setProvinceFilter}>
-              <SelectTrigger className="w-40 !h-9" aria-label="Filter berdasarkan provinsi">
-                <SelectValue placeholder="Filter berdasarkan provinsi" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Semua Provinsi</SelectItem>
-                {provinces.map(province => (
-                  <SelectItem key={province} value={province}>{province}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-40 !h-9" aria-label="Filter berdasarkan status">
-                <SelectValue placeholder="Filter berdasarkan status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Semua Status</SelectItem>
-                <SelectItem value="active">Aktif</SelectItem>
-                <SelectItem value="inactive">Tidak Aktif</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
         </div>
 
         <div className="rounded-lg border">
@@ -342,7 +399,8 @@ export default function AllServicesPage() {
             </div>
           </div>
         )}
-      </div>
+              </div>
+        </div>
     </>
   );
 }

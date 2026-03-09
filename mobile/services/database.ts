@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import * as SQLite from 'expo-sqlite';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const DB_NAME = 'yakkum.db';
 const DB_VERSION = 1;
@@ -113,6 +114,14 @@ class Database {
         id INTEGER PRIMARY KEY CHECK (id = 1),
         last_sync_time INTEGER,
         last_sync_status TEXT
+      );
+    `);
+
+    // App settings (key-value store)
+    await this.db.execAsync(`
+      CREATE TABLE IF NOT EXISTS app_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT
       );
     `);
   }
@@ -374,6 +383,42 @@ class Database {
        VALUES (1, ?, ?)`,
       [Date.now(), status]
     );
+  }
+
+  // App settings methods - works on both native (SQLite) and web (AsyncStorage)
+  async getSetting(key: string): Promise<string | null> {
+    if (!this.db) {
+      // Fallback to AsyncStorage on web
+      return AsyncStorage.getItem(`setting_${key}`);
+    }
+
+    const result = await this.db.getFirstAsync(
+      'SELECT value FROM app_settings WHERE key = ?',
+      [key]
+    ) as any;
+
+    return result ? result.value : null;
+  }
+
+  async saveSetting(key: string, value: string): Promise<void> {
+    if (!this.db) {
+      // Fallback to AsyncStorage on web
+      await AsyncStorage.setItem(`setting_${key}`, value);
+      return;
+    }
+
+    await this.db.runAsync(
+      'INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)',
+      [key, value]
+    );
+  }
+
+  async getApiBaseUrl(): Promise<string | null> {
+    return this.getSetting('api_base_url');
+  }
+
+  async saveApiBaseUrl(url: string): Promise<void> {
+    return this.saveSetting('api_base_url', url);
   }
 
   async getLastSyncTime(): Promise<{ time: number | null; status: string | null }> {

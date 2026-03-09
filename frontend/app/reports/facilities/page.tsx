@@ -23,6 +23,7 @@ import {Hospital01Icon,
   CheckmarkCircle02Icon,
   Search01Icon,
   ViewIcon,} from "@hugeicons/core-free-icons";
+import { Separator } from '@/components/ui/separator';
 
 const breadcrumbs: BreadcrumbItemType[] = [
   { label: 'Dashboard', href: '/dashboard' },
@@ -198,13 +199,18 @@ export default function FacilityProfilingReportPage() {
     <>
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-4 p-6">
-        <div>
+      <div className="flex flex-1 flex-col gap-4">
+
+        <div className="px-6 pt-6">
           <h1 className="text-2xl font-bold">Facility Profiling Report</h1>
           <p className="text-muted-foreground">
             Detailed profiles and characteristics of mental health facilities
           </p>
         </div>
+
+        <Separator />
+
+        <div className="flex flex-col gap-4 px-6 pb-6">
 
         {/* Statistics Cards */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -439,7 +445,8 @@ export default function FacilityProfilingReportPage() {
             />
           </CardContent>
         </Card>
-      </div>
+              </div>
+        </div>
     </>
   );
 }

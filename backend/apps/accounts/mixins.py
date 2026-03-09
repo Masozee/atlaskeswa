@@ -197,10 +197,11 @@ class SurveyorFilterMixin(RBACQuerySetMixin):
             return queryset.filter(**{self.rbac_surveyor_field: user})
 
         elif role == 'VERIFIER':
-            # Verifiers see assigned surveys + submitted surveys
+            # Verifiers see assigned surveys + submitted + verified surveys
             return queryset.filter(
                 Q(**{self.rbac_verifier_field: user}) |
-                Q(**{self.rbac_status_field: self.rbac_submitted_status})
+                Q(**{self.rbac_status_field: self.rbac_submitted_status}) |
+                Q(**{self.rbac_status_field: self.rbac_verified_status})
             )
 
         elif role == 'VIEWER':

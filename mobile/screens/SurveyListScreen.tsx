@@ -7,25 +7,12 @@ import {
   StyleSheet,
   RefreshControl,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
-import { Add01Icon } from 'hugeicons-react-native';
+import { Add01Icon, PencilEdit01Icon, Delete02Icon, Calendar03Icon, Location01Icon, UserIcon, NoteIcon } from 'hugeicons-react-native';
 import TopHeader from '../components/TopHeader';
 import { apiClient } from '../services/api';
-import { database } from '../services/database';
-import NetInfo from '@react-native-community/netinfo';
-
-interface SurveyListItem {
-  id: number;
-  service_name: string;
-  service_city: string;
-  service_address?: string;
-  survey_date: string;
-  surveyor_name: string;
-  verification_status: string;
-  status_display: string;
-  total_patients_served: number;
-  occupancy_rate: number | null;
-}
+import type { SurveyResponseItem, PaginatedResponse } from '../lib/types';
 
 interface SurveyListScreenProps {
   onSelectSurvey: (surveyId: number) => void;
@@ -33,91 +20,17 @@ interface SurveyListScreenProps {
 }
 
 export default function SurveyListScreen({ onSelectSurvey, onAddNew }: SurveyListScreenProps) {
-  const [surveys, setSurveys] = useState<SurveyListItem[]>([]);
+  const [surveys, setSurveys] = useState<SurveyResponseItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchSurveys = async () => {
     try {
-      // Load from local database first
-      const localSurveys = await database.getSurveys();
-      setSurveys(localSurveys);
-
-      // Check if online
-      const netInfo = await NetInfo.fetch();
-      const isOnline = netInfo.isConnected ?? false;
-
-      if (isOnline) {
-        // Fetch from server and update local database
-        try {
-          const params: Record<string, any> = {
-            ordering: '-survey_date',
-            page_size: 50,
-          };
-
-          const data = await apiClient.get<{ results: SurveyListItem[]; count: number }>(
-            '/surveys/surveys/',
-            params
-          );
-
-          // Clear and refresh database with server data
-          if (data.results.length > 0) {
-            // Clear existing synced surveys
-            await database.clearAll();
-
-            // Save all surveys from server
-            for (const survey of data.results) {
-              await database.saveSurvey({
-                server_id: survey.id,
-                service_id: survey.service || survey.service_id,
-                service_name: survey.service_name || '',
-                service_city: survey.service_city || '',
-                service_address: survey.service_address || '',
-                survey_date: survey.survey_date || '',
-                survey_period_start: survey.survey_period_start || '',
-                survey_period_end: survey.survey_period_end || '',
-                latitude: survey.latitude || null,
-                longitude: survey.longitude || null,
-                location_accuracy: survey.location_accuracy || null,
-                current_bed_capacity: survey.current_bed_capacity || 0,
-                beds_occupied: survey.beds_occupied || 0,
-                current_psychiatrist_count: survey.current_psychiatrist_count || 0,
-                current_psychologist_count: survey.current_psychologist_count || 0,
-                current_nurse_count: survey.current_nurse_count || 0,
-                current_social_worker_count: survey.current_social_worker_count || 0,
-                total_patients_served: survey.total_patients_served || 0,
-                new_patients: survey.new_patients || 0,
-                returning_patients: survey.returning_patients || 0,
-                patients_male: survey.patients_male || 0,
-                patients_female: survey.patients_female || 0,
-                patients_age_0_17: survey.patients_age_0_17 || 0,
-                patients_age_18_64: survey.patients_age_18_64 || 0,
-                patients_age_65_plus: survey.patients_age_65_plus || 0,
-                bpjs_patients: survey.bpjs_patients || 0,
-                private_insurance_patients: survey.private_insurance_patients || 0,
-                self_pay_patients: survey.self_pay_patients || 0,
-                monthly_budget: survey.monthly_budget || '',
-                patient_satisfaction_score: survey.patient_satisfaction_score || null,
-                average_wait_time_days: survey.average_wait_time_days || null,
-                surveyor_notes: survey.surveyor_notes || '',
-                challenges_faced: survey.challenges_faced || '',
-                improvements_needed: survey.improvements_needed || '',
-                additional_notes: survey.additional_notes || '',
-                verification_status: survey.verification_status || 'DRAFT',
-                status_display: survey.status_display || 'Draft',
-                surveyor_name: survey.surveyor_name || '',
-              }, false);
-            }
-          }
-
-          // Reload from database
-          const updatedSurveys = await database.getSurveys();
-          setSurveys(updatedSurveys);
-        } catch (err: any) {
-          console.error('Failed to sync surveys from server:', err);
-          // Keep local data
-        }
-      }
+      const data = await apiClient.get<PaginatedResponse<SurveyResponseItem>>(
+        '/surveys/responses/',
+        { ordering: '-survey_date', page_size: 50 }
+      );
+      setSurveys(data.results);
     } catch (err: any) {
       console.error('Failed to load surveys:', err);
     } finally {
@@ -135,11 +48,38 @@ export default function SurveyListScreen({ onSelectSurvey, onAddNew }: SurveyLis
     fetchSurveys();
   };
 
-  const getStatusColor = (status: string) => {
+  const handleRequestDeletion = (surveyId: number) => {
+    Alert.alert(
+      'Ajukan Penghapusan',
+      'Permintaan hapus akan dikirim ke verifikator untuk disetujui.',
+      [
+        { text: 'Batal', style: 'cancel' },
+        {
+          text: 'Ajukan',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await apiClient.post(`/surveys/responses/${surveyId}/request-deletion/`, { reason: '' });
+              setSurveys((prev) =>
+                prev.map((s) => s.id === surveyId ? { ...s, deletion_requested: true } : s)
+              );
+              Alert.alert('Berhasil', 'Permintaan hapus telah dikirim ke verifikator');
+            } catch (err: any) {
+              Alert.alert('Error', err?.message || 'Gagal mengajukan penghapusan');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const getStatusColor = (status?: string) => {
     switch (status) {
       case 'VERIFIED':
+      case 'APPROVED':
         return '#10b981';
       case 'SUBMITTED':
+      case 'PENDING':
         return '#f59e0b';
       case 'REJECTED':
         return '#ef4444';
@@ -148,11 +88,26 @@ export default function SurveyListScreen({ onSelectSurvey, onAddNew }: SurveyLis
     }
   };
 
+  const getStatusLabel = (status?: string) => {
+    switch (status) {
+      case 'APPROVED':
+      case 'VERIFIED':
+        return 'Diverifikasi';
+      case 'SUBMITTED':
+      case 'PENDING':
+        return 'Menunggu';
+      case 'REJECTED':
+        return 'Ditolak';
+      default:
+        return 'Draft';
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#07579e" />
-        <Text style={styles.loadingText}>Loading surveys...</Text>
+        <ActivityIndicator size="large" color="#00979D" />
+        <Text style={styles.loadingText}>Memuat survei...</Text>
       </View>
     );
   }
@@ -162,176 +117,288 @@ export default function SurveyListScreen({ onSelectSurvey, onAddNew }: SurveyLis
       <TopHeader />
       <View style={styles.content}>
         <View style={styles.header}>
-          <Text style={styles.title}>Survey Records</Text>
+          <Text style={styles.title}>Catatan Survei</Text>
+          <Text style={styles.subtitle}>Kelola semua data survei Anda</Text>
         </View>
 
-      {/* Add New Button */}
-      <TouchableOpacity style={styles.addButton} onPress={onAddNew}>
-        <Add01Icon size={20} color="#fff" strokeWidth={2} />
-        <Text style={styles.addButtonText}>Add New Survey</Text>
-      </TouchableOpacity>
+        <TouchableOpacity style={styles.addButton} onPress={onAddNew}>
+          <Add01Icon size={18} color="#fff" strokeWidth={2} />
+          <Text style={styles.addButtonText}>Survei Baru</Text>
+        </TouchableOpacity>
 
-      <ScrollView
-        style={styles.list}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#07579e']} />
-        }
-      >
-        {surveys.length > 0 ? (
-          surveys.map((survey) => (
-            <TouchableOpacity
-              key={survey.id}
-              style={styles.surveyCard}
-              onPress={() => onSelectSurvey(survey.id)}
-            >
-              <View style={styles.surveyImage}>
-                <Text style={styles.surveyInitials}>
-                  {survey.service_name.substring(0, 2).toUpperCase()}
-                </Text>
-              </View>
-              <View style={styles.surveyContent}>
+        <ScrollView
+          style={styles.list}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#00979D']} />
+          }
+        >
+          {surveys.length > 0 ? (
+            surveys.map((survey) => (
+              <TouchableOpacity
+                key={survey.id}
+                style={styles.surveyCard}
+                onPress={() => onSelectSurvey(survey.id)}
+                activeOpacity={0.7}
+              >
                 <View style={styles.surveyHeader}>
-                  <Text style={styles.serviceName} numberOfLines={1}>{survey.service_name}</Text>
-                  <View style={[styles.statusBadge, { backgroundColor: getStatusColor(survey.verification_status) + '20' }]}>
-                    <Text style={[styles.statusText, { color: getStatusColor(survey.verification_status) }]}>
-                      {survey.status_display}
+                  <View style={styles.surveyHeaderLeft}>
+                    <View style={styles.surveyImage}>
+                      <Text style={styles.surveyInitials}>
+                        {(survey.service_name || 'SV').substring(0, 2).toUpperCase()}
+                      </Text>
+                    </View>
+                    <View style={styles.surveyHeaderInfo}>
+                      <Text style={styles.serviceName} numberOfLines={1}>
+                        {survey.service_name || 'Layanan'}
+                      </Text>
+                      {survey.template_name ? (
+                        <Text style={styles.templateName} numberOfLines={1}>
+                          {survey.template_name}
+                        </Text>
+                      ) : null}
+                    </View>
+                  </View>
+                  <View
+                    style={[
+                      styles.statusBadge,
+                      { backgroundColor: getStatusColor(survey.verification_status) + '15', borderColor: getStatusColor(survey.verification_status) + '40' },
+                    ]}
+                  >
+                    <View style={[styles.statusDot, { backgroundColor: getStatusColor(survey.verification_status) }]} />
+                    <Text
+                      style={[
+                        styles.statusText,
+                        { color: getStatusColor(survey.verification_status) },
+                      ]}
+                    >
+                      {getStatusLabel(survey.verification_status)}
                     </Text>
                   </View>
                 </View>
 
-                <View style={styles.surveyDetails}>
-                  <Text style={styles.detailText} numberOfLines={2}>
-                    {survey.service_address || survey.service_city}
-                  </Text>
-                  <Text style={styles.detailText}>
-                    Date: {new Date(survey.survey_date).toLocaleDateString('id-ID')}
-                  </Text>
-                  <Text style={styles.detailText}>
-                    Patients: {survey.total_patients_served}
-                  </Text>
+                <View style={styles.surveyMeta}>
+                  <View style={styles.metaItem}>
+                    <Calendar03Icon size={13} color="#6b7280" strokeWidth={2} />
+                    <Text style={styles.metaText}>
+                      {new Date(survey.survey_date).toLocaleDateString('id-ID', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                      })}
+                    </Text>
+                  </View>
+                  {survey.service_city ? (
+                    <View style={styles.metaItem}>
+                      <Location01Icon size={13} color="#6b7280" strokeWidth={2} />
+                      <Text style={styles.metaText}>{survey.service_city}</Text>
+                    </View>
+                  ) : null}
+                  {survey.surveyor_name ? (
+                    <View style={styles.metaItem}>
+                      <UserIcon size={13} color="#6b7280" strokeWidth={2} />
+                      <Text style={styles.metaText}>{survey.surveyor_name}</Text>
+                    </View>
+                  ) : null}
                 </View>
-              </View>
-            </TouchableOpacity>
-          ))
-        ) : (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>No surveys found</Text>
-          </View>
-        )}
-      </ScrollView>
+
+                {survey.survey_period_start && survey.survey_period_end ? (
+                  <View style={styles.periodRow}>
+                    <NoteIcon size={13} color="#6b7280" strokeWidth={2} />
+                    <Text style={styles.metaText}>
+                      Periode: {new Date(survey.survey_period_start).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                      {' - '}
+                      {new Date(survey.survey_period_end).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </Text>
+                  </View>
+                ) : null}
+
+                <View style={styles.cardActions}>
+                  <TouchableOpacity
+                    style={styles.actionButtonEdit}
+                    onPress={(e) => { e.stopPropagation(); onSelectSurvey(survey.id); }}
+                  >
+                    <PencilEdit01Icon size={14} color="#00979D" strokeWidth={2} />
+                    <Text style={styles.actionButtonEditText}>Edit</Text>
+                  </TouchableOpacity>
+                  {survey.deletion_requested ? (
+                    <View style={styles.actionButtonPending}>
+                      <Text style={styles.actionButtonPendingText}>Menunggu Persetujuan</Text>
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      style={styles.actionButtonDelete}
+                      onPress={(e) => { e.stopPropagation(); handleRequestDeletion(survey.id); }}
+                    >
+                      <Delete02Icon size={14} color="#ef4444" strokeWidth={2} />
+                      <Text style={styles.actionButtonDeleteText}>Hapus</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </TouchableOpacity>
+            ))
+          ) : (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyText}>Belum ada survei</Text>
+              <Text style={styles.emptySubtext}>Tekan "Survei Baru" untuk memulai</Text>
+            </View>
+          )}
+        </ScrollView>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f6f7',
-  },
-  content: {
-    flex: 1,
-    backgroundColor: '#f5f6f7',
-  },
-  centered: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: '#6b7280',
-  },
-  header: {
-    padding: 20,
-    paddingBottom: 16,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#374151',
-  },
+  container: { flex: 1, backgroundColor: '#f5f6f7' },
+  content: { flex: 1, backgroundColor: '#f5f6f7' },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  loadingText: { marginTop: 12, fontSize: 12, color: '#6b7280' },
+  header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 0 },
+  title: { fontSize: 22, fontWeight: '700', color: '#1a1a1a', letterSpacing: -0.4 },
+  subtitle: { fontSize: 13, color: '#6b7280', marginTop: 2 },
+
   addButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#07579e',
+    backgroundColor: '#00979D',
     marginHorizontal: 20,
+    marginTop: 16,
     marginBottom: 16,
-    paddingVertical: 14,
+    paddingVertical: 13,
     borderRadius: 12,
     gap: 8,
   },
-  addButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  list: {
-    flex: 1,
-  },
+  addButtonText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+
+  list: { flex: 1 },
+
   surveyCard: {
-    flexDirection: 'row',
     backgroundColor: '#ffffff',
     borderRadius: 12,
-    padding: 16,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    padding: 14,
     marginHorizontal: 20,
-    marginBottom: 12,
+    marginBottom: 10,
     gap: 12,
-    minHeight: 100,
-  },
-  surveyImage: {
-    width: 80,
-    alignSelf: 'stretch',
-    borderRadius: 8,
-    backgroundColor: '#07579e',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  surveyInitials: {
-    fontSize: 24,
-    fontWeight: '600',
-    color: '#ffffff',
-  },
-  surveyContent: {
-    flex: 1,
   },
   surveyHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 8,
   },
-  serviceName: {
+  surveyHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
     flex: 1,
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#374151',
+    gap: 10,
     marginRight: 8,
   },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  surveyDetails: {
-    gap: 6,
-  },
-  detailText: {
-    fontSize: 14,
-    color: '#6b7280',
-  },
-  emptyState: {
-    padding: 40,
+  surveyImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: '#00979D',
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  emptyText: {
-    fontSize: 14,
-    color: '#9ca3af',
+  surveyInitials: { fontSize: 14, fontWeight: '700', color: '#ffffff' },
+  surveyHeaderInfo: { flex: 1 },
+  serviceName: { fontSize: 13, fontWeight: '600', color: '#1A1A1A' },
+  templateName: { fontSize: 11, color: '#6b7280', marginTop: 1 },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 20,
+    borderWidth: 1,
+    gap: 4,
   },
+  statusDot: { width: 6, height: 6, borderRadius: 3 },
+  statusText: { fontSize: 10, fontWeight: '600' },
+  surveyMeta: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  metaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  metaText: { fontSize: 11, color: '#6b7280' },
+  periodRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+    paddingTop: 8,
+  },
+
+  // Card actions
+  cardActions: {
+    flexDirection: 'row',
+    gap: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+    paddingTop: 10,
+  },
+  actionButtonEdit: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(0,151,157,0.2)',
+    backgroundColor: 'rgba(0,151,157,0.08)',
+  },
+  actionButtonEditText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#00979D',
+  },
+  actionButtonDelete: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.2)',
+    backgroundColor: 'rgba(239,68,68,0.06)',
+  },
+  actionButtonDeleteText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#ef4444',
+  },
+  actionButtonPending: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(245,158,11,0.2)',
+    backgroundColor: 'rgba(245,158,11,0.06)',
+  },
+  actionButtonPendingText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#f59e0b',
+  },
+
+  emptyState: { padding: 40, alignItems: 'center' },
+  emptyText: { fontSize: 14, color: '#6b7280', fontWeight: '600' },
+  emptySubtext: { fontSize: 12, color: '#9ca3af', marginTop: 4 },
 });

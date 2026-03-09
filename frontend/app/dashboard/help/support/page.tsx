@@ -5,6 +5,7 @@ import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
@@ -70,15 +71,17 @@ export default function SupportPage() {
     <>
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-6 p-8">
-        {/* Page Header */}
-        <div>
+      <div className="flex flex-1 flex-col gap-6">
+        <div className="px-8 pt-8">
           <h1 className="text-2xl font-bold">Contact Support</h1>
           <p className="text-muted-foreground">
             Get help from our support team
           </p>
         </div>
 
+        <Separator />
+
+        <div className="flex flex-col gap-6 px-8 pb-8">
         <div className="grid gap-6 lg:grid-cols-3">
           {/* Left Column - New Ticket Form */}
           <div className="lg:col-span-2">
@@ -237,6 +240,7 @@ export default function SupportPage() {
             <li>• Sertakan langkah-langkah untuk mereproduksi masalah jika bersifat teknis</li>
             <li>• Pilih prioritas yang sesuai agar kami dapat merespon lebih cepat</li>
           </ul>
+        </div>
         </div>
       </div>
     </>

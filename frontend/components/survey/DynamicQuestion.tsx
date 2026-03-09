@@ -528,6 +528,8 @@ interface KecamatanSelectProps {
 function KecamatanSelect({ value, onChange, error }: KecamatanSelectProps) {
   const { data: kecamatanList, isLoading } = useKebumenKecamatan();
 
+  const selectedName = kecamatanList?.find((k) => k.id === value)?.name;
+
   if (isLoading) {
     return (
       <div className="flex items-center gap-2 text-muted-foreground">
@@ -543,7 +545,9 @@ function KecamatanSelect({ value, onChange, error }: KecamatanSelectProps) {
       onValueChange={(val) => onChange(parseInt(val, 10))}
     >
       <SelectTrigger className={cn('max-w-md', error && 'border-destructive')}>
-        <SelectValue placeholder="-- Pilih Kecamatan --" />
+        <SelectValue placeholder="-- Pilih Kecamatan --">
+          {selectedName || (value ? `Kecamatan ${value}` : '-- Pilih Kecamatan --')}
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
         {kecamatanList?.map((kec) => (

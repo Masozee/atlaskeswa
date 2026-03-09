@@ -36,6 +36,7 @@ import {
   Line,
 } from 'recharts';
 import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
 
 interface Survey {
   id: number;
@@ -219,8 +220,9 @@ export default function PerformanceReportPage() {
     <div className="flex flex-col">
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex-1 p-6 space-y-6">
-        <div className="flex items-center justify-between gap-4">
+      <div className="flex-1 space-y-6">
+
+        <div className="px-6 pt-6 flex items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold">Performance Report</h1>
             <p className="text-muted-foreground mt-1">
@@ -257,6 +259,10 @@ export default function PerformanceReportPage() {
             </Select>
           </div>
         </div>
+
+        <Separator />
+
+        <div className="space-y-6 px-6 pb-6">
 
         {totalStats && (
           <div className="grid grid-cols-4 gap-4">
@@ -370,7 +376,8 @@ export default function PerformanceReportPage() {
             </CardContent>
           </Card>
         )}
-      </div>
+              </div>
+        </div>
     </div>
   );
 }

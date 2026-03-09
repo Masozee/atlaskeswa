@@ -24,6 +24,7 @@ import {
   Cancel01Icon,
   SentIcon,
 } from 'hugeicons-react';
+import { Separator } from '@/components/ui/separator';
 
 const getStatusBadge = (status: string, statusDisplay?: string) => {
   const variants: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
@@ -185,9 +186,8 @@ export default function SurveyDetailPage({
     <>
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-4 p-8">
-        {/* Header Section */}
-        <div className="space-y-3">
+      <div className="flex flex-1 flex-col gap-4">
+        <div className="px-8 pt-8 space-y-3">
           <Button
             variant="ghost"
             size="sm"
@@ -248,6 +248,9 @@ export default function SurveyDetailPage({
           </div>
         </div>
 
+        <Separator />
+
+        <div className="flex flex-col gap-4 px-8 pb-8">
         {/* 2 Column Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
           {/* Main Content - 3/4 */}
@@ -385,6 +388,7 @@ export default function SurveyDetailPage({
               )}
             </div>
           </div>
+        </div>
         </div>
       </div>
 

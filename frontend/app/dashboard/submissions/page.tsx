@@ -26,7 +26,8 @@ import {
 } from '@tanstack/react-table'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { MoreHorizontal, ArrowUpDown, Eye, Edit, Trash2, Search } from 'lucide-react'
+import { HugeiconsIcon } from "@hugeicons/react";
+import { MoreHorizontalIcon, ViewIcon, Edit01Icon, Delete01Icon, Search01Icon, SortingZA01Icon, Copy01Icon } from "@hugeicons/core-free-icons";
 import { SurveyListItem } from '@/lib/types/api'
 import { Input } from '@/components/ui/input'
 import {
@@ -36,16 +37,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Separator } from '@/components/ui/separator';
 
 const getStatusBadge = (status: string) => {
-  const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-    DRAFT: "secondary",
-    SUBMITTED: "default",
-    VERIFIED: "outline",
-    REJECTED: "destructive",
+  const variants: Record<string, "outline-muted" | "outline-info" | "outline-success" | "outline-danger"> = {
+    DRAFT: "outline-muted",
+    SUBMITTED: "outline-info",
+    VERIFIED: "outline-success",
+    REJECTED: "outline-danger",
   };
   return (
-    <Badge variant={variants[status] || "default"}>
+    <Badge variant={variants[status] || "outline-muted"}>
       {status}
     </Badge>
   );
@@ -73,7 +75,7 @@ export default function LatestSubmissionsPage() {
             onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
           >
             ID
-            <ArrowUpDown className="ml-2 h-4 w-4" />
+            <HugeiconsIcon icon={SortingZA01Icon} size={16} className="ml-2" />
           </Button>
         )
       },
@@ -95,7 +97,7 @@ export default function LatestSubmissionsPage() {
             onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
           >
             Survey Date
-            <ArrowUpDown className="ml-2 h-4 w-4" />
+            <HugeiconsIcon icon={SortingZA01Icon} size={16} className="ml-2" />
           </Button>
         )
       },
@@ -125,7 +127,7 @@ export default function LatestSubmissionsPage() {
             onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
           >
             Patients
-            <ArrowUpDown className="ml-2 h-4 w-4" />
+            <HugeiconsIcon icon={SortingZA01Icon} size={16} className="ml-2" />
           </Button>
         )
       },
@@ -143,7 +145,7 @@ export default function LatestSubmissionsPage() {
             onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
           >
             Created At
-            <ArrowUpDown className="ml-2 h-4 w-4" />
+            <HugeiconsIcon icon={SortingZA01Icon} size={16} className="ml-2" />
           </Button>
         )
       },
@@ -161,9 +163,9 @@ export default function LatestSubmissionsPage() {
         return (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0">
+              <Button variant="outline" className="h-8 w-8 p-0">
                 <span className="sr-only">Open menu</span>
-                <MoreHorizontal className="h-4 w-4" />
+                <HugeiconsIcon icon={MoreHorizontalIcon} size={16} />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -171,19 +173,21 @@ export default function LatestSubmissionsPage() {
               <DropdownMenuItem
                 onClick={() => navigator.clipboard.writeText(survey.id.toString())}
               >
+                <HugeiconsIcon icon={Copy01Icon} size={16} className="mr-2" />
                 Copy survey ID
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => router.push(`/dashboard/submissions/${survey.id}`)}>
-                <Eye className="mr-2 h-4 w-4" />
+                <HugeiconsIcon icon={ViewIcon} size={16} className="mr-2" />
                 View details
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => router.push(`/dashboard/survey/${survey.id}`)}>
-                <Edit className="mr-2 h-4 w-4" />
+                <HugeiconsIcon icon={Edit01Icon} size={16} className="mr-2" />
                 Edit survey
               </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem className="text-destructive">
-                <Trash2 className="mr-2 h-4 w-4" />
+                <HugeiconsIcon icon={Delete01Icon} size={16} className="mr-2" />
                 Delete
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -226,42 +230,65 @@ export default function LatestSubmissionsPage() {
     <>
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-4 p-8">
-        <div>
+      <div className="flex flex-1 flex-col gap-4">
+
+        <div className="px-8 pt-8">
           <h1 className="text-2xl font-bold">Latest Submissions</h1>
           <p className="text-muted-foreground">Recent survey submissions and data entries</p>
         </div>
 
+        <Separator />
+
+        <div className="flex flex-col gap-4 px-8 pb-8">
+
         {/* Filters */}
-        <div className="flex items-center justify-end gap-4">
+        <div className="flex gap-2 justify-between items-center">
+          <div className="flex gap-2 items-center">
+            <div className="flex items-center rounded-md border">
+              <Select
+                value={(table.getColumn("verification_status")?.getFilterValue() as string) ?? "all"}
+                onValueChange={(value) =>
+                  table.getColumn("verification_status")?.setFilterValue(value === "all" ? "" : value)
+                }
+              >
+                <SelectTrigger className="w-44 border-0 focus:ring-0">
+                  <SelectValue placeholder="All" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="DRAFT">Draft</SelectItem>
+                  <SelectItem value="SUBMITTED">Submitted</SelectItem>
+                  <SelectItem value="VERIFIED">Verified</SelectItem>
+                  <SelectItem value="REJECTED">Rejected</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="w-px h-5 bg-border" />
+            <Select defaultValue="default">
+              <SelectTrigger className="w-44">
+                <HugeiconsIcon icon={SortingZA01Icon} size={16} />
+                <SelectValue placeholder="Urutkan" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="default">Urutkan</SelectItem>
+                <SelectItem value="created_at-desc">Terbaru</SelectItem>
+                <SelectItem value="created_at-asc">Terlama</SelectItem>
+                <SelectItem value="service_name-asc">Layanan A-Z</SelectItem>
+                <SelectItem value="service_name-desc">Layanan Z-A</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <div className="relative w-64">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            <HugeiconsIcon icon={Search01Icon} size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Search by service name..."
               value={(table.getColumn("service_name")?.getFilterValue() as string) ?? ""}
               onChange={(event) =>
                 table.getColumn("service_name")?.setFilterValue(event.target.value)
               }
-              className="pl-8"
+              className="pl-9"
             />
           </div>
-          <Select
-            value={(table.getColumn("verification_status")?.getFilterValue() as string) ?? "all"}
-            onValueChange={(value) =>
-              table.getColumn("verification_status")?.setFilterValue(value === "all" ? "" : value)
-            }
-          >
-            <SelectTrigger className="w-64">
-              <SelectValue placeholder="Filter by status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="DRAFT">Draft</SelectItem>
-              <SelectItem value="SUBMITTED">Submitted</SelectItem>
-              <SelectItem value="VERIFIED">Verified</SelectItem>
-              <SelectItem value="REJECTED">Rejected</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
 
         <div className="rounded-lg border">
@@ -342,7 +369,8 @@ export default function LatestSubmissionsPage() {
             </Button>
           </div>
         </div>
-      </div>
+              </div>
+        </div>
     </>
   );
 }

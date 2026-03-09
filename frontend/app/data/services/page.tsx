@@ -21,6 +21,7 @@ import {MoreHorizontalIcon,
   HospitalBed02Icon,
   UserMultiple02Icon,} from "@hugeicons/core-free-icons";
 import { DataTable } from '@/components/data-table';
+import { Separator } from '@/components/ui/separator';
 
 interface Service {
   id: number;
@@ -143,11 +144,11 @@ export default function DataServicesPage() {
 
           return (
             <div className="flex flex-col gap-1">
-              <Badge variant={isVerified ? 'default' : 'secondary'} className="w-fit">
+              <Badge variant={isVerified ? 'outline-success' : 'outline-muted'} className="w-fit">
                 {isVerified ? 'Verified' : 'Unverified'}
               </Badge>
               {!isActive && (
-                <Badge variant="outline" className="w-fit text-xs">
+                <Badge variant="outline-danger" className="w-fit text-xs">
                   Inactive
                 </Badge>
               )}
@@ -164,7 +165,7 @@ export default function DataServicesPage() {
           return (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="h-8 w-8 p-0">
+                <Button variant="outline" className="h-8 w-8 p-0">
                   <span className="sr-only">Open menu</span>
                   <HugeiconsIcon icon={MoreHorizontalIcon} size={16} />
                 </Button>
@@ -200,8 +201,9 @@ export default function DataServicesPage() {
     <div className="flex flex-col">
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex-1 p-6 space-y-6">
-        <div className="flex items-center justify-between">
+      <div className="flex-1 space-y-6">
+
+        <div className="px-6 pt-6 flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">Services Data</h1>
             <p className="text-muted-foreground mt-1">
@@ -209,6 +211,10 @@ export default function DataServicesPage() {
             </p>
           </div>
         </div>
+
+        <Separator />
+
+        <div className="space-y-6 px-6 pb-6">
 
         <div className="grid grid-cols-5 gap-4">
           <div className="rounded-lg border bg-card p-4">
@@ -242,7 +248,8 @@ export default function DataServicesPage() {
           showPagination={true}
           pageSize={20}
         />
-      </div>
+              </div>
+        </div>
     </div>
   );
 }

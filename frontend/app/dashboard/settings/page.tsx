@@ -24,6 +24,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import { FloppyDiskIcon, RefreshIcon, Loading03Icon } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
+import { Separator } from '@/components/ui/separator';
 
 const breadcrumbs = [
   { label: 'Dashboard', href: '/dashboard' },
@@ -78,8 +79,9 @@ export default function SettingsPage() {
     <>
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-4 p-8">
-        <div className="flex justify-between items-center">
+      <div className="flex flex-1 flex-col gap-4">
+
+        <div className="px-8 pt-8 flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-bold">System Settings</h1>
             <p className="text-muted-foreground">Manage system-wide configuration</p>
@@ -111,6 +113,10 @@ export default function SettingsPage() {
             </Button>
           </div>
         </div>
+
+        <Separator />
+
+        <div className="flex flex-col gap-4 px-8 pb-8">
 
         <Tabs defaultValue="general" className="w-full">
           <TabsList>
@@ -404,7 +410,8 @@ export default function SettingsPage() {
             </Card>
           </TabsContent>
         </Tabs>
-      </div>
+              </div>
+        </div>
     </>
   );
 }

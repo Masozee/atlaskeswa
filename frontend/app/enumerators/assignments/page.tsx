@@ -20,6 +20,7 @@ import {MoreHorizontalIcon,
   Location01Icon,
   Calendar03Icon,} from "@hugeicons/core-free-icons";
 import { DataTable } from '@/components/data-table';
+import { Separator } from '@/components/ui/separator';
 
 interface Survey {
   id: number;
@@ -136,12 +137,12 @@ export default function AssignmentsPage() {
           const status = row.getValue('verification_status') as string;
           const variant =
             status === 'VERIFIED'
-              ? 'default'
+              ? 'outline-success'
               : status === 'REJECTED'
-              ? 'destructive'
+              ? 'outline-danger'
               : status === 'SUBMITTED'
-              ? 'secondary'
-              : 'outline';
+              ? 'outline-info'
+              : 'outline-muted';
 
           return <Badge variant={variant}>{row.original.status_display}</Badge>;
         },
@@ -175,7 +176,7 @@ export default function AssignmentsPage() {
           return (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="h-8 w-8 p-0">
+                <Button variant="outline" className="h-8 w-8 p-0">
                   <span className="sr-only">Open menu</span>
                   <HugeiconsIcon icon={MoreHorizontalIcon} size={16} />
                 </Button>
@@ -214,8 +215,9 @@ export default function AssignmentsPage() {
     <div className="flex flex-col">
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex-1 p-6 space-y-6">
-        <div className="flex items-center justify-between gap-4">
+      <div className="flex-1 space-y-6">
+
+        <div className="px-6 pt-6 flex items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold">Survey Assignments</h1>
             <p className="text-muted-foreground mt-1">
@@ -223,6 +225,10 @@ export default function AssignmentsPage() {
             </p>
           </div>
         </div>
+
+        <Separator />
+
+        <div className="space-y-6 px-6 pb-6">
 
         <div className="grid grid-cols-4 gap-4">
           <div className="rounded-lg border bg-card p-4">
@@ -252,7 +258,8 @@ export default function AssignmentsPage() {
           showPagination={true}
           pageSize={20}
         />
-      </div>
+              </div>
+        </div>
     </div>
   );
 }

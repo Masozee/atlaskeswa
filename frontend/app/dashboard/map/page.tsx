@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/page-header"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Map, MapControls, MapGeoJSON, MapPopup } from "@/components/ui/map"
 import { useState } from 'react'
+import { Separator } from '@/components/ui/separator';
 
 const breadcrumbs = [
   { label: 'Dashboard', href: '/dashboard' },
@@ -63,11 +64,16 @@ export default function ServiceDistributionMapPage() {
     <>
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-4 p-4">
-        <div>
+      <div className="flex flex-1 flex-col gap-4">
+
+        <div className="px-4 pt-4">
           <h1 className="text-2xl font-bold">Peta Distribusi Layanan</h1>
           <p className="text-muted-foreground">Visualisasi geografis layanan kesehatan jiwa di Kabupaten Kebumen</p>
         </div>
+
+        <Separator />
+
+        <div className="flex flex-col gap-4 px-4 pb-4">
 
         <div className="grid gap-4 lg:grid-cols-4">
           {/* Map */}
@@ -179,7 +185,8 @@ export default function ServiceDistributionMapPage() {
             </Card>
           </div>
         </div>
-      </div>
+              </div>
+        </div>
     </>
   );
 }

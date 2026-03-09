@@ -1,11 +1,11 @@
 from rest_framework import serializers
-from .models import MainTypeOfCare, BasicStableInputsOfCare, TargetPopulation, ServiceType, Service
+from .models import MainTypeOfCare, BasicStableInputsOfCare, TargetPopulation, ServiceType, Service, KategoriLayanan, KategoriFasilitas
 
 
 class MainTypeOfCareSerializer(serializers.ModelSerializer):
     """Serializer for MTC classification"""
 
-    children_count = serializers.SerializerMethodField()
+    children_count = serializers.IntegerField(read_only=True)
     parent_code = serializers.CharField(source='parent.code', read_only=True, allow_null=True)
 
     class Meta:
@@ -16,16 +16,21 @@ class MainTypeOfCareSerializer(serializers.ModelSerializer):
             'is_active', 'children_count', 'created_at', 'updated_at'
         ]
 
-    def get_children_count(self, obj):
-        return obj.children.count()
-
 
 class BasicStableInputsOfCareSerializer(serializers.ModelSerializer):
     """Serializer for BSIC classification"""
 
+    kategori_layanan_name = serializers.CharField(source='kategori_layanan.name', read_only=True, allow_null=True)
+    kategori_fasilitas_display = serializers.CharField(source='get_kategori_fasilitas_display', read_only=True)
+
     class Meta:
         model = BasicStableInputsOfCare
-        fields = ['id', 'code', 'name', 'description', 'is_active', 'created_at', 'updated_at']
+        fields = [
+            'id', 'code', 'name',
+            'kategori_layanan', 'kategori_layanan_name',
+            'kategori_fasilitas', 'kategori_fasilitas_display',
+            'description', 'is_active', 'created_at', 'updated_at',
+        ]
 
 
 class TargetPopulationSerializer(serializers.ModelSerializer):
@@ -42,6 +47,20 @@ class ServiceTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = ServiceType
         fields = ['id', 'name', 'description', 'is_active', 'created_at', 'updated_at']
+
+
+class KategoriLayananSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = KategoriLayanan
+        fields = ['id', 'code', 'name', 'description', 'is_active', 'created_at', 'updated_at']
+
+
+class KategoriFasilitasSerializer(serializers.ModelSerializer):
+    facility_type_display = serializers.CharField(source='get_facility_type_display', read_only=True)
+
+    class Meta:
+        model = KategoriFasilitas
+        fields = ['id', 'code', 'name', 'description', 'facility_type', 'facility_type_display', 'is_active', 'created_at', 'updated_at']
 
 
 class ServiceListSerializer(serializers.ModelSerializer):

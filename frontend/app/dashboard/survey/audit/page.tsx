@@ -35,6 +35,9 @@ import {
   SortingState,
   useReactTable,
 } from '@tanstack/react-table';
+import { Separator } from '@/components/ui/separator';
+import { HugeiconsIcon } from "@hugeicons/react";
+import { SortingZA01Icon } from "@hugeicons/core-free-icons";
 
 const breadcrumbs = [
   { label: 'Dasbor', href: '/dashboard' },
@@ -149,12 +152,12 @@ export default function AuditLogPage() {
           const action = row.getValue('action') as string;
           const actionDisplay = row.original.action_display;
           const variant =
-            action === 'SURVEY_VERIFY' ? 'default' :
-            action === 'SURVEY_SUBMIT' ? 'secondary' :
-            action === 'SURVEY_REJECT' ? 'destructive' :
-            action === 'CREATE' ? 'outline' :
-            action === 'UPDATE' ? 'outline' :
-            'default';
+            action === 'SURVEY_VERIFY' ? 'outline-success' :
+            action === 'SURVEY_SUBMIT' ? 'outline-info' :
+            action === 'SURVEY_REJECT' ? 'outline-danger' :
+            action === 'CREATE' ? 'outline-muted' :
+            action === 'UPDATE' ? 'outline-warning' :
+            'outline-muted';
 
           return (
             <Badge variant={variant} className="w-28 justify-center">
@@ -214,37 +217,65 @@ export default function AuditLogPage() {
     <>
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-4 p-8">
-        <div>
-          <h1 className="text-2xl font-bold">Log Audit Survei</h1>
-          <p className="text-muted-foreground">
+      <div className="flex flex-1 flex-col gap-3">
+
+        <div className="px-6 pt-6">
+          <h1 className="text-xl font-bold">Log Audit Survei</h1>
+          <p className="text-sm text-muted-foreground">
             Riwayat perubahan dan verifikasi survei
           </p>
         </div>
 
+        <Separator />
+
+        <div className="flex flex-col gap-3 px-6 pb-6">
+
         <div className="flex gap-2 justify-between items-center">
+          <div className="flex gap-2 items-center">
+            <div className="flex items-center rounded-md border">
+              <Select value={actionFilter} onValueChange={setActionFilter}>
+                <SelectTrigger className="w-44 border-0 focus:ring-0" aria-label="Filter berdasarkan aksi">
+                  <SelectValue placeholder="All" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="CREATE">Dibuat</SelectItem>
+                  <SelectItem value="UPDATE">Diperbarui</SelectItem>
+                  <SelectItem value="SURVEY_SUBMIT">Diajukan</SelectItem>
+                  <SelectItem value="SURVEY_VERIFY">Diverifikasi</SelectItem>
+                  <SelectItem value="SURVEY_REJECT">Ditolak</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="w-px h-5 bg-border" />
+            <Select value={sorting.length > 0 ? `${sorting[0].id}-${sorting[0].desc ? 'desc' : 'asc'}` : 'default'} onValueChange={(value) => {
+              if (value === 'default') {
+                setSorting([]);
+              } else {
+                const [id, dir] = value.split('-');
+                setSorting([{ id, desc: dir === 'desc' }]);
+              }
+            }}>
+              <SelectTrigger className="w-44" aria-label="Urutkan">
+                <HugeiconsIcon icon={SortingZA01Icon} size={16} />
+                <SelectValue placeholder="Urutkan" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="default">Urutkan</SelectItem>
+                <SelectItem value="timestamp-desc">Terbaru</SelectItem>
+                <SelectItem value="timestamp-asc">Terlama</SelectItem>
+                <SelectItem value="user_name-asc">Pengguna A-Z</SelectItem>
+                <SelectItem value="user_name-desc">Pengguna Z-A</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <Input
             placeholder="Cari survei atau pengguna..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-64"
+            aria-label="Cari log audit"
           />
-
-          <div className="flex gap-2 items-center">
-            <Select value={actionFilter} onValueChange={setActionFilter}>
-              <SelectTrigger className="w-48 !h-9">
-                <SelectValue placeholder="Filter berdasarkan aksi" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Semua Aksi</SelectItem>
-                <SelectItem value="CREATE">Dibuat</SelectItem>
-                <SelectItem value="UPDATE">Diperbarui</SelectItem>
-                <SelectItem value="SURVEY_SUBMIT">Diajukan</SelectItem>
-                <SelectItem value="SURVEY_VERIFY">Diverifikasi</SelectItem>
-                <SelectItem value="SURVEY_REJECT">Ditolak</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
         </div>
 
         <div className="rounded-lg border">
@@ -301,7 +332,8 @@ export default function AuditLogPage() {
             </p>
           </div>
         )}
-      </div>
+              </div>
+        </div>
 
       {/* Detail Dialog */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
@@ -335,10 +367,10 @@ export default function AuditLogPage() {
                 <p className="text-sm text-muted-foreground">Aksi</p>
                 <Badge
                   variant={
-                    selectedLog.action === 'SURVEY_VERIFY' ? 'default' :
-                    selectedLog.action === 'SURVEY_SUBMIT' ? 'secondary' :
-                    selectedLog.action === 'SURVEY_REJECT' ? 'destructive' :
-                    'outline'
+                    selectedLog.action === 'SURVEY_VERIFY' ? 'outline-success' :
+                    selectedLog.action === 'SURVEY_SUBMIT' ? 'outline-info' :
+                    selectedLog.action === 'SURVEY_REJECT' ? 'outline-danger' :
+                    'outline-muted'
                   }
                   className="mt-1"
                 >
@@ -378,9 +410,9 @@ export default function AuditLogPage() {
                 <p className="text-sm text-muted-foreground">Tingkat Keparahan</p>
                 <Badge
                   variant={
-                    selectedLog.severity === 'ERROR' ? 'destructive' :
-                    selectedLog.severity === 'WARNING' ? 'secondary' :
-                    'outline'
+                    selectedLog.severity === 'ERROR' ? 'outline-danger' :
+                    selectedLog.severity === 'WARNING' ? 'outline-warning' :
+                    'outline-muted'
                   }
                   className="mt-1"
                 >

@@ -1,18 +1,19 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text } from 'react-native';
+import { StyleSheet, Text, BackHandler } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useState, useEffect } from 'react';
-import { useFonts, NotoSans_400Regular, NotoSans_500Medium, NotoSans_600SemiBold, NotoSans_700Bold } from '@expo-google-fonts/noto-sans';
+import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import LoginScreen from './screens/LoginScreen';
 import HomePage from './screens/HomePage';
 import SurveyListScreen from './screens/SurveyListScreen';
 import SurveyDetailScreen from './screens/SurveyDetailScreen';
 import SurveyFormScreen from './screens/SurveyFormScreen';
+import DynamicSurveyFormScreen from './screens/DynamicSurveyFormScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import SettingsScreen from './screens/SettingsScreen';
 import BaseLayout from './components/BaseLayout';
-import { apiClient } from './services/api';
+import { apiClient, ENV_CONFIGURED_URL } from './services/api';
 import { database } from './services/database';
 
 type Screen = 'home' | 'survey-list' | 'survey-detail' | 'survey-form' | 'profile' | 'settings';
@@ -24,33 +25,105 @@ export default function App() {
   const [selectedSurveyId, setSelectedSurveyId] = useState<number | undefined>();
 
   const [fontsLoaded] = useFonts({
-    NotoSans_400Regular,
-    NotoSans_500Medium,
-    NotoSans_600SemiBold,
-    NotoSans_700Bold,
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
   });
 
   useEffect(() => {
-    // Initialize database
-    database.init().catch(err => {
-      console.error('Failed to initialize database:', err);
-    });
+    const bootstrap = async () => {
+      // Initialize database first, then check auth
+      try {
+        await database.init();
+      } catch (err) {
+        console.error('Failed to initialize database:', err);
+      }
 
-    // Set up session expired callback
-    apiClient.setSessionExpiredCallback(() => {
-      setIsAuthenticated(false);
-      setCurrentScreen('home');
-      setSelectedSurveyId(undefined);
-    });
+      // Set up session expired callback
+      apiClient.setSessionExpiredCallback(() => {
+        setIsAuthenticated(false);
+        setCurrentScreen('home');
+        setSelectedSurveyId(undefined);
+      });
 
-    checkAuth();
+      await checkAuth();
+    };
+
+    bootstrap();
   }, []);
 
   const checkAuth = async () => {
+    // Determine API URL: .env takes priority over SQLite-saved URL
+    try {
+      if (ENV_CONFIGURED_URL) {
+        // .env has an explicit URL — always use it and sync to SQLite
+        apiClient.setBaseURL(ENV_CONFIGURED_URL);
+        await database.saveApiBaseUrl(ENV_CONFIGURED_URL);
+        console.log('[API URL] Using .env URL:', ENV_CONFIGURED_URL);
+      } else {
+        // No .env URL — fall back to SQLite-saved URL (production scenario)
+        const savedUrl = await database.getApiBaseUrl();
+        if (savedUrl) {
+          apiClient.setBaseURL(savedUrl);
+          console.log('[API URL] Using SQLite-saved URL:', savedUrl);
+        } else {
+          console.log('[API URL] Using default URL:', apiClient.getBaseURL());
+        }
+      }
+    } catch {
+      // Use default URL if loading fails
+    }
+
     await apiClient.reloadTokens();
-    setIsAuthenticated(apiClient.isAuthenticated());
+
+    // Validate token by calling the API, not just checking if it exists
+    if (apiClient.isAuthenticated()) {
+      try {
+        await apiClient.get('/accounts/users/me/');
+        setIsAuthenticated(true);
+      } catch {
+        // Token is expired or invalid - clear and go to login
+        await apiClient.clearTokensFromStorage();
+        setIsAuthenticated(false);
+      }
+    } else {
+      setIsAuthenticated(false);
+    }
+
     setIsLoading(false);
   };
+
+  // Handle Android hardware back button
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (!isAuthenticated) return false; // let system handle it on login
+
+      switch (currentScreen) {
+        case 'survey-form':
+          navigateToSurveyList();
+          return true;
+        case 'survey-detail':
+          navigateToSurveyList();
+          return true;
+        case 'survey-list':
+          setCurrentScreen('home');
+          setSelectedSurveyId(undefined);
+          return true;
+        case 'profile':
+        case 'settings':
+          setCurrentScreen('home');
+          setSelectedSurveyId(undefined);
+          return true;
+        case 'home':
+          return false; // let system handle (exit app)
+        default:
+          return false;
+      }
+    });
+
+    return () => backHandler.remove();
+  }, [isAuthenticated, currentScreen]);
 
   const handleLoginSuccess = () => {
     setIsAuthenticated(true);
@@ -102,7 +175,7 @@ export default function App() {
 
   // Set default font family globally
   if (Text.defaultProps == null) Text.defaultProps = {};
-  Text.defaultProps.style = { fontFamily: 'NotoSans_400Regular' };
+  Text.defaultProps.style = { fontFamily: 'Inter_400Regular' };
 
   const renderScreen = () => {
     switch (currentScreen) {
@@ -123,8 +196,8 @@ export default function App() {
         );
       case 'survey-form':
         return (
-          <SurveyFormScreen
-            surveyId={selectedSurveyId}
+          <DynamicSurveyFormScreen
+            responseId={selectedSurveyId}
             onBack={navigateToSurveyList}
             onSave={handleSurveySaved}
           />
@@ -135,7 +208,7 @@ export default function App() {
         return <SettingsScreen onLogout={handleLogout} />;
       case 'home':
       default:
-        return <HomePage onNavigateToSurveys={navigateToSurveyList} />;
+        return <HomePage onNavigateToSurveys={navigateToSurveyList} onSelectSurvey={navigateToSurveyDetail} />;
     }
   };
 

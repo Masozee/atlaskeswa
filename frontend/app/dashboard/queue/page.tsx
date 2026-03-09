@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { useSurveys, useVerifySurvey } from '@/hooks/use-surveys';
+import { useSurveyResponses, useVerifySurvey, useApproveDeletion } from '@/hooks/use-survey-responses';
 import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -39,7 +39,7 @@ import {
   ColumnDef,
   SortingState,
 } from '@tanstack/react-table';
-import { SurveyListItem } from '@/lib/types/api';
+import { Separator } from '@/components/ui/separator';
 import { HugeiconsIcon } from "@hugeicons/react"
 import {Search01Icon,
   MoreHorizontalIcon,
@@ -49,9 +49,29 @@ import {Search01Icon,
   ArrowUp01Icon,
   ArrowDown01Icon} from "@hugeicons/core-free-icons";
 
+interface QueueItem {
+  id: number;
+  service_name: string;
+  service_city: string;
+  survey_date: string;
+  surveyor_name: string;
+  verification_status: string;
+  status_display: string;
+  verifier_name: string | null;
+  created_at: string;
+  submitted_at: string | null;
+  deletion_requested?: boolean;
+}
+
 type VerificationAction = {
   surveyId: number;
   action: 'verify' | 'reject';
+  surveyName: string;
+};
+
+type DeletionAction = {
+  surveyId: number;
+  action: 'approve' | 'reject';
   surveyName: string;
 };
 
@@ -65,19 +85,27 @@ export default function VerificationQueuePage() {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [search, setSearch] = useState('');
   const [verificationDialog, setVerificationDialog] = useState<VerificationAction | null>(null);
+  const [deletionDialog, setDeletionDialog] = useState<DeletionAction | null>(null);
   const [notes, setNotes] = useState('');
   const [rejectionReason, setRejectionReason] = useState('');
 
-  const { data, isLoading } = useSurveys({
+  const { data, isLoading } = useSurveyResponses({
     search,
     verification_status: 'SUBMITTED',
     ordering: '-created_at',
     page_size: 50,
   });
 
-  const verifySurvey = useVerifySurvey(verificationDialog?.surveyId || 0);
+  const { data: deletionData, isLoading: deletionLoading } = useSurveyResponses({
+    deletion_requested: true,
+    ordering: '-created_at',
+    page_size: 50,
+  });
 
-  const handleVerificationAction = (survey: SurveyListItem, action: 'verify' | 'reject') => {
+  const verifySurvey = useVerifySurvey(verificationDialog?.surveyId || 0);
+  const approveDeletion = useApproveDeletion();
+
+  const handleVerificationAction = (survey: QueueItem, action: 'verify' | 'reject') => {
     setVerificationDialog({
       surveyId: survey.id,
       action,
@@ -105,7 +133,28 @@ export default function VerificationQueuePage() {
     }
   };
 
-  const columns = useMemo<ColumnDef<SurveyListItem, any>[]>(
+  const handleDeletionAction = (survey: QueueItem, action: 'approve' | 'reject') => {
+    setDeletionDialog({
+      surveyId: survey.id,
+      action,
+      surveyName: survey.service_name,
+    });
+  };
+
+  const handleSubmitDeletion = async () => {
+    if (!deletionDialog) return;
+    try {
+      await approveDeletion.mutateAsync({
+        id: deletionDialog.surveyId,
+        action: deletionDialog.action,
+      });
+      setDeletionDialog(null);
+    } catch (error) {
+      console.error('Deletion action failed:', error);
+    }
+  };
+
+  const columns = useMemo<ColumnDef<QueueItem, any>[]>(
     () => [
       {
         accessorKey: 'id',
@@ -118,7 +167,7 @@ export default function VerificationQueuePage() {
         cell: ({ row }) => (
           <div className="max-w-xs">
             <div className="font-medium truncate">{row.getValue('service_name')}</div>
-            <div className="text-xs text-muted-foreground">{row.original.city}</div>
+            <div className="text-xs text-muted-foreground">{row.original.service_city}</div>
           </div>
         ),
       },
@@ -156,26 +205,6 @@ export default function VerificationQueuePage() {
         cell: ({ row }) => (
           <div className="text-sm">{row.getValue('surveyor_name') || 'N/A'}</div>
         ),
-      },
-      {
-        accessorKey: 'total_patients_served',
-        header: ({ column }) => (
-          <button
-            className="flex items-center gap-1 hover:text-foreground"
-            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-          >
-            Pasien
-            {column.getIsSorted() === 'asc' ? (
-              <HugeiconsIcon icon={ArrowUp01Icon} size={12} />
-            ) : column.getIsSorted() === 'desc' ? (
-              <HugeiconsIcon icon={ArrowDown01Icon} size={12} />
-            ) : null}
-          </button>
-        ),
-        cell: ({ row }) => {
-          const patients = row.getValue('total_patients_served') as number;
-          return <div>{patients?.toLocaleString() || 0}</div>;
-        },
       },
       {
         accessorKey: 'created_at',
@@ -221,7 +250,7 @@ export default function VerificationQueuePage() {
           return verifier ? (
             <div className="text-sm">{verifier as string}</div>
           ) : (
-            <Badge variant="outline">Belum Ditugaskan</Badge>
+            <Badge variant="outline-muted">Belum Ditugaskan</Badge>
           );
         },
       },
@@ -233,7 +262,7 @@ export default function VerificationQueuePage() {
           return (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="h-8 w-8 p-0">
+                <Button variant="outline" className="h-8 w-8 p-0">
                   <span className="sr-only">Buka menu</span>
                   <HugeiconsIcon icon={MoreHorizontalIcon} size={16} />
                 </Button>
@@ -268,7 +297,7 @@ export default function VerificationQueuePage() {
   );
 
   const table = useReactTable({
-    data: data?.results || [],
+    data: (data?.results || []) as QueueItem[],
     columns,
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
@@ -282,13 +311,18 @@ export default function VerificationQueuePage() {
     <div className="flex flex-col">
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex-1 p-8 space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Antrian Verifikasi</h1>
-          <p className="text-muted-foreground mt-1">
+      <div className="flex flex-1 flex-col gap-3">
+
+        <div className="px-6 pt-6">
+          <h1 className="text-xl font-bold">Antrian Verifikasi</h1>
+          <p className="text-sm text-muted-foreground">
             Survei yang menunggu verifikasi dan peninjauan
           </p>
         </div>
+
+        <Separator />
+
+        <div className="flex flex-col gap-3 px-6 pb-6">
 
         <div className="flex items-center gap-4">
           <div className="relative flex-1 max-w-sm">
@@ -350,7 +384,135 @@ export default function VerificationQueuePage() {
             </TableBody>
           </Table>
         </div>
+        </div>
       </div>
+
+      {/* Deletion Requests Section */}
+      {deletionData && deletionData.count > 0 && (
+        <>
+          <Separator />
+          <div className="flex flex-1 flex-col gap-3">
+            <div className="px-6 pt-4">
+              <h2 className="text-xl font-bold">Permintaan Penghapusan</h2>
+              <p className="text-sm text-muted-foreground">
+                Survei yang diminta untuk dihapus oleh surveyor
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-3 px-6 pb-6">
+              <div className="flex items-center">
+                <Badge variant="outline-danger" className="ml-auto">
+                  {deletionData.count} permintaan hapus
+                </Badge>
+              </div>
+
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>ID</TableHead>
+                      <TableHead>Nama Layanan</TableHead>
+                      <TableHead>Tanggal Survei</TableHead>
+                      <TableHead>Surveyor</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {deletionLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="h-24 text-center">
+                          Memuat...
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      (deletionData.results as QueueItem[]).map((survey) => (
+                        <TableRow key={survey.id}>
+                          <TableCell className="w-16 font-medium">#{survey.id}</TableCell>
+                          <TableCell>
+                            <div className="max-w-xs">
+                              <div className="font-medium truncate">{survey.service_name}</div>
+                              <div className="text-xs text-muted-foreground">{survey.service_city}</div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {new Date(survey.survey_date).toLocaleDateString('id-ID', {
+                              day: '2-digit', month: 'short', year: 'numeric',
+                            })}
+                          </TableCell>
+                          <TableCell className="text-sm">{survey.surveyor_name || 'N/A'}</TableCell>
+                          <TableCell>
+                            <Badge variant={
+                              survey.verification_status === 'VERIFIED' ? 'outline-success' :
+                              survey.verification_status === 'SUBMITTED' ? 'outline-info' :
+                              survey.verification_status === 'REJECTED' ? 'outline-danger' :
+                              'outline-muted'
+                            }>
+                              {survey.status_display || survey.verification_status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-2 justify-end">
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => handleDeletionAction(survey, 'approve')}
+                              >
+                                <HugeiconsIcon icon={Tick02Icon} size={14} className="mr-1" />
+                                Setujui Hapus
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleDeletionAction(survey, 'reject')}
+                              >
+                                <HugeiconsIcon icon={Cancel01Icon} size={14} className="mr-1" />
+                                Tolak
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Deletion Confirmation Dialog */}
+      <Dialog open={!!deletionDialog} onOpenChange={() => setDeletionDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {deletionDialog?.action === 'approve' ? 'Setujui Penghapusan' : 'Tolak Permintaan Hapus'}
+            </DialogTitle>
+            <DialogDescription>
+              {deletionDialog?.action === 'approve'
+                ? `Survei "${deletionDialog?.surveyName}" akan dihapus secara permanen.`
+                : `Tolak permintaan penghapusan untuk "${deletionDialog?.surveyName}".`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeletionDialog(null)}>
+              Batal
+            </Button>
+            <Button
+              variant={deletionDialog?.action === 'approve' ? 'destructive' : 'default'}
+              onClick={handleSubmitDeletion}
+              disabled={approveDeletion.isPending}
+            >
+              {approveDeletion.isPending
+                ? 'Memproses...'
+                : deletionDialog?.action === 'approve'
+                ? 'Hapus Permanen'
+                : 'Tolak Permintaan'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Verification Dialog */}
       <Dialog open={!!verificationDialog} onOpenChange={() => setVerificationDialog(null)}>

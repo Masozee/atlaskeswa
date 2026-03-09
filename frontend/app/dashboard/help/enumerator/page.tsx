@@ -2,6 +2,7 @@
 
 import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 
 const checklistItems = {
   before: [
@@ -70,15 +71,17 @@ export default function EnumeratorPage() {
     <>
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-6 p-8">
-        {/* Page Header */}
-        <div>
+      <div className="flex flex-1 flex-col gap-6">
+        <div className="px-8 pt-8">
           <h1 className="text-2xl font-bold">Enumerator Handbook</h1>
           <p className="text-muted-foreground">
             Quick reference guide for conducting mental health service surveys
           </p>
         </div>
 
+        <Separator />
+
+        <div className="flex flex-col gap-6 px-8 pb-8">
         {/* Checklists */}
         <div className="grid gap-4 md:grid-cols-3">
           <div className="p-4 rounded-lg bg-muted/50">
@@ -191,6 +194,7 @@ export default function EnumeratorPage() {
             <li>• Submit surveys on the same day whenever possible</li>
             <li>• Keep detailed notes for any unusual situations</li>
           </ul>
+        </div>
         </div>
       </div>
     </>

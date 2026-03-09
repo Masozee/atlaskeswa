@@ -4,6 +4,7 @@ import { useServiceAnalytics, useSurveyAnalytics } from '@/hooks/use-analytics';
 import { PageHeader } from "@/components/page-header"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
+import { Separator } from '@/components/ui/separator';
 
 const breadcrumbs = [
   { label: 'Dashboard', href: '/dashboard' },
@@ -34,11 +35,16 @@ export default function KeyIndicatorsPage() {
     <>
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-4 p-8">
-        <div>
+      <div className="flex flex-1 flex-col gap-4">
+
+        <div className="px-8 pt-8">
           <h1 className="text-2xl font-bold">Key Indicators</h1>
           <p className="text-muted-foreground">Key performance indicators and metrics</p>
         </div>
+
+        <Separator />
+
+        <div className="flex flex-col gap-4 px-8 pb-8">
 
         {/* Service Metrics */}
         <div className="grid gap-4 md:grid-cols-2">
@@ -194,7 +200,8 @@ export default function KeyIndicatorsPage() {
             </CardContent>
           </Card>
         </div>
-      </div>
+              </div>
+        </div>
     </>
   );
 }

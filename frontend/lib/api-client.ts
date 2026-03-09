@@ -131,12 +131,11 @@ export class ApiClient {
     if (!response.ok) {
       if (isJson) {
         const errorData = await response.json();
-        const apiError: ApiError = {
-          message: errorData.detail || errorData.message || 'An error occurred',
-          status: response.status,
-          errors: errorData,
-        };
-        throw apiError;
+        const message = errorData.detail || errorData.message || 'An error occurred';
+        const err = new Error(message) as Error & ApiError;
+        err.status = response.status;
+        err.errors = errorData;
+        throw err;
       } else {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }

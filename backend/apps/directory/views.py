@@ -1,21 +1,28 @@
+import csv
+import io
+import tablib
 from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from django.http import HttpResponse, FileResponse
+from django.db.models.deletion import ProtectedError
 from django_filters.rest_framework import DjangoFilterBackend
-from django.db.models import Count, Q, Avg
+from django.db.models import Count, Q, Avg, Subquery, OuterRef
 
+from .resources import BSICResource, KategoriLayananResource
 from .models import (
     MainTypeOfCare, BasicStableInputsOfCare, TargetPopulation,
-    ServiceType, Service
+    ServiceType, Service, KategoriLayanan, KategoriFasilitas
 )
 from .serializers import (
     MainTypeOfCareSerializer, BasicStableInputsOfCareSerializer,
     TargetPopulationSerializer, ServiceTypeSerializer,
     ServiceListSerializer, ServiceDetailSerializer,
-    ServiceCreateUpdateSerializer
+    ServiceCreateUpdateSerializer,
+    KategoriLayananSerializer, KategoriFasilitasSerializer,
 )
-from apps.accounts.permissions import IsSurveyorOrAdmin, CanAccessServiceData
+from apps.accounts.permissions import IsSurveyorOrAdmin, CanAccessServiceData, IsAdmin
 from apps.accounts.mixins import StatusBasedFilterMixin
 from apps.logs.utils import log_create, log_update, log_delete
 
@@ -24,7 +31,9 @@ class MainTypeOfCareViewSet(viewsets.ReadOnlyModelViewSet):
     """
     ViewSet for MainTypeOfCare (read-only)
     """
-    queryset = MainTypeOfCare.objects.filter(is_active=True)
+    queryset = MainTypeOfCare.objects.filter(is_active=True).annotate(
+        children_count=Count('children')
+    )
     serializer_class = MainTypeOfCareSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
@@ -35,22 +44,136 @@ class MainTypeOfCareViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=['get'])
     def tree(self, request):
         """Get hierarchical tree structure of MTC"""
-        root_mtcs = MainTypeOfCare.objects.filter(parent__isnull=True, is_active=True)
+        root_mtcs = MainTypeOfCare.objects.filter(parent__isnull=True, is_active=True).annotate(
+            children_count=Count('children')
+        )
         serializer = self.get_serializer(root_mtcs, many=True)
         return Response(serializer.data)
 
 
-class BasicStableInputsOfCareViewSet(viewsets.ReadOnlyModelViewSet):
+class BasicStableInputsOfCareViewSet(viewsets.ModelViewSet):
     """
-    ViewSet for BasicStableInputsOfCare (read-only)
+    ViewSet for BasicStableInputsOfCare with full CRUD and bulk operations.
+    Write operations (create/update/delete) require admin role.
     """
-    queryset = BasicStableInputsOfCare.objects.filter(is_active=True)
+    queryset = BasicStableInputsOfCare.objects.all()
     serializer_class = BasicStableInputsOfCareSerializer
-    permission_classes = [IsAuthenticated]
+    pagination_class = None
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['code', 'name', 'description']
     ordering_fields = ['code', 'name']
     ordering = ['code']
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy',
+                           'bulk_delete', 'bulk_update', 'import_csv']:
+            return [IsAdmin()]
+        return [IsAuthenticated()]
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        try:
+            instance.delete()
+        except ProtectedError:
+            return Response(
+                {'detail': 'Cannot delete this BSIC category because it is referenced by existing services.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=False, methods=['post'], url_path='bulk-delete')
+    def bulk_delete(self, request):
+        """Delete multiple BSIC categories by IDs."""
+        ids = request.data.get('ids', [])
+        if not ids or not isinstance(ids, list):
+            return Response({'detail': 'ids must be a non-empty list.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            deleted_count, _ = BasicStableInputsOfCare.objects.filter(id__in=ids).delete()
+        except ProtectedError:
+            return Response(
+                {'detail': 'Cannot delete one or more BSIC categories because they are referenced by existing services.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        return Response({'deleted': deleted_count})
+
+    @action(detail=False, methods=['post'], url_path='bulk-update')
+    def bulk_update(self, request):
+        """Update a field on multiple BSIC categories by IDs."""
+        ids = request.data.get('ids', [])
+        updates = request.data.get('updates', {})
+        allowed_fields = {'is_active', 'description'}
+        invalid = set(updates.keys()) - allowed_fields
+        if not ids or not isinstance(ids, list):
+            return Response({'detail': 'ids must be a non-empty list.'}, status=status.HTTP_400_BAD_REQUEST)
+        if invalid:
+            return Response({'detail': f'Fields not allowed for bulk update: {invalid}'}, status=status.HTTP_400_BAD_REQUEST)
+        updated_count = BasicStableInputsOfCare.objects.filter(id__in=ids).update(**updates)
+        return Response({'updated': updated_count})
+
+    @action(detail=False, methods=['post'], url_path='import')
+    def import_csv(self, request):
+        """Import BSIC categories from CSV, XLSX, or JSON. Required columns: code, name."""
+        file = request.FILES.get('file')
+        if not file:
+            return Response({'detail': 'No file provided.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        update_existing = request.data.get('update_existing', 'false')
+        if isinstance(update_existing, str):
+            update_existing = update_existing.lower() in ('true', '1', 'yes')
+
+        filename = file.name.lower()
+        fmt = 'xlsx' if filename.endswith('.xlsx') else 'json' if filename.endswith('.json') else 'csv'
+
+        try:
+            if fmt == 'xlsx':
+                dataset = tablib.Dataset().load(file.read(), headers=True, format='xlsx')
+            elif fmt == 'json':
+                dataset = tablib.Dataset().load(file.read().decode('utf-8'), format='json')
+            else:
+                dataset = tablib.Dataset().load(file.read().decode('utf-8'), format='csv')
+        except Exception as e:
+            return Response({'detail': f'Could not read file: {e}'}, status=status.HTTP_400_BAD_REQUEST)
+
+        resource = BSICResource()
+        result = resource.import_data(dataset, dry_run=False, raise_errors=False,
+                                      use_transactions=True, collect_failed_rows=True)
+
+        errors = []
+        for row_error in result.row_errors():
+            row_num, row_errors = row_error
+            for err in row_errors:
+                errors.append({'row': row_num, 'error': str(err.error)})
+
+        return Response({
+            'created': result.totals.get('new', 0),
+            'updated': result.totals.get('update', 0),
+            'errors': errors,
+        })
+
+    @action(detail=False, methods=['get'], url_path='export', url_name='export')
+    def export_data(self, request):
+        """Export BSIC categories as CSV/XLSX/JSON. Accepts ?ids=1,2,3 and ?file_format=csv|xlsx|json."""
+        ids_param = request.query_params.get('ids')
+        fmt = request.query_params.get('file_format', 'csv').lower()
+        qs = BasicStableInputsOfCare.objects.select_related('kategori_layanan').all().order_by('code')
+        if ids_param:
+            ids = [i for i in ids_param.split(',') if i.strip().isdigit()]
+            qs = qs.filter(id__in=ids)
+
+        resource = BSICResource()
+        dataset = resource.export(qs)
+
+        if fmt == 'xlsx':
+            buf = io.BytesIO(dataset.xlsx)
+            response = FileResponse(buf, content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            response['Content-Disposition'] = 'attachment; filename="bsic_categories.xlsx"'
+        elif fmt == 'json':
+            response = HttpResponse(dataset.json, content_type='application/json')
+            response['Content-Disposition'] = 'attachment; filename="bsic_categories.json"'
+        else:
+            response = HttpResponse(dataset.csv, content_type='text/csv')
+            response['Content-Disposition'] = 'attachment; filename="bsic_categories.csv"'
+        return response
 
 
 class TargetPopulationViewSet(viewsets.ReadOnlyModelViewSet):
@@ -60,6 +183,7 @@ class TargetPopulationViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = TargetPopulation.objects.filter(is_active=True)
     serializer_class = TargetPopulationSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = None
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['name', 'description']
     ordering_fields = ['name']
@@ -73,6 +197,7 @@ class ServiceTypeViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = ServiceType.objects.filter(is_active=True)
     serializer_class = ServiceTypeSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = None
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['name', 'description']
     ordering_fields = ['name']
@@ -218,7 +343,9 @@ class ServiceViewSet(StatusBasedFilterMixin, viewsets.ModelViewSet):
         from apps.survey.models import Survey
 
         service = self.get_object()
-        surveys = Survey.objects.filter(service=service).order_by('-survey_date')
+        surveys = Survey.objects.filter(service=service).select_related(
+            'service', 'surveyor', 'assigned_verifier'
+        ).order_by('-survey_date')
 
         serializer = SurveyListSerializer(surveys, many=True)
         return Response(serializer.data)
@@ -233,3 +360,240 @@ class ServiceViewSet(StatusBasedFilterMixin, viewsets.ModelViewSet):
 
         serializer = ServiceListSerializer(services, many=True)
         return Response(serializer.data)
+
+
+class KategoriLayananViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for KategoriLayanan with full CRUD and bulk operations.
+    Write operations require admin role.
+    """
+    queryset = KategoriLayanan.objects.all()
+    serializer_class = KategoriLayananSerializer
+    pagination_class = None
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['code', 'name', 'description']
+    ordering_fields = ['code', 'name']
+    ordering = ['code']
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy',
+                           'bulk_delete', 'bulk_update', 'import_csv']:
+            return [IsAdmin()]
+        return [IsAuthenticated()]
+
+    @action(detail=False, methods=['post'], url_path='bulk-delete')
+    def bulk_delete(self, request):
+        ids = request.data.get('ids', [])
+        if not ids or not isinstance(ids, list):
+            return Response({'detail': 'ids must be a non-empty list.'}, status=status.HTTP_400_BAD_REQUEST)
+        deleted_count, _ = KategoriLayanan.objects.filter(id__in=ids).delete()
+        return Response({'deleted': deleted_count})
+
+    @action(detail=False, methods=['post'], url_path='bulk-update')
+    def bulk_update(self, request):
+        ids = request.data.get('ids', [])
+        updates = request.data.get('updates', {})
+        allowed_fields = {'is_active', 'description'}
+        invalid = set(updates.keys()) - allowed_fields
+        if not ids or not isinstance(ids, list):
+            return Response({'detail': 'ids must be a non-empty list.'}, status=status.HTTP_400_BAD_REQUEST)
+        if invalid:
+            return Response({'detail': f'Fields not allowed for bulk update: {invalid}'}, status=status.HTTP_400_BAD_REQUEST)
+        updated_count = KategoriLayanan.objects.filter(id__in=ids).update(**updates)
+        return Response({'updated': updated_count})
+
+    @action(detail=False, methods=['post'], url_path='import')
+    def import_csv(self, request):
+        """Import Kategori Layanan from CSV, XLSX, or JSON. Required columns: code, name."""
+        file = request.FILES.get('file')
+        if not file:
+            return Response({'detail': 'No file provided.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        filename = file.name.lower()
+        fmt = 'xlsx' if filename.endswith('.xlsx') else 'json' if filename.endswith('.json') else 'csv'
+
+        try:
+            if fmt == 'xlsx':
+                dataset = tablib.Dataset().load(file.read(), headers=True, format='xlsx')
+            elif fmt == 'json':
+                dataset = tablib.Dataset().load(file.read().decode('utf-8'), format='json')
+            else:
+                dataset = tablib.Dataset().load(file.read().decode('utf-8'), format='csv')
+        except Exception as e:
+            return Response({'detail': f'Could not read file: {e}'}, status=status.HTTP_400_BAD_REQUEST)
+
+        resource = KategoriLayananResource()
+        result = resource.import_data(dataset, dry_run=False, raise_errors=False,
+                                      use_transactions=True, collect_failed_rows=True)
+
+        errors = []
+        for row_num, row_errors in result.row_errors():
+            for err in row_errors:
+                errors.append({'row': row_num, 'error': str(err.error)})
+
+        return Response({
+            'created': result.totals.get('new', 0),
+            'updated': result.totals.get('update', 0),
+            'errors': errors,
+        })
+
+    @action(detail=False, methods=['get'], url_path='export', url_name='export')
+    def export_data(self, request):
+        """Export Kategori Layanan as CSV/XLSX/JSON. Accepts ?ids=1,2,3 and ?file_format=csv|xlsx|json."""
+        ids_param = request.query_params.get('ids')
+        fmt = request.query_params.get('file_format', 'csv').lower()
+        qs = KategoriLayanan.objects.all().order_by('code')
+        if ids_param:
+            ids = [i for i in ids_param.split(',') if i.strip().isdigit()]
+            qs = qs.filter(id__in=ids)
+
+        resource = KategoriLayananResource()
+        dataset = resource.export(qs)
+
+        if fmt == 'xlsx':
+            buf = io.BytesIO(dataset.xlsx)
+            response = FileResponse(buf, content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            response['Content-Disposition'] = 'attachment; filename="kategori_layanan.xlsx"'
+        elif fmt == 'json':
+            response = HttpResponse(dataset.json, content_type='application/json')
+            response['Content-Disposition'] = 'attachment; filename="kategori_layanan.json"'
+        else:
+            response = HttpResponse(dataset.csv, content_type='text/csv')
+            response['Content-Disposition'] = 'attachment; filename="kategori_layanan.csv"'
+        return response
+
+
+class KategoriFasilitasViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for KategoriFasilitas with full CRUD and bulk operations.
+    Write operations require admin role.
+    """
+    queryset = KategoriFasilitas.objects.all()
+    serializer_class = KategoriFasilitasSerializer
+    pagination_class = None
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = {'facility_type': ['exact'], 'is_active': ['exact']}
+    search_fields = ['code', 'name', 'description']
+    ordering_fields = ['code', 'name', 'facility_type']
+    ordering = ['code']
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy',
+                           'bulk_delete', 'bulk_update', 'import_csv']:
+            return [IsAdmin()]
+        return [IsAuthenticated()]
+
+    @action(detail=False, methods=['post'], url_path='bulk-delete')
+    def bulk_delete(self, request):
+        ids = request.data.get('ids', [])
+        if not ids or not isinstance(ids, list):
+            return Response({'detail': 'ids must be a non-empty list.'}, status=status.HTTP_400_BAD_REQUEST)
+        deleted_count, _ = KategoriFasilitas.objects.filter(id__in=ids).delete()
+        return Response({'deleted': deleted_count})
+
+    @action(detail=False, methods=['post'], url_path='bulk-update')
+    def bulk_update(self, request):
+        ids = request.data.get('ids', [])
+        updates = request.data.get('updates', {})
+        allowed_fields = {'is_active', 'description', 'facility_type'}
+        invalid = set(updates.keys()) - allowed_fields
+        if not ids or not isinstance(ids, list):
+            return Response({'detail': 'ids must be a non-empty list.'}, status=status.HTTP_400_BAD_REQUEST)
+        if invalid:
+            return Response({'detail': f'Fields not allowed for bulk update: {invalid}'}, status=status.HTTP_400_BAD_REQUEST)
+        updated_count = KategoriFasilitas.objects.filter(id__in=ids).update(**updates)
+        return Response({'updated': updated_count})
+
+    @action(detail=False, methods=['post'], url_path='import')
+    def import_csv(self, request):
+        file = request.FILES.get('file')
+        if not file:
+            return Response({'detail': 'No file provided.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            decoded = file.read().decode('utf-8')
+            reader = csv.DictReader(io.StringIO(decoded))
+        except Exception as e:
+            return Response({'detail': f'Could not read file: {e}'}, status=status.HTTP_400_BAD_REQUEST)
+
+        update_existing = request.data.get('update_existing', 'false')
+        if isinstance(update_existing, str):
+            update_existing = update_existing.lower() in ('true', '1', 'yes')
+
+        valid_facility_types = {'KESEHATAN', 'NON_KESEHATAN'}
+        created_count = 0
+        updated_count = 0
+        errors = []
+
+        for i, row in enumerate(reader, start=2):
+            norm = {k.strip().lower(): (v or '').strip() for k, v in row.items()}
+            code = norm.get('code', '')
+            name = norm.get('name', '')
+            description = norm.get('description', '')
+
+            # Accept 'facility_type' column (import) or map from display values
+            raw_ft = norm.get('facility_type', '').upper()
+            if raw_ft in valid_facility_types:
+                facility_type = raw_ft
+            elif 'kesehatan' in raw_ft and 'non' not in raw_ft:
+                facility_type = 'KESEHATAN'
+            elif 'non' in raw_ft:
+                facility_type = 'NON_KESEHATAN'
+            else:
+                facility_type = 'KESEHATAN'
+
+            if 'is_active' in norm:
+                is_active_raw = norm['is_active'].lower()
+            elif 'status' in norm:
+                is_active_raw = 'true' if norm['status'].lower() == 'active' else 'false'
+            else:
+                is_active_raw = 'true'
+            is_active = is_active_raw in ('true', '1', 'yes')
+
+            if not code:
+                errors.append({'row': i, 'error': 'Missing required field: code'})
+                continue
+            if not name:
+                errors.append({'row': i, 'error': 'Missing required field: name'})
+                continue
+
+            existing = KategoriFasilitas.objects.filter(code=code).first()
+            if existing:
+                if update_existing:
+                    existing.name = name
+                    existing.description = description
+                    existing.facility_type = facility_type
+                    existing.is_active = is_active
+                    existing.save()
+                    updated_count += 1
+                else:
+                    errors.append({'row': i, 'error': f'Duplicate code: {code}'})
+            else:
+                KategoriFasilitas.objects.create(
+                    code=code, name=name, description=description,
+                    facility_type=facility_type, is_active=is_active
+                )
+                created_count += 1
+
+        return Response({'created': created_count, 'updated': updated_count, 'errors': errors})
+
+    @action(detail=False, methods=['get'], url_path='export', url_name='export')
+    def export_data(self, request):
+        ids_param = request.query_params.get('ids')
+        qs = KategoriFasilitas.objects.all().order_by('code')
+        if ids_param:
+            ids = [i for i in ids_param.split(',') if i.strip().isdigit()]
+            qs = qs.filter(id__in=ids)
+
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="kategori_fasilitas.csv"'
+        writer = csv.writer(response)
+        writer.writerow(['ID', 'Code', 'Name', 'Description', 'Facility Type', 'Status', 'Created At'])
+        for obj in qs:
+            writer.writerow([
+                obj.id, obj.code, obj.name,
+                obj.description or '',
+                obj.facility_type,
+                'Active' if obj.is_active else 'Inactive',
+                obj.created_at.strftime('%Y-%m-%d %H:%M') if obj.created_at else '',
+            ])
+        return response

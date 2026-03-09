@@ -167,21 +167,25 @@ class UserActivityLogViewSet(viewsets.ReadOnlyModelViewSet):
             return self.queryset.filter(user=user)
 
 from rest_framework_simplejwt.views import TokenObtainPairView as BaseTokenObtainPairView
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.exceptions import TokenError
 from apps.logs.models import ActivityLog
+from .throttles import LoginThrottle
+
 
 class CustomTokenObtainPairView(BaseTokenObtainPairView):
     """
-    Custom login view that logs authentication attempts
+    Custom login view that logs authentication attempts and throttles by IP.
     """
+    throttle_classes = [LoginThrottle]
+
     def post(self, request, *args, **kwargs):
         email = request.data.get('email', '')
-        
+
         try:
             response = super().post(request, *args, **kwargs)
-            
-            # Successful login
+
             if response.status_code == 200:
-                # Get user by email
                 try:
                     user = User.objects.get(email=email)
                     ActivityLog.objects.create(
@@ -189,19 +193,18 @@ class CustomTokenObtainPairView(BaseTokenObtainPairView):
                         username=user.email,
                         action=ActivityLog.Action.LOGIN,
                         severity=ActivityLog.Severity.INFO,
-                        description=f'User logged in successfully',
+                        description='User logged in successfully',
                         ip_address=self.get_client_ip(request),
                         user_agent=request.META.get('HTTP_USER_AGENT', ''),
                         request_method='POST',
-                        request_path='/api/accounts/auth/login/',
+                        request_path='/v1/accounts/auth/login/',
                     )
                 except User.DoesNotExist:
                     pass
-            
+
             return response
-            
-        except Exception as e:
-            # Failed login attempt
+
+        except Exception:
             ActivityLog.objects.create(
                 user=None,
                 username=email,
@@ -211,15 +214,50 @@ class CustomTokenObtainPairView(BaseTokenObtainPairView):
                 ip_address=self.get_client_ip(request),
                 user_agent=request.META.get('HTTP_USER_AGENT', ''),
                 request_method='POST',
-                request_path='/api/accounts/auth/login/',
+                request_path='/v1/accounts/auth/login/',
             )
             raise
-    
+
     def get_client_ip(self, request):
-        """Get client IP address from request"""
         x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
         if x_forwarded_for:
-            ip = x_forwarded_for.split(',')[0]
-        else:
-            ip = request.META.get('REMOTE_ADDR')
-        return ip
+            return x_forwarded_for.split(',')[0].strip()
+        return request.META.get('REMOTE_ADDR')
+
+
+class LogoutView(viewsets.ViewSet):
+    """
+    Blacklists the provided refresh token on logout so it cannot be reused.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def create(self, request):
+        refresh_token = request.data.get('refresh')
+        if not refresh_token:
+            return Response(
+                {'detail': 'Refresh token is required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+        except TokenError:
+            return Response(
+                {'detail': 'Token is invalid or already blacklisted.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Log the logout event
+        ActivityLog.objects.create(
+            user=request.user,
+            username=request.user.email,
+            action=ActivityLog.Action.LOGOUT,
+            severity=ActivityLog.Severity.INFO,
+            description='User logged out and token blacklisted',
+            ip_address=request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR', '')).split(',')[0].strip(),
+            user_agent=request.META.get('HTTP_USER_AGENT', ''),
+            request_method='POST',
+            request_path='/v1/accounts/auth/logout/',
+        )
+
+        return Response({'detail': 'Successfully logged out.'}, status=status.HTTP_200_OK)

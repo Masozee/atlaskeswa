@@ -16,6 +16,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertTriangle, Info } from 'lucide-react';
 import { DataTable } from '@/components/data-table';
 import { ColumnDef } from '@tanstack/react-table';
+import { Separator } from '@/components/ui/separator';
 
 interface Service {
   id: number;
@@ -227,13 +228,18 @@ export default function ServiceGapsPage() {
     <div className="flex flex-col">
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex-1 p-6 space-y-6">
-        <div>
+      <div className="flex-1 space-y-6">
+
+        <div className="px-6 pt-6">
           <h1 className="text-3xl font-bold">Service Gaps & Needs Assessment</h1>
           <p className="text-muted-foreground mt-1">
             Identify coverage gaps and service improvement opportunities
           </p>
         </div>
+
+        <Separator />
+
+        <div className="space-y-6 px-6 pb-6">
 
         <Alert>
           <Info className="h-4 w-4" />
@@ -284,7 +290,8 @@ export default function ServiceGapsPage() {
           showPagination={true}
           pageSize={20}
         />
-      </div>
+              </div>
+        </div>
     </div>
   );
 }

@@ -17,6 +17,7 @@ import { ColumnDef } from '@tanstack/react-table';
 import { HugeiconsIcon } from "@hugeicons/react"
 import {MoreHorizontalIcon, ViewIcon, Tick02Icon, Cancel01Icon} from "@hugeicons/core-free-icons";
 import { DataTable } from '@/components/data-table';
+import { Separator } from '@/components/ui/separator';
 
 const breadcrumbs: BreadcrumbItemType[] = [
   { label: 'Verification & QC', href: '/verification' },
@@ -80,9 +81,9 @@ export default function VerifyServicesPage() {
         cell: ({ row }) => {
           const isVerified = row.original.is_verified;
           return isVerified ? (
-            <Badge variant="default" className="bg-green-600">Verified</Badge>
+            <Badge variant="outline-success">Verified</Badge>
           ) : (
-            <Badge variant="outline">Unverified</Badge>
+            <Badge variant="outline-muted">Unverified</Badge>
           );
         },
       },
@@ -94,7 +95,7 @@ export default function VerifyServicesPage() {
           return (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="h-8 w-8 p-0">
+                <Button variant="outline" className="h-8 w-8 p-0">
                   <HugeiconsIcon icon={MoreHorizontalIcon} size={16} />
                 </Button>
               </DropdownMenuTrigger>
@@ -128,8 +129,9 @@ export default function VerifyServicesPage() {
   return (
     <div className="flex flex-col">
       <PageHeader breadcrumbs={breadcrumbs} />
-      <div className="flex-1 p-6 space-y-6">
-        <div className="flex items-center justify-between">
+      <div className="flex-1 space-y-6">
+
+        <div className="px-6 pt-6 flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">Verify Service Details</h1>
             <p className="text-muted-foreground mt-1">
@@ -138,8 +140,13 @@ export default function VerifyServicesPage() {
           </div>
           {data && <Badge variant="outline" className="text-base px-4 py-2">{data.count} services</Badge>}
         </div>
+
+        <Separator />
+
+        <div className="space-y-6 px-6 pb-6">
         <DataTable columns={columns} data={data?.results || []} searchKey="name" searchPlaceholder="Search services..." showColumnToggle={true} showPagination={true} pageSize={20} />
-      </div>
+              </div>
+        </div>
     </div>
   );
 }

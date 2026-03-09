@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
+  TextInput,
   ScrollView,
   TouchableOpacity,
   StyleSheet,
@@ -25,10 +26,49 @@ export default function SettingsScreen({ onLogout }: SettingsScreenProps) {
   const [syncing, setSyncing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<number | null>(null);
   const [lastSyncStatus, setLastSyncStatus] = useState<string | null>(null);
+  const [serverUrl, setServerUrl] = useState('');
+  const [isSavedInDb, setIsSavedInDb] = useState(false);
 
   useEffect(() => {
     loadLastSyncTime();
+    loadServerUrl();
   }, []);
+
+  const loadServerUrl = async () => {
+    try {
+      const saved = await database.getApiBaseUrl();
+      if (saved) {
+        setServerUrl(saved);
+        setIsSavedInDb(true);
+      } else {
+        setServerUrl(apiClient.getBaseURL());
+        setIsSavedInDb(false);
+      }
+    } catch {
+      setServerUrl(apiClient.getBaseURL());
+      setIsSavedInDb(false);
+    }
+  };
+
+  const handleSaveServerUrl = async () => {
+    const trimmed = serverUrl.trim().replace(/\/+$/, '');
+    if (!trimmed) {
+      Alert.alert('Error', 'Please enter a valid server URL');
+      return;
+    }
+
+    try {
+      await database.saveApiBaseUrl(trimmed);
+      apiClient.setBaseURL(trimmed);
+      setIsSavedInDb(true);
+      setServerUrl(trimmed);
+      Alert.alert('Saved', 'Server URL updated. You may need to re-login for changes to take effect.');
+    } catch {
+      Alert.alert('Error', 'Failed to save server URL');
+    }
+  };
+
+  const canSaveServerUrl = !isSavedInDb || serverUrl.trim().replace(/\/+$/, '') !== apiClient.getBaseURL();
 
   const loadLastSyncTime = async () => {
     const syncData = await database.getLastSyncTime();
@@ -187,6 +227,44 @@ export default function SettingsScreen({ onLogout }: SettingsScreenProps) {
           </TouchableOpacity>
         </View>
 
+        {/* Server Configuration Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Server Configuration</Text>
+            <Text style={styles.sectionSubtitle}>Set the API server URL</Text>
+          </View>
+          <View style={styles.card}>
+            <View style={{ marginBottom: 8 }}>
+              <Text style={styles.settingLabel}>API Server URL</Text>
+              <Text style={styles.settingDescription}>Current: {apiClient.getBaseURL()}</Text>
+            </View>
+            <View style={styles.serverInputRow}>
+              <View style={styles.serverInputContainer}>
+                <TextInput
+                  style={styles.serverInput}
+                  placeholder="https://api.example.com/v1"
+                  placeholderTextColor="#9ca3af"
+                  value={serverUrl}
+                  onChangeText={setServerUrl}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="url"
+                />
+              </View>
+              <TouchableOpacity
+                style={[
+                  styles.serverSaveButton,
+                  !canSaveServerUrl && styles.serverSaveButtonDisabled,
+                ]}
+                onPress={handleSaveServerUrl}
+                disabled={!canSaveServerUrl}
+              >
+                <Text style={styles.serverSaveButtonText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+
         {/* About Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -234,32 +312,32 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   pageTitle: {
-    fontSize: 28,
+    fontSize: 22,
     fontWeight: 'bold',
     color: '#374151',
   },
   section: {
-    marginTop: 16,
+    marginTop: 14,
     paddingHorizontal: 16,
   },
   sectionHeader: {
-    marginBottom: 12,
+    marginBottom: 10,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: '#374151',
     marginBottom: 2,
   },
   sectionSubtitle: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: '400',
     color: '#6b7280',
   },
   card: {
     backgroundColor: '#ffffff',
     borderRadius: 12,
-    padding: 16,
+    padding: 14,
   },
   settingItem: {
     flexDirection: 'row',
@@ -270,13 +348,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   settingLabel: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: '600',
     color: '#374151',
     marginBottom: 2,
   },
   settingDescription: {
-    fontSize: 13,
+    fontSize: 11,
     color: '#6b7280',
   },
   actionButton: {
@@ -285,12 +363,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#ffffff',
     borderRadius: 12,
-    paddingVertical: 16,
-    gap: 8,
-    marginTop: 12,
+    paddingVertical: 12,
+    gap: 6,
+    marginTop: 10,
   },
   actionButtonText: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: '600',
     color: '#07579e',
   },
@@ -300,12 +378,42 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#ffffff',
     borderRadius: 12,
-    paddingVertical: 16,
-    gap: 8,
+    paddingVertical: 12,
+    gap: 6,
   },
   logoutButtonText: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: '600',
     color: '#dc2626',
+  },
+  serverInputRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  serverInputContainer: {
+    flex: 1,
+    backgroundColor: '#f5f6f7',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  serverInput: {
+    fontSize: 12,
+    color: '#374151',
+    padding: 0,
+  },
+  serverSaveButton: {
+    backgroundColor: '#07579e',
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    justifyContent: 'center',
+  },
+  serverSaveButtonDisabled: {
+    opacity: 0.4,
+  },
+  serverSaveButtonText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '600',
   },
 });

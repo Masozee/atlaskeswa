@@ -21,6 +21,71 @@ import {
   BookOpen01Icon,
   ArrowRight01Icon,
   Search01Icon,
+  // Dasbor submenus
+  ChartLineData01Icon,
+  MapsCircle01Icon,
+  InboxIcon,
+  Queue01Icon,
+  // Manajemen Layanan submenus
+  Folder01Icon,
+  AddCircleIcon,
+  GridTableIcon,
+  Hospital01Icon,
+  Target01Icon,
+  Tag01Icon,
+  // Manajemen Survei submenus
+  FileSearchIcon,
+  Clock01Icon,
+  CheckmarkCircle01Icon,
+  CancelCircleIcon,
+  File01Icon,
+  Audit01Icon,
+  // Verifikasi & QC submenus
+  CheckListIcon,
+  SearchAreaIcon,
+  CheckmarkBadge01Icon,
+  Camera01Icon,
+  AlertCircleIcon,
+  Time01Icon,
+  // Manajemen Enumerator submenus
+  UserGroupIcon,
+  UserAdd01Icon,
+  Activity01Icon,
+  AssignmentsIcon,
+  ChartColumnIcon,
+  // Pengguna & Peran submenus
+  LockPasswordIcon,
+  Login01Icon,
+  // Penjelajah Data submenus
+  GridViewIcon,
+  PieChart01Icon,
+  AlertDiamondIcon,
+  Download01Icon,
+  // Peta & Geospasial submenus
+  MapPinIcon,
+  FireIcon,
+  Layers01Icon,
+  Globe02Icon,
+  Upload01Icon,
+  // Laporan & Analitik submenus
+  BarChartIcon,
+  Building01Icon,
+  Pdf01Icon,
+  Briefcase01Icon,
+  // Konfigurasi Sistem submenus
+  Settings02Icon,
+  Edit01Icon,
+  DocumentValidationIcon,
+  Key01Icon,
+  CloudUploadIcon,
+  Notification01Icon,
+  // Log & Pemantauan submenus
+  SecurityCheckIcon,
+  Bug01Icon,
+  ArrowDataTransferHorizontalIcon,
+  // Bantuan & Dokumentasi submenus
+  Book01Icon,
+  MessageQuestionIcon,
 } from "@hugeicons/core-free-icons"
 
 import { NavUser } from "@/components/nav-user"
@@ -67,11 +132,11 @@ const data = {
       icon: DashboardSquare01Icon,
       isActive: true,
       submenus: [
-        { title: "Ringkasan", url: "/dashboard" },
-        { title: "Indikator Utama", url: "/dashboard/indicators" },
-        { title: "Peta Distribusi Layanan", url: "/dashboard/map" },
-        { title: "Pengajuan Terbaru", url: "/dashboard/submissions" },
-        { title: "Antrian Verifikasi", url: "/dashboard/queue" },
+        { title: "Ringkasan", url: "/dashboard", icon: DashboardSquare01Icon },
+        { title: "Indikator Utama", url: "/dashboard/indicators", icon: ChartLineData01Icon },
+        { title: "Peta Distribusi Layanan", url: "/dashboard/map", icon: MapsCircle01Icon },
+        { title: "Pengajuan Terbaru", url: "/dashboard/submissions", icon: InboxIcon },
+        { title: "Antrian Verifikasi", url: "/dashboard/queue", icon: Queue01Icon },
       ],
     },
     {
@@ -80,12 +145,12 @@ const data = {
       icon: ServiceIcon,
       isActive: false,
       submenus: [
-        { title: "Semua Layanan", url: "/dashboard/services" },
-        { title: "Tambah Layanan Baru", url: "/dashboard/services/new" },
-        { title: "Kategori Layanan (BSIC)", url: "/dashboard/services/categories" },
-        { title: "Jenis Perawatan Utama (MTC)", url: "/dashboard/services/mtc" },
-        { title: "Populasi Sasaran", url: "/dashboard/services/target-populations" },
-        { title: "Jenis Layanan", url: "/dashboard/services/service-types" },
+        { title: "Semua Layanan", url: "/dashboard/services", icon: Folder01Icon },
+        { title: "Tambah Layanan Baru", url: "/dashboard/services/new", icon: AddCircleIcon },
+        { title: "Kategori Layanan (BSIC)", url: "/dashboard/services/categories", icon: GridTableIcon },
+        { title: "Jenis Layanan", url: "/dashboard/services/mtc", icon: Hospital01Icon },
+        { title: "Populasi Sasaran", url: "/dashboard/services/target-populations", icon: Target01Icon },
+        { title: "Jenis Layanan", url: "/dashboard/services/service-types", icon: Tag01Icon },
       ],
     },
     {
@@ -94,13 +159,14 @@ const data = {
       icon: ClipboardIcon,
       isActive: false,
       submenus: [
-        { title: "Semua Catatan Survei", url: "/dashboard/survey" },
-        { title: "Entri Survei Baru", url: "/survey/new" },
-        { title: "Pengajuan Tertunda", url: "/dashboard/survey/pending" },
-        { title: "Survei Disetujui", url: "/dashboard/survey/approved" },
-        { title: "Survei Ditolak", url: "/dashboard/survey/rejected" },
-        { title: "Template Survei", url: "/dashboard/survey/templates" },
-        { title: "Log Audit Survei", url: "/dashboard/survey/audit" },
+        { title: "Semua Catatan Survei", url: "/dashboard/survey", icon: ClipboardIcon },
+        { title: "Entri Survei Baru", url: "/survey/new", icon: AddCircleIcon },
+        { title: "Pengajuan Tertunda", url: "/dashboard/survey/pending", icon: Clock01Icon },
+        { title: "Survei Disetujui", url: "/dashboard/survey/approved", icon: CheckmarkCircle01Icon },
+        { title: "Survei Ditolak", url: "/dashboard/survey/rejected", icon: CancelCircleIcon },
+        { title: "Model Kuisioner", url: "/dashboard/survey/model-kuisioner", icon: CheckListIcon },
+        { title: "Template Survei", url: "/dashboard/survey/templates", icon: File01Icon },
+        { title: "Log Audit Survei", url: "/dashboard/survey/audit", icon: Audit01Icon },
       ],
     },
     {
@@ -109,12 +175,12 @@ const data = {
       icon: ShieldUserIcon,
       isActive: false,
       submenus: [
-        { title: "Antrian Verifikasi", url: "/verification/queue" },
-        { title: "Verifikasi Detail Layanan", url: "/verification/services" },
-        { title: "Validasi MTC", url: "/verification/mtc" },
-        { title: "Tinjauan Bukti Lapangan", url: "/verification/evidence" },
-        { title: "Laporan Ketidaksesuaian", url: "/verification/discrepancies" },
-        { title: "Riwayat Verifikasi", url: "/verification/history" },
+        { title: "Antrian Verifikasi", url: "/verification/queue", icon: CheckListIcon },
+        { title: "Verifikasi Detail Layanan", url: "/verification/services", icon: SearchAreaIcon },
+        { title: "Validasi MTC", url: "/verification/mtc", icon: CheckmarkBadge01Icon },
+        { title: "Tinjauan Bukti Lapangan", url: "/verification/evidence", icon: Camera01Icon },
+        { title: "Laporan Ketidaksesuaian", url: "/verification/discrepancies", icon: AlertCircleIcon },
+        { title: "Riwayat Verifikasi", url: "/verification/history", icon: Time01Icon },
       ],
     },
     {
@@ -123,11 +189,11 @@ const data = {
       icon: UserIcon,
       isActive: false,
       submenus: [
-        { title: "Semua Enumerator", url: "/enumerators" },
-        { title: "Tambah Enumerator", url: "/enumerators/new" },
-        { title: "Log Aktivitas Enumerator", url: "/enumerators/activity" },
-        { title: "Daftar Penugasan", url: "/enumerators/assignments" },
-        { title: "Laporan Kinerja", url: "/enumerators/performance" },
+        { title: "Semua Enumerator", url: "/enumerators", icon: UserGroupIcon },
+        { title: "Tambah Enumerator", url: "/enumerators/new", icon: UserAdd01Icon },
+        { title: "Log Aktivitas Enumerator", url: "/enumerators/activity", icon: Activity01Icon },
+        { title: "Daftar Penugasan", url: "/enumerators/assignments", icon: AssignmentsIcon },
+        { title: "Laporan Kinerja", url: "/enumerators/performance", icon: ChartColumnIcon },
       ],
     },
     {
@@ -136,10 +202,10 @@ const data = {
       icon: UserMultiple02Icon,
       isActive: false,
       submenus: [
-        { title: "Semua Pengguna", url: "/dashboard/users" },
-        { title: "Tambah Pengguna", url: "/dashboard/users/new" },
-        { title: "Peran & Izin", url: "/dashboard/users/roles" },
-        { title: "Riwayat Login", url: "/dashboard/users/login-history" },
+        { title: "Semua Pengguna", url: "/dashboard/users", icon: UserMultiple02Icon },
+        { title: "Tambah Pengguna", url: "/dashboard/users/new", icon: UserAdd01Icon },
+        { title: "Peran & Izin", url: "/dashboard/users/roles", icon: LockPasswordIcon },
+        { title: "Riwayat Login", url: "/dashboard/users/login-history", icon: Login01Icon },
       ],
     },
     {
@@ -148,11 +214,11 @@ const data = {
       icon: Database01Icon,
       isActive: false,
       submenus: [
-        { title: "Tabel Layanan", url: "/data/services" },
-        { title: "Tampilan Matriks MTC", url: "/data/mtc-matrix" },
-        { title: "Analisis Cakupan Populasi", url: "/data/coverage" },
-        { title: "Kesenjangan & Kebutuhan Layanan", url: "/data/gaps" },
-        { title: "Unduh Data", url: "/data/download" },
+        { title: "Tabel Layanan", url: "/data/services", icon: GridTableIcon },
+        { title: "Tampilan Matriks MTC", url: "/data/mtc-matrix", icon: GridViewIcon },
+        { title: "Analisis Cakupan Populasi", url: "/data/coverage", icon: PieChart01Icon },
+        { title: "Kesenjangan & Kebutuhan Layanan", url: "/data/gaps", icon: AlertDiamondIcon },
+        { title: "Unduh Data", url: "/data/download", icon: Download01Icon },
       ],
     },
     {
@@ -161,11 +227,11 @@ const data = {
       icon: Location01Icon,
       isActive: false,
       submenus: [
-        { title: "Peta Lokasi Layanan", url: "/map" },
-        { title: "Peta Panas", url: "/map/heatmap" },
-        { title: "Tampilan Lapisan MTC", url: "/map/mtc-layers" },
-        { title: "Perbandingan Wilayah", url: "/map/regions" },
-        { title: "Unggah Data Geospasial", url: "/map/upload" },
+        { title: "Peta Lokasi Layanan", url: "/map", icon: MapPinIcon },
+        { title: "Peta Panas", url: "/map/heatmap", icon: FireIcon },
+        { title: "Tampilan Lapisan MTC", url: "/map/mtc-layers", icon: Layers01Icon },
+        { title: "Perbandingan Wilayah", url: "/map/regions", icon: Globe02Icon },
+        { title: "Unggah Data Geospasial", url: "/map/upload", icon: Upload01Icon },
       ],
     },
     {
@@ -174,12 +240,12 @@ const data = {
       icon: Analytics01Icon,
       isActive: false,
       submenus: [
-        { title: "Laporan Ketersediaan Layanan", url: "/reports/availability" },
-        { title: "Distribusi MTC", url: "/reports/mtc" },
-        { title: "Perbandingan Regional", url: "/reports/regions" },
-        { title: "Laporan Tenaga Kerja & Kapasitas", url: "/reports/workforce" },
-        { title: "Laporan Profil Fasilitas", url: "/reports/facilities" },
-        { title: "Ekspor PDF / Unduh", url: "/reports/export" },
+        { title: "Laporan Ketersediaan Layanan", url: "/reports/availability", icon: FileSearchIcon },
+        { title: "Distribusi MTC", url: "/reports/mtc", icon: BarChartIcon },
+        { title: "Perbandingan Regional", url: "/reports/regions", icon: Globe02Icon },
+        { title: "Laporan Tenaga Kerja & Kapasitas", url: "/reports/workforce", icon: Briefcase01Icon },
+        { title: "Laporan Profil Fasilitas", url: "/reports/facilities", icon: Building01Icon },
+        { title: "Ekspor PDF / Unduh", url: "/reports/export", icon: Pdf01Icon },
       ],
     },
     {
@@ -188,12 +254,12 @@ const data = {
       icon: Settings01Icon,
       isActive: false,
       submenus: [
-        { title: "Pengaturan Umum", url: "/dashboard/settings" },
-        { title: "Pembangun Formulir Survei", url: "/settings/form-builder" },
-        { title: "Aturan Validasi Data", url: "/settings/validation" },
-        { title: "Kunci API", url: "/settings/api-keys" },
-        { title: "Cadangan & Pemulihan", url: "/settings/backup" },
-        { title: "Notifikasi Email", url: "/settings/notifications" },
+        { title: "Pengaturan Umum", url: "/dashboard/settings", icon: Settings02Icon },
+        { title: "Pembangun Formulir Survei", url: "/settings/form-builder", icon: Edit01Icon },
+        { title: "Aturan Validasi Data", url: "/settings/validation", icon: DocumentValidationIcon },
+        { title: "Kunci API", url: "/settings/api-keys", icon: Key01Icon },
+        { title: "Cadangan & Pemulihan", url: "/settings/backup", icon: CloudUploadIcon },
+        { title: "Notifikasi Email", url: "/settings/notifications", icon: Notification01Icon },
       ],
     },
     {
@@ -202,11 +268,11 @@ const data = {
       icon: FileAttachmentIcon,
       isActive: false,
       submenus: [
-        { title: "Log Aktivitas", url: "/dashboard/logs/activity" },
-        { title: "Log Verifikasi", url: "/dashboard/logs/verification" },
-        { title: "Log Perubahan Data", url: "/dashboard/logs/changes" },
-        { title: "Error Sistem", url: "/dashboard/logs/errors" },
-        { title: "Log Impor/Ekspor", url: "/dashboard/logs/import-export" },
+        { title: "Log Aktivitas", url: "/dashboard/logs/activity", icon: Activity01Icon },
+        { title: "Log Verifikasi", url: "/dashboard/logs/verification", icon: SecurityCheckIcon },
+        { title: "Log Perubahan Data", url: "/dashboard/logs/changes", icon: Edit01Icon },
+        { title: "Error Sistem", url: "/dashboard/logs/errors", icon: Bug01Icon },
+        { title: "Log Impor/Ekspor", url: "/dashboard/logs/import-export", icon: ArrowDataTransferHorizontalIcon },
       ],
     },
     {
@@ -215,11 +281,11 @@ const data = {
       icon: HelpCircleIcon,
       isActive: false,
       submenus: [
-        { title: "Panduan Pengguna", url: "/dashboard/help/user-guide" },
-        { title: "Referensi Klasifikasi DESDE-LTC", url: "/dashboard/help/desde-ltc" },
-        { title: "Buku Panduan Enumerator", url: "/dashboard/help/enumerator" },
-        { title: "FAQ", url: "/dashboard/help/faq" },
-        { title: "Hubungi Dukungan", url: "/dashboard/help/support" },
+        { title: "Panduan Pengguna", url: "/dashboard/help/user-guide", icon: BookOpen01Icon },
+        { title: "Referensi Klasifikasi DESDE-LTC", url: "/dashboard/help/desde-ltc", icon: FileSearchIcon },
+        { title: "Buku Panduan Enumerator", url: "/dashboard/help/enumerator", icon: Book01Icon },
+        { title: "FAQ", url: "/dashboard/help/faq", icon: MessageQuestionIcon },
+        { title: "Hubungi Dukungan", url: "/dashboard/help/support", icon: Mail01Icon },
       ],
     },
   ],
@@ -283,8 +349,8 @@ function filterMenuByRole(menuItems: typeof data.navMain, userRole?: string) {
           return ['ADMIN', 'SURVEYOR'].includes(userRole)
         }
 
-        // Survey Templates - ADMIN only
-        if (submenu.title.includes('Template Survei')) {
+        // Survey Templates and Model Kuisioner - ADMIN only
+        if (submenu.title.includes('Template Survei') || submenu.title.includes('Model Kuisioner')) {
           return userRole === 'ADMIN'
         }
 
@@ -364,7 +430,8 @@ function MobileSidebar({ filteredNavMain, pathname }: { filteredNavMain: typeof 
                           {item.submenus?.map((submenu) => (
                             <SidebarMenuSubItem key={submenu.url}>
                               <SidebarMenuSubButton asChild isActive={isSubmenuActive(pathname, submenu.url, item.submenus)}>
-                                <a href={submenu.url}>
+                                <a href={submenu.url} className="flex items-center gap-2">
+                                  {submenu.icon && <HugeiconsIcon icon={submenu.icon} size={14} />}
                                   {submenu.title}
                                 </a>
                               </SidebarMenuSubButton>
@@ -535,6 +602,7 @@ function DesktopSidebar({
                       window.location.href = submenu.url
                     }}
                   >
+                    {submenu.icon && <HugeiconsIcon icon={submenu.icon} size={16} />}
                     {submenu.title}
                   </CommandItem>
                 ))}
@@ -553,6 +621,7 @@ function DesktopSidebar({
                         href={submenu.url}
                         className="flex items-center gap-2 px-3 py-2.5 text-sm"
                       >
+                        {submenu.icon && <HugeiconsIcon icon={submenu.icon} size={16} />}
                         {submenu.title}
                       </a>
                     </SidebarMenuButton>
@@ -604,7 +673,7 @@ function DesktopSidebar({
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
   const { setOpen } = useSidebar()
-  const authState = useStore(authStore)
+  const authState = useStore(authStore, (state) => state)
   const isMobile = useIsMobile()
 
   // Filter menu items based on user role

@@ -69,6 +69,28 @@ export const queryKeys = {
     list: () => [...queryKeys.serviceTypes.all, 'list'] as const,
   },
 
+  kategoriLayanan: {
+    all: ['kategori-layanan'] as const,
+    list: () => [...queryKeys.kategoriLayanan.all, 'list'] as const,
+  },
+
+  kategoriFasilitas: {
+    all: ['kategori-fasilitas'] as const,
+    list: () => [...queryKeys.kategoriFasilitas.all, 'list'] as const,
+  },
+
+  // Questionnaire
+  questions: {
+    all: ['questions'] as const,
+    list: () => [...queryKeys.questions.all, 'list'] as const,
+  },
+
+  questionChoices: {
+    all: ['question-choices'] as const,
+    list: () => [...queryKeys.questionChoices.all, 'list'] as const,
+    byQuestion: (questionId: number) => [...queryKeys.questionChoices.all, 'by-question', questionId] as const,
+  },
+
   // Logs
   activityLogs: {
     all: ['activity-logs'] as const,

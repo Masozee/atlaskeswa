@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Separator } from '@/components/ui/separator';
 
 const mtcCategories = [
   {
@@ -70,15 +71,17 @@ export default function DESDELTCPage() {
     <>
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-6 p-8">
-        {/* Page Header */}
-        <div>
+      <div className="flex flex-1 flex-col gap-6">
+        <div className="px-8 pt-8">
           <h1 className="text-2xl font-bold">DESDE-LTC Classification Reference</h1>
           <p className="text-muted-foreground">
             Description and Evaluation of Services and DirectoriEs for Long Term Care
           </p>
         </div>
 
+        <Separator />
+
+        <div className="flex flex-col gap-6 px-8 pb-8">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
             <TabsTrigger value="overview">Overview</TabsTrigger>
@@ -203,6 +206,7 @@ export default function DESDELTCPage() {
             </div>
           </TabsContent>
         </Tabs>
+        </div>
       </div>
     </>
   );

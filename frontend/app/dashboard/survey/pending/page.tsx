@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { useSurveys } from '@/hooks/use-surveys';
+import { useRouter } from 'next/navigation';
+import { useSurveyResponses, useVerifySurvey } from '@/hooks/use-survey-responses';
 import { PageHeader } from "@/components/page-header";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
   TableBody,
@@ -16,11 +18,28 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MoreHorizontal, CheckCircle, XCircle, Eye } from "lucide-react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { MoreHorizontalIcon, ViewIcon, Tick02Icon, Cancel01Icon, SortingZA01Icon } from "@hugeicons/core-free-icons";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   ColumnDef,
   flexRender,
@@ -29,7 +48,14 @@ import {
   SortingState,
   useReactTable,
 } from "@tanstack/react-table";
-import { SurveyListItem } from "@/lib/types/api";
+import type { SurveyResponse } from '@/lib/types/survey-template';
+import { Separator } from '@/components/ui/separator';
+
+type VerificationAction = {
+  surveyId: number;
+  action: 'verify' | 'reject';
+  surveyName: string;
+};
 
 const breadcrumbs = [
   { label: 'Dashboard', href: '/dashboard' },
@@ -38,17 +64,51 @@ const breadcrumbs = [
 ];
 
 export default function PendingSurveysPage() {
+  const router = useRouter();
   const [search, setSearch] = useState('');
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [verificationDialog, setVerificationDialog] = useState<VerificationAction | null>(null);
+  const [notes, setNotes] = useState('');
+  const [rejectionReason, setRejectionReason] = useState('');
 
-  const { data, isLoading } = useSurveys({
+  const { data, isLoading } = useSurveyResponses({
     search,
     verification_status: 'SUBMITTED',
     ordering: '-created_at',
     page_size: 50,
   });
 
-  const columns = useMemo<ColumnDef<SurveyListItem, any>[]>(() => [
+  const verifySurvey = useVerifySurvey(verificationDialog?.surveyId || 0);
+
+  const handleVerificationAction = (survey: SurveyResponse, action: 'verify' | 'reject') => {
+    setVerificationDialog({
+      surveyId: survey.id!,
+      action,
+      surveyName: survey.service_name || 'Unknown',
+    });
+    setNotes('');
+    setRejectionReason('');
+  };
+
+  const handleSubmitVerification = async () => {
+    if (!verificationDialog) return;
+
+    try {
+      await verifySurvey.mutateAsync({
+        action: verificationDialog.action,
+        notes,
+        rejection_reason: verificationDialog.action === 'reject' ? rejectionReason : undefined,
+      });
+
+      setVerificationDialog(null);
+      setNotes('');
+      setRejectionReason('');
+    } catch (error) {
+      console.error('Verification failed:', error);
+    }
+  };
+
+  const columns = useMemo<ColumnDef<SurveyResponse, any>[]>(() => [
     {
       accessorKey: "id",
       header: "ID",
@@ -88,15 +148,8 @@ export default function PendingSurveysPage() {
         return verifier ? (
           <div className="text-sm">{verifier}</div>
         ) : (
-          <Badge variant="outline">Unassigned</Badge>
+          <Badge variant="outline-muted">Unassigned</Badge>
         );
-      },
-    },
-    {
-      accessorKey: "total_patients_served",
-      header: "Patients",
-      cell: ({ row }) => {
-        return <div className="text-center">{row.getValue("total_patients_served")}</div>
       },
     },
     {
@@ -115,22 +168,29 @@ export default function PendingSurveysPage() {
         return (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0">
+              <Button variant="outline" className="h-8 w-8 p-0">
                 <span className="sr-only">Open menu</span>
-                <MoreHorizontal className="h-4 w-4" />
+                <HugeiconsIcon icon={MoreHorizontalIcon} size={16} />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem>
-                <Eye className="mr-2 h-4 w-4" />
+              <DropdownMenuItem onClick={() => router.push(`/dashboard/survey/${survey.id}`)}>
+                <HugeiconsIcon icon={ViewIcon} size={16} />
                 View details
               </DropdownMenuItem>
-              <DropdownMenuItem className="text-green-600">
-                <CheckCircle className="mr-2 h-4 w-4" />
+              <DropdownMenuItem
+                className="text-green-600"
+                onClick={() => handleVerificationAction(survey, 'verify')}
+              >
+                <HugeiconsIcon icon={Tick02Icon} size={16} />
                 Approve
               </DropdownMenuItem>
-              <DropdownMenuItem className="text-destructive">
-                <XCircle className="mr-2 h-4 w-4" />
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-destructive"
+                onClick={() => handleVerificationAction(survey, 'reject')}
+              >
+                <HugeiconsIcon icon={Cancel01Icon} size={16} />
                 Reject
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -138,10 +198,10 @@ export default function PendingSurveysPage() {
         );
       },
     },
-  ], []);
+  ], [router]);
 
   const table = useReactTable({
-    data: data?.results ?? [],
+    data: (data?.results ?? []) as SurveyResponse[],
     columns,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -169,24 +229,49 @@ export default function PendingSurveysPage() {
     <>
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-4 p-8">
-        <div>
-          <h1 className="text-2xl font-bold">Pending Submissions</h1>
-          <p className="text-muted-foreground">Surveys waiting for verification and approval</p>
+      <div className="flex flex-1 flex-col gap-3">
+
+        <div className="px-6 pt-6">
+          <h1 className="text-xl font-bold">Pending Submissions</h1>
+          <p className="text-sm text-muted-foreground">Surveys waiting for verification and approval</p>
         </div>
 
+        <Separator />
+
+        <div className="flex flex-col gap-3 px-6 pb-6">
+
         <div className="flex gap-2 justify-between items-center">
+          <div className="flex gap-2 items-center">
+            <Select value={sorting.length > 0 ? `${sorting[0].id}-${sorting[0].desc ? 'desc' : 'asc'}` : 'default'} onValueChange={(value) => {
+              if (value === 'default') {
+                setSorting([]);
+              } else {
+                const [id, dir] = value.split('-');
+                setSorting([{ id, desc: dir === 'desc' }]);
+              }
+            }}>
+              <SelectTrigger className="w-44" aria-label="Sort">
+                <HugeiconsIcon icon={SortingZA01Icon} size={16} />
+                <SelectValue placeholder="Sort" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="default">Sort</SelectItem>
+                <SelectItem value="service_name-asc">Service A-Z</SelectItem>
+                <SelectItem value="service_name-desc">Service Z-A</SelectItem>
+                <SelectItem value="created_at-desc">Newest First</SelectItem>
+                <SelectItem value="created_at-asc">Oldest First</SelectItem>
+                <SelectItem value="survey_date-desc">Survey Date New</SelectItem>
+                <SelectItem value="survey_date-asc">Survey Date Old</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <Input
             placeholder="Search by service name, city..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-64"
+            aria-label="Search pending surveys"
           />
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary" className="text-sm">
-              {data?.count || 0} Pending
-            </Badge>
-          </div>
         </div>
 
         <div className="rounded-lg border">
@@ -236,7 +321,74 @@ export default function PendingSurveysPage() {
             </p>
           </div>
         )}
-      </div>
+              </div>
+        </div>
+
+      {/* Verification Dialog */}
+      <Dialog open={!!verificationDialog} onOpenChange={() => setVerificationDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {verificationDialog?.action === 'verify' ? 'Setujui Survei' : 'Tolak Survei'}
+            </DialogTitle>
+            <DialogDescription>
+              {verificationDialog?.action === 'verify'
+                ? `Setujui survei untuk ${verificationDialog?.surveyName}`
+                : `Tolak survei untuk ${verificationDialog?.surveyName}`}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {verificationDialog?.action === 'reject' && (
+              <div className="space-y-2">
+                <label htmlFor="rejection_reason" className="text-sm font-medium">
+                  Alasan Penolakan <span className="text-destructive">*</span>
+                </label>
+                <Textarea
+                  id="rejection_reason"
+                  placeholder="Jelaskan mengapa survei ini ditolak..."
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                  rows={3}
+                />
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <label htmlFor="notes" className="text-sm font-medium">
+                Catatan {verificationDialog?.action === 'verify' && '(Opsional)'}
+              </label>
+              <Textarea
+                id="notes"
+                placeholder="Catatan atau komentar tambahan..."
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setVerificationDialog(null)}>
+              Batal
+            </Button>
+            <Button
+              variant={verificationDialog?.action === 'verify' ? 'default' : 'destructive'}
+              onClick={handleSubmitVerification}
+              disabled={
+                verifySurvey.isPending ||
+                (verificationDialog?.action === 'reject' && !rejectionReason.trim())
+              }
+            >
+              {verifySurvey.isPending
+                ? 'Memproses...'
+                : verificationDialog?.action === 'verify'
+                ? 'Setujui'
+                : 'Tolak'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

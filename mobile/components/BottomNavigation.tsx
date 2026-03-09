@@ -62,6 +62,8 @@ export default function BottomNavigation({ onNavigate }: BottomNavigationProps) 
 const styles = StyleSheet.create({
   wrapper: {
     backgroundColor: '#ffffff',
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
   },
   container: {
     height: 70,
@@ -69,8 +71,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
-    paddingVertical: 8,
-    paddingHorizontal: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
   },
   menuItem: {
     flex: 1,
@@ -85,7 +87,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#07579e',
   },
   menuLabel: {
-    fontSize: 11,
+    fontSize: 10,
     color: 'rgba(0, 0, 0, 0.7)',
     marginTop: 4,
     fontWeight: '500',

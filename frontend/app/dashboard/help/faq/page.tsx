@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/accordion';
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Search01Icon } from "@hugeicons/core-free-icons";
+import { Separator } from '@/components/ui/separator';
 
 const faqs = [
   {
@@ -109,15 +110,17 @@ export default function FAQPage() {
     <>
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-6 p-8">
-        {/* Page Header */}
-        <div>
+      <div className="flex flex-1 flex-col gap-6">
+        <div className="px-8 pt-8">
           <h1 className="text-2xl font-bold">Frequently Asked Questions</h1>
           <p className="text-muted-foreground">
             Find answers to common questions about using Atlas Keswa
           </p>
         </div>
 
+        <Separator />
+
+        <div className="flex flex-col gap-6 px-8 pb-8">
         {/* Search and Filter */}
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="flex-1 max-w-md">
@@ -188,6 +191,7 @@ export default function FAQPage() {
               Contact Support
             </a>
           </div>
+        </div>
         </div>
       </div>
     </>

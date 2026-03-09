@@ -13,6 +13,10 @@ import {
   BasicStableInputsOfCare,
   TargetPopulation,
   ServiceType,
+  KategoriLayanan,
+  KategoriFasilitas,
+  Question,
+  QuestionChoice,
 } from '@/lib/types/api';
 import { queryKeys } from '@/lib/query-keys';
 
@@ -101,10 +105,7 @@ export const mtcTreeQueryOptions = () =>
 export const bsicQueryOptions = () =>
   queryOptions({
     queryKey: queryKeys.bsic.list(),
-    queryFn: async () => {
-      const response = await apiClient.get<PaginatedResponse<BasicStableInputsOfCare>>('/directory/bsic/');
-      return response.results;
-    },
+    queryFn: () => apiClient.get<BasicStableInputsOfCare[]>('/directory/bsic/'),
     staleTime: 30 * 60 * 1000,
   });
 
@@ -114,10 +115,7 @@ export const bsicQueryOptions = () =>
 export const targetPopulationsQueryOptions = () =>
   queryOptions({
     queryKey: queryKeys.targetPopulations.list(),
-    queryFn: async () => {
-      const response = await apiClient.get<PaginatedResponse<TargetPopulation>>('/directory/target-populations/');
-      return response.results;
-    },
+    queryFn: () => apiClient.get<TargetPopulation[]>('/directory/target-populations/'),
     staleTime: 30 * 60 * 1000,
   });
 
@@ -127,10 +125,7 @@ export const targetPopulationsQueryOptions = () =>
 export const serviceTypesQueryOptions = () =>
   queryOptions({
     queryKey: queryKeys.serviceTypes.list(),
-    queryFn: async () => {
-      const response = await apiClient.get<PaginatedResponse<ServiceType>>('/directory/service-types/');
-      return response.results;
-    },
+    queryFn: () => apiClient.get<ServiceType[]>('/directory/service-types/'),
     staleTime: 30 * 60 * 1000,
   });
 
@@ -279,6 +274,293 @@ export function useBasicStableInputsOfCare() {
   return useQuery(bsicQueryOptions());
 }
 
+export function useCreateBSIC() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Partial<BasicStableInputsOfCare>) =>
+      apiClient.post<BasicStableInputsOfCare>('/directory/bsic/', data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.bsic.all }),
+  });
+}
+
+export function useUpdateBSIC() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: Partial<BasicStableInputsOfCare> & { id: number }) =>
+      apiClient.patch<BasicStableInputsOfCare>(`/directory/bsic/${id}/`, data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.bsic.all }),
+  });
+}
+
+export function useDeleteBSIC() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiClient.delete(`/directory/bsic/${id}/`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.bsic.all }),
+  });
+}
+
+export function useBulkDeleteBSIC() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (ids: number[]) => apiClient.post('/directory/bsic/bulk-delete/', { ids }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.bsic.all }),
+  });
+}
+
+export function useBulkUpdateBSIC() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ ids, updates }: { ids: number[]; updates: Partial<BasicStableInputsOfCare> }) =>
+      apiClient.post('/directory/bsic/bulk-update/', { ids, updates }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.bsic.all }),
+  });
+}
+
+export async function exportBSIC(ids?: number[], format: 'csv' | 'xlsx' | 'json' = 'csv') {
+  const searchParams = new URLSearchParams({ file_format: format });
+  if (ids && ids.length > 0) searchParams.set('ids', ids.join(','));
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.atlaskeswa.id';
+  const url = `${baseUrl}/v1/directory/bsic/export/?${searchParams}`;
+  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+
+  const response = await fetch(url, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Export failed (${response.status}): ${errorText}`);
+  }
+
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = objectUrl;
+  a.download = `bsic_categories.${format}`;
+  a.click();
+  URL.revokeObjectURL(objectUrl);
+}
+
+export function useImportBSIC() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ file, updateExisting = false }: { file: File; updateExisting?: boolean }): Promise<{ created: number; updated: number; errors: { row: number; error: string }[] }> => {
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.atlaskeswa.id';
+      const url = `${baseUrl}/v1/directory/bsic/import/`;
+      const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('update_existing', updateExisting ? 'true' : 'false');
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.detail || `Upload failed (${response.status})`);
+      }
+      return data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.bsic.all }),
+  });
+}
+
+// ============================================
+// Kategori Layanan Hooks
+// ============================================
+
+export function useKategoriLayanan() {
+  return useQuery({
+    queryKey: queryKeys.kategoriLayanan.list(),
+    queryFn: () => apiClient.get<KategoriLayanan[]>('/directory/kategori-layanan/'),
+  });
+}
+
+export function useCreateKategoriLayanan() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Partial<KategoriLayanan>) =>
+      apiClient.post<KategoriLayanan>('/directory/kategori-layanan/', data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.kategoriLayanan.all }),
+  });
+}
+
+export function useUpdateKategoriLayanan() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: Partial<KategoriLayanan> & { id: number }) =>
+      apiClient.patch<KategoriLayanan>(`/directory/kategori-layanan/${id}/`, data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.kategoriLayanan.all }),
+  });
+}
+
+export function useDeleteKategoriLayanan() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiClient.delete(`/directory/kategori-layanan/${id}/`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.kategoriLayanan.all }),
+  });
+}
+
+export function useBulkDeleteKategoriLayanan() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (ids: number[]) => apiClient.post('/directory/kategori-layanan/bulk-delete/', { ids }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.kategoriLayanan.all }),
+  });
+}
+
+export function useBulkUpdateKategoriLayanan() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ ids, updates }: { ids: number[]; updates: Partial<KategoriLayanan> }) =>
+      apiClient.post('/directory/kategori-layanan/bulk-update/', { ids, updates }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.kategoriLayanan.all }),
+  });
+}
+
+export async function exportKategoriLayanan(ids?: number[], format: 'csv' | 'xlsx' | 'json' = 'csv') {
+  const searchParams = new URLSearchParams({ file_format: format });
+  if (ids && ids.length > 0) searchParams.set('ids', ids.join(','));
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.atlaskeswa.id';
+  const url = `${baseUrl}/v1/directory/kategori-layanan/export/?${searchParams}`;
+  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+  const response = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Export failed (${response.status}): ${errorText}`);
+  }
+
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = objectUrl;
+  a.download = `kategori_layanan.${format}`;
+  a.click();
+  URL.revokeObjectURL(objectUrl);
+}
+
+export function useImportKategoriLayanan() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ file, updateExisting = false }: { file: File; updateExisting?: boolean }): Promise<{ created: number; updated: number; errors: { row: number; error: string }[] }> => {
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.atlaskeswa.id';
+      const url = `${baseUrl}/v1/directory/kategori-layanan/import/`;
+      const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('update_existing', updateExisting ? 'true' : 'false');
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || `Upload failed (${response.status})`);
+      return data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.kategoriLayanan.all }),
+  });
+}
+
+// ============================================
+// Kategori Fasilitas Hooks
+// ============================================
+
+export function useKategoriFasilitas() {
+  return useQuery({
+    queryKey: queryKeys.kategoriFasilitas.list(),
+    queryFn: () => apiClient.get<KategoriFasilitas[]>('/directory/kategori-fasilitas/'),
+  });
+}
+
+export function useCreateKategoriFasilitas() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Partial<KategoriFasilitas>) =>
+      apiClient.post<KategoriFasilitas>('/directory/kategori-fasilitas/', data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.kategoriFasilitas.all }),
+  });
+}
+
+export function useUpdateKategoriFasilitas() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: Partial<KategoriFasilitas> & { id: number }) =>
+      apiClient.patch<KategoriFasilitas>(`/directory/kategori-fasilitas/${id}/`, data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.kategoriFasilitas.all }),
+  });
+}
+
+export function useDeleteKategoriFasilitas() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiClient.delete(`/directory/kategori-fasilitas/${id}/`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.kategoriFasilitas.all }),
+  });
+}
+
+export function useBulkDeleteKategoriFasilitas() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (ids: number[]) => apiClient.post('/directory/kategori-fasilitas/bulk-delete/', { ids }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.kategoriFasilitas.all }),
+  });
+}
+
+export function useBulkUpdateKategoriFasilitas() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ ids, updates }: { ids: number[]; updates: Partial<KategoriFasilitas> }) =>
+      apiClient.post('/directory/kategori-fasilitas/bulk-update/', { ids, updates }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.kategoriFasilitas.all }),
+  });
+}
+
+export async function exportKategoriFasilitas(ids?: number[]) {
+  const params = ids && ids.length > 0 ? `?ids=${ids.join(',')}` : '';
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.atlaskeswa.id';
+  const url = `${baseUrl}/v1/directory/kategori-fasilitas/export/${params}`;
+  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+  const response = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = objectUrl;
+  a.download = 'kategori_fasilitas.csv';
+  a.click();
+  URL.revokeObjectURL(objectUrl);
+}
+
+export function useImportKategoriFasilitas() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ file, updateExisting = false }: { file: File; updateExisting?: boolean }): Promise<{ created: number; updated: number; errors: { row: number; error: string }[] }> => {
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.atlaskeswa.id';
+      const url = `${baseUrl}/v1/directory/kategori-fasilitas/import/`;
+      const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('update_existing', updateExisting ? 'true' : 'false');
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || `Upload failed (${response.status})`);
+      return data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.kategoriFasilitas.all }),
+  });
+}
+
 /**
  * Target Populations
  */
@@ -291,4 +573,137 @@ export function useTargetPopulations() {
  */
 export function useServiceTypes() {
   return useQuery(serviceTypesQueryOptions());
+}
+
+// ============================================
+// Questionnaire Hooks
+// ============================================
+
+export function useQuestions() {
+  return useQuery({
+    queryKey: queryKeys.questions.list(),
+    queryFn: () => apiClient.get<Question[]>('/surveys/questions/'),
+  });
+}
+
+export function useCreateQuestion() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Partial<Question>) =>
+      apiClient.post<Question>('/surveys/questions/', data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.questions.all }),
+  });
+}
+
+export function useUpdateQuestion() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: Partial<Question> & { id: number }) =>
+      apiClient.patch<Question>(`/surveys/questions/${id}/`, data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.questions.all }),
+  });
+}
+
+export function useDeleteQuestion() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiClient.delete(`/surveys/questions/${id}/`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.questions.all }),
+  });
+}
+
+export function useQuestionChoices(questionId?: number) {
+  return useQuery({
+    queryKey: questionId ? queryKeys.questionChoices.byQuestion(questionId) : queryKeys.questionChoices.list(),
+    queryFn: () => apiClient.get<QuestionChoice[]>('/surveys/choices/', questionId ? { question: questionId } : undefined),
+    enabled: questionId !== undefined,
+  });
+}
+
+export function useCreateQuestionChoice() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Partial<QuestionChoice> & { question: number }) =>
+      apiClient.post<QuestionChoice>('/surveys/choices/', data),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.questionChoices.byQuestion(variables.question) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.questions.all });
+    },
+  });
+}
+
+export function useUpdateQuestionChoice() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: Partial<QuestionChoice> & { id: number }) =>
+      apiClient.patch<QuestionChoice>(`/surveys/choices/${id}/`, data),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.questionChoices.all });
+      if (variables.question) queryClient.invalidateQueries({ queryKey: queryKeys.questionChoices.byQuestion(variables.question as number) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.questions.all });
+    },
+  });
+}
+
+export function useDeleteQuestionChoice() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, questionId }: { id: number; questionId: number }) =>
+      apiClient.delete(`/surveys/choices/${id}/`).then(() => ({ questionId })),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.questionChoices.byQuestion(variables.questionId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.questions.all });
+    },
+  });
+}
+
+export function useBulkDeleteQuestion() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (ids: number[]) => apiClient.post('/surveys/questions/bulk-delete/', { ids }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.questions.all }),
+  });
+}
+
+export async function exportQuestions(ids?: number[], format: 'csv' | 'xlsx' | 'json' = 'csv') {
+  const searchParams = new URLSearchParams({ file_format: format });
+  if (ids && ids.length > 0) searchParams.set('ids', ids.join(','));
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.atlaskeswa.id';
+  const url = `${baseUrl}/v1/surveys/questions/export/?${searchParams}`;
+  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+  const response = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Export failed (${response.status}): ${errorText}`);
+  }
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = objectUrl;
+  a.download = `questions.${format}`;
+  a.click();
+  URL.revokeObjectURL(objectUrl);
+}
+
+export function useImportQuestions() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ file, updateExisting = false }: { file: File; updateExisting?: boolean }): Promise<{ created: number; updated: number; errors: { row: number; error: string }[] }> => {
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.atlaskeswa.id';
+      const url = `${baseUrl}/v1/surveys/questions/import/`;
+      const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('update_existing', updateExisting ? 'true' : 'false');
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || `Upload failed (${response.status})`);
+      return data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.questions.all }),
+  });
 }

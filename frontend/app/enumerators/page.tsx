@@ -25,6 +25,7 @@ import {MoreHorizontalIcon,
   TaskDone01Icon,} from "@hugeicons/core-free-icons";
 import { DataTable } from '@/components/data-table';
 import Link from 'next/link';
+import { Separator } from '@/components/ui/separator';
 
 interface User {
   id: number;
@@ -124,7 +125,7 @@ export default function EnumeratorsPage() {
         cell: ({ row }) => {
           const isActive = row.getValue('is_active') as boolean;
           return (
-            <Badge variant={isActive ? 'default' : 'secondary'}>
+            <Badge variant={isActive ? 'outline-success' : 'outline-muted'}>
               {isActive ? 'Active' : 'Inactive'}
             </Badge>
           );
@@ -155,7 +156,7 @@ export default function EnumeratorsPage() {
           return (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="h-8 w-8 p-0">
+                <Button variant="outline" className="h-8 w-8 p-0">
                   <span className="sr-only">Open menu</span>
                   <HugeiconsIcon icon={MoreHorizontalIcon} size={16} />
                 </Button>
@@ -213,8 +214,9 @@ export default function EnumeratorsPage() {
     <div className="flex flex-col">
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex-1 p-6 space-y-6">
-        <div className="flex items-center justify-between">
+      <div className="flex-1 space-y-6">
+
+        <div className="px-6 pt-6 flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">Enumerator Management</h1>
             <p className="text-muted-foreground mt-1">
@@ -228,6 +230,10 @@ export default function EnumeratorsPage() {
             </Button>
           </Link>
         </div>
+
+        <Separator />
+
+        <div className="space-y-6 px-6 pb-6">
 
         <div className="grid grid-cols-3 gap-4">
           <div className="rounded-lg border bg-card p-4">
@@ -253,7 +259,8 @@ export default function EnumeratorsPage() {
           showPagination={true}
           pageSize={20}
         />
-      </div>
+              </div>
+        </div>
     </div>
   );
 }

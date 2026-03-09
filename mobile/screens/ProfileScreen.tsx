@@ -129,7 +129,7 @@ export default function ProfileScreen() {
       <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.scrollContent}>
         {/* Page Title */}
         <View style={styles.pageHeader}>
-          <Text style={styles.pageTitle}>Profile</Text>
+          <Text style={styles.pageTitle}>Profil</Text>
         </View>
 
         {/* Header Card */}
@@ -147,8 +147,8 @@ export default function ProfileScreen() {
           </View>
           {!isEditing && (
             <TouchableOpacity style={styles.editButton} onPress={handleEdit}>
-              <Edit02Icon size={20} color="#ffffff" strokeWidth={2} />
-              <Text style={styles.editButtonText}>Edit Profile</Text>
+              <Edit02Icon size={14} color="#ffffff" strokeWidth={2} />
+              <Text style={styles.editButtonText}>Edit Profil</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -156,13 +156,12 @@ export default function ProfileScreen() {
         {/* Profile Information */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Personal Information</Text>
-            <Text style={styles.sectionSubtitle}>Your basic profile details</Text>
+            <Text style={styles.sectionTitle}>Informasi Pribadi</Text>
           </View>
           <View style={styles.card}>
             {/* First Name */}
             <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>First Name</Text>
+              <Text style={styles.fieldLabel}>Nama Depan</Text>
               {isEditing ? (
                 <TextInput
                   style={styles.input}
@@ -180,7 +179,7 @@ export default function ProfileScreen() {
 
             {/* Last Name */}
             <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>Last Name</Text>
+              <Text style={styles.fieldLabel}>Nama Belakang</Text>
               {isEditing ? (
                 <TextInput
                   style={styles.input}
@@ -209,7 +208,7 @@ export default function ProfileScreen() {
 
             {/* Phone */}
             <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>Phone Number</Text>
+              <Text style={styles.fieldLabel}>No. Telepon</Text>
               {isEditing ? (
                 <TextInput
                   style={styles.input}
@@ -228,7 +227,7 @@ export default function ProfileScreen() {
 
             {/* Organization */}
             <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>Organization</Text>
+              <Text style={styles.fieldLabel}>Organisasi</Text>
               {isEditing ? (
                 <TextInput
                   style={styles.input}
@@ -247,8 +246,7 @@ export default function ProfileScreen() {
         {/* Account Information */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Account Information</Text>
-            <Text style={styles.sectionSubtitle}>Your account details and role</Text>
+            <Text style={styles.sectionTitle}>Informasi Akun</Text>
           </View>
           <View style={styles.card}>
             <View style={styles.fieldGroup}>
@@ -273,7 +271,7 @@ export default function ProfileScreen() {
               onPress={handleCancel}
               disabled={saving}
             >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
+              <Text style={styles.cancelButtonText}>Batal</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.button, styles.saveButton]}
@@ -283,7 +281,7 @@ export default function ProfileScreen() {
               {saving ? (
                 <ActivityIndicator size="small" color="#ffffff" />
               ) : (
-                <Text style={styles.saveButtonText}>Save Changes</Text>
+                <Text style={styles.saveButtonText}>Simpan</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -312,39 +310,43 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 12,
-    fontSize: 14,
+    fontSize: 12,
     color: '#6b7280',
   },
   errorText: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#dc2626',
     textAlign: 'center',
   },
   pageHeader: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 12,
+    alignItems: 'center',
+    paddingTop: 12,
+    paddingBottom: 4,
   },
   pageTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#374151',
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1a1a1a',
   },
   header: {
     backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
     padding: 24,
     alignItems: 'center',
-    borderRadius: 12,
-    marginHorizontal: 16,
+    borderRadius: 16,
+    marginHorizontal: 20,
+    marginTop: 16,
   },
   headerContent: {
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
+    gap: 2,
   },
   avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     backgroundColor: '#07579e',
     justifyContent: 'center',
     alignItems: 'center',
@@ -352,17 +354,16 @@ const styles = StyleSheet.create({
   },
   avatarText: {
     color: '#ffffff',
-    fontSize: 32,
-    fontWeight: '600',
+    fontSize: 26,
+    fontWeight: '700',
   },
   headerName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#374151',
-    marginBottom: 4,
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1a1a1a',
   },
   headerRole: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#6b7280',
   },
   editButton: {
@@ -370,89 +371,86 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#07579e',
     paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 12,
-    gap: 8,
+    paddingVertical: 9,
+    borderRadius: 10,
+    gap: 6,
   },
   editButtonText: {
     color: '#ffffff',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
   },
   section: {
-    marginTop: 16,
-    paddingHorizontal: 16,
+    marginTop: 20,
+    paddingHorizontal: 20,
   },
   sectionHeader: {
-    marginBottom: 12,
+    marginBottom: 10,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 2,
-  },
-  sectionSubtitle: {
-    fontSize: 13,
-    fontWeight: '400',
-    color: '#6b7280',
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1a1a1a',
   },
   card: {
     backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
     borderRadius: 12,
     padding: 16,
   },
   fieldGroup: {
-    paddingVertical: 12,
+    paddingVertical: 10,
   },
   fieldLabel: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#6b7280',
-    marginBottom: 6,
+    fontSize: 11,
+    fontWeight: '400',
+    color: '#9ca3af',
+    marginBottom: 2,
   },
   fieldValue: {
-    fontSize: 16,
-    color: '#374151',
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#1a1a1a',
   },
   fieldHint: {
-    fontSize: 12,
+    fontSize: 10,
     color: '#9ca3af',
-    marginTop: 4,
+    marginTop: 3,
     fontStyle: 'italic',
   },
   input: {
-    fontSize: 16,
+    fontSize: 13,
     color: '#374151',
     backgroundColor: '#f9fafb',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
     borderRadius: 8,
   },
   divider: {
     height: 1,
-    backgroundColor: '#e5e7eb',
+    backgroundColor: '#f3f4f6',
   },
   actionButtons: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 10,
     paddingHorizontal: 16,
-    marginTop: 24,
+    marginTop: 20,
   },
   button: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
+    paddingVertical: 12,
     borderRadius: 12,
-    gap: 8,
+    gap: 6,
   },
   cancelButton: {
     backgroundColor: '#ffffff',
   },
   cancelButtonText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     color: '#374151',
   },
@@ -460,7 +458,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#07579e',
   },
   saveButtonText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     color: '#ffffff',
   },

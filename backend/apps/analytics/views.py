@@ -2,6 +2,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.db.models import Count, Sum, Avg, Q
+from django.db.models.functions import TruncDate, TruncMonth
 from django.utils import timezone
 from django.http import HttpResponse
 from datetime import timedelta
@@ -10,7 +11,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 
 from apps.directory.models import Service
-from apps.survey.models import Survey
+from apps.survey.models import Survey, DynamicSurveyResponse
 from apps.accounts.models import User
 from apps.logs.models import ActivityLog, SystemError
 from apps.logs.utils import log_export
@@ -23,37 +24,46 @@ def dashboard_stats(request):
     Get comprehensive dashboard statistics
     """
 
-    # Service statistics
-    total_services = Service.objects.count()
-    verified_services = Service.objects.filter(is_verified=True).count()
-    active_services = Service.objects.filter(is_active=True).count()
-
-    # Survey statistics
-    total_surveys = Survey.objects.count()
-    pending_surveys = Survey.objects.filter(
-        verification_status=Survey.Status.SUBMITTED
-    ).count()
-    verified_surveys = Survey.objects.filter(
-        verification_status=Survey.Status.VERIFIED
-    ).count()
-
-    # User statistics
-    total_users = User.objects.count()
-    active_users = User.objects.filter(is_active=True).count()
-
-    # Recent activity (last 7 days)
     week_ago = timezone.now() - timedelta(days=7)
-    recent_surveys = Survey.objects.filter(created_at__gte=week_ago).count()
-    recent_services = Service.objects.filter(created_at__gte=week_ago).count()
 
-    # Capacity data
-    capacity_data = Service.objects.aggregate(
+    # Consolidate all service stats into a single query
+    service_stats = Service.objects.aggregate(
+        total=Count('id'),
+        verified=Count('id', filter=Q(is_verified=True)),
+        active=Count('id', filter=Q(is_active=True)),
+        recent=Count('id', filter=Q(created_at__gte=week_ago)),
         total_beds=Sum('bed_capacity'),
         total_staff=Sum('staff_count'),
         total_psychiatrists=Sum('psychiatrist_count'),
         total_psychologists=Sum('psychologist_count'),
         total_nurses=Sum('nurse_count'),
-        total_social_workers=Sum('social_worker_count')
+        total_social_workers=Sum('social_worker_count'),
+    )
+
+    # Consolidate all survey stats (combine old Survey + DynamicSurveyResponse)
+    old_survey_stats = Survey.objects.aggregate(
+        total=Count('id'),
+        pending=Count('id', filter=Q(verification_status=Survey.Status.SUBMITTED)),
+        verified=Count('id', filter=Q(verification_status=Survey.Status.VERIFIED)),
+        recent=Count('id', filter=Q(created_at__gte=week_ago)),
+    )
+    dynamic_survey_stats = DynamicSurveyResponse.objects.aggregate(
+        total=Count('id'),
+        pending=Count('id', filter=Q(verification_status=DynamicSurveyResponse.Status.SUBMITTED)),
+        verified=Count('id', filter=Q(verification_status=DynamicSurveyResponse.Status.VERIFIED)),
+        recent=Count('id', filter=Q(created_at__gte=week_ago)),
+    )
+    survey_stats = {
+        'total': old_survey_stats['total'] + dynamic_survey_stats['total'],
+        'pending': old_survey_stats['pending'] + dynamic_survey_stats['pending'],
+        'verified': old_survey_stats['verified'] + dynamic_survey_stats['verified'],
+        'recent': old_survey_stats['recent'] + dynamic_survey_stats['recent'],
+    }
+
+    # Consolidate user stats into a single query
+    user_stats = User.objects.aggregate(
+        total=Count('id'),
+        active=Count('id', filter=Q(is_active=True)),
     )
 
     # Geographic distribution (by kecamatan/city)
@@ -61,68 +71,86 @@ def dashboard_stats(request):
         count=Count('id')
     ).order_by('-count')
 
-    # MTC distribution
+    # MTC distribution - limit in SQL not Python
     mtc_distribution = Service.objects.values(
         'mtc__code', 'mtc__name'
-    ).annotate(count=Count('id')).order_by('-count')
+    ).annotate(count=Count('id')).order_by('-count')[:10]
 
-    # Recent system errors
-    unresolved_errors = SystemError.objects.filter(is_resolved=False).count()
-    critical_errors = SystemError.objects.filter(
-        severity='CRITICAL',
-        is_resolved=False
-    ).count()
+    # Consolidate error stats into a single query
+    error_stats = SystemError.objects.aggregate(
+        unresolved=Count('id', filter=Q(is_resolved=False)),
+        critical=Count('id', filter=Q(severity='CRITICAL', is_resolved=False)),
+    )
 
-    # Activity trends (last 30 days)
+    # Activity trends (last 30 days) - using TruncDate instead of deprecated .extra()
     thirty_days_ago = timezone.now() - timedelta(days=30)
     daily_activities = ActivityLog.objects.filter(
         timestamp__gte=thirty_days_ago
-    ).extra(
-        select={'day': 'date(timestamp)'}
+    ).annotate(
+        day=TruncDate('timestamp')
     ).values('day').annotate(count=Count('id')).order_by('day')
 
-    # Latest 5 surveys with details
-    latest_surveys = Survey.objects.select_related('service').order_by('-created_at')[:5]
-    recent_surveys_data = [
+    # Latest 5 surveys with details (combine old + dynamic, sorted by created_at)
+    old_surveys = [
         {
-            'id': survey.id,
-            'service_name': survey.service.name if survey.service else 'Unknown Service',
-            'verification_status': survey.verification_status,
-            'created_at': survey.created_at.isoformat()
+            'id': s.id,
+            'source': 'survey',
+            'service_name': s.service.name if s.service else 'Unknown Service',
+            'template_name': None,
+            'verification_status': s.verification_status,
+            'survey_date': s.survey_date.isoformat() if s.survey_date else None,
+            'created_at': s.created_at.isoformat(),
         }
-        for survey in latest_surveys
+        for s in Survey.objects.select_related('service').order_by('-created_at')[:5]
     ]
+    dynamic_surveys = [
+        {
+            'id': s.id,
+            'source': 'dynamic',
+            'service_name': s.service.name if s.service else 'Unknown Service',
+            'template_name': s.template.name if s.template else None,
+            'verification_status': s.verification_status,
+            'survey_date': s.survey_date.isoformat() if s.survey_date else None,
+            'created_at': s.created_at.isoformat(),
+        }
+        for s in DynamicSurveyResponse.objects.select_related('service', 'template').order_by('-created_at')[:5]
+    ]
+    recent_surveys_data = sorted(
+        old_surveys + dynamic_surveys,
+        key=lambda x: x['created_at'],
+        reverse=True
+    )[:5]
 
     return Response({
         'services': {
-            'total': total_services,
-            'verified': verified_services,
-            'active': active_services,
-            'recent': recent_services
+            'total': service_stats['total'],
+            'verified': service_stats['verified'],
+            'active': service_stats['active'],
+            'recent': service_stats['recent']
         },
         'surveys': {
-            'total': total_surveys,
-            'pending': pending_surveys,
-            'verified': verified_surveys,
-            'recent': recent_surveys
+            'total': survey_stats['total'],
+            'pending': survey_stats['pending'],
+            'verified': survey_stats['verified'],
+            'recent': survey_stats['recent']
         },
         'users': {
-            'total': total_users,
-            'active': active_users
+            'total': user_stats['total'],
+            'active': user_stats['active']
         },
         'capacity': {
-            'total_beds': capacity_data['total_beds'] or 0,
-            'total_staff': capacity_data['total_staff'] or 0,
-            'psychiatrists': capacity_data['total_psychiatrists'] or 0,
-            'psychologists': capacity_data['total_psychologists'] or 0,
-            'nurses': capacity_data['total_nurses'] or 0,
-            'social_workers': capacity_data['total_social_workers'] or 0
+            'total_beds': service_stats['total_beds'] or 0,
+            'total_staff': service_stats['total_staff'] or 0,
+            'psychiatrists': service_stats['total_psychiatrists'] or 0,
+            'psychologists': service_stats['total_psychologists'] or 0,
+            'nurses': service_stats['total_nurses'] or 0,
+            'social_workers': service_stats['total_social_workers'] or 0
         },
         'geographic_distribution': list(kecamatan_distribution),
-        'mtc_distribution': list(mtc_distribution)[:10],
+        'mtc_distribution': list(mtc_distribution),
         'system_health': {
-            'unresolved_errors': unresolved_errors,
-            'critical_errors': critical_errors
+            'unresolved_errors': error_stats['unresolved'],
+            'critical_errors': error_stats['critical']
         },
         'activity_trends': list(daily_activities),
         'recent_surveys': recent_surveys_data
@@ -191,8 +219,8 @@ def survey_analytics(request):
     six_months_ago = timezone.now() - timedelta(days=180)
     monthly_surveys = surveys.filter(
         created_at__gte=six_months_ago
-    ).extra(
-        select={'month': "strftime('%%Y-%%m', created_at)"}
+    ).annotate(
+        month=TruncMonth('created_at')
     ).values('month', 'verification_status').annotate(
         count=Count('id')
     ).order_by('month')
@@ -248,8 +276,8 @@ def export_services_excel(request):
     mtc = request.GET.get('mtc')
     status = request.GET.get('status')
 
-    # Filter services
-    services = Service.objects.all()
+    # Filter services with select_related to avoid N+1 queries
+    services = Service.objects.select_related('mtc', 'bsic').all()
     if province and province != 'all':
         services = services.filter(province=province)
     if mtc and mtc != 'all':
@@ -335,8 +363,8 @@ def export_services_csv(request):
     mtc = request.GET.get('mtc')
     status = request.GET.get('status')
 
-    # Filter services
-    services = Service.objects.all()
+    # Filter services with select_related to avoid N+1 queries
+    services = Service.objects.select_related('mtc', 'bsic').all()
     if province and province != 'all':
         services = services.filter(province=province)
     if mtc and mtc != 'all':

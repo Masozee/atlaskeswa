@@ -96,7 +96,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#e5e7eb',
   },
   title: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#374151',
   },
@@ -114,7 +114,7 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   menuLabel: {
-    fontSize: 16,
+    fontSize: 13,
     color: '#374151',
   },
 });

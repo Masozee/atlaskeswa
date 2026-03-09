@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Separator } from '@/components/ui/separator';
 
 const breadcrumbs = [
   { label: 'Dashboard', href: '/dashboard' },
@@ -107,13 +108,18 @@ export default function NewSurveyPage() {
     <>
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col p-8">
-        <div className="mb-8">
+      <div className="flex flex-1 flex-col gap-4">
+
+        <div className="px-8 pt-8 mb-8">
           <h1 className="text-2xl font-bold">Formulir Survei Layanan Kesehatan Jiwa</h1>
           <p className="text-muted-foreground mt-1">
             Silakan lengkapi seluruh pertanyaan di bawah ini dengan data yang akurat sesuai kondisi layanan pada periode survei.
           </p>
         </div>
+
+        <Separator />
+
+        <div className="flex flex-col gap-4 px-8 pb-8">
 
         <form
           onSubmit={(e) => {
@@ -809,7 +815,8 @@ export default function NewSurveyPage() {
             </Button>
           </div>
         </form>
-      </div>
+              </div>
+        </div>
     </>
   );
 }

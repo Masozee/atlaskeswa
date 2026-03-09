@@ -1,6 +1,189 @@
 from django.contrib import admin
-from .models import Survey, SurveyAttachment, SurveyAuditLog
+from .models import (
+    Survey, SurveyAttachment, SurveyAuditLog,
+    GeographicUnit, SurveyTemplate, QuestionSection, Question,
+    QuestionChoice, DynamicSurveyResponse, QuestionAnswer
+)
 
+
+# =============================================================================
+# GEOGRAPHIC UNITS ADMIN
+# =============================================================================
+
+@admin.register(GeographicUnit)
+class GeographicUnitAdmin(admin.ModelAdmin):
+    list_display = ('code', 'name', 'level', 'parent', 'is_active')
+    list_filter = ('level', 'is_active')
+    search_fields = ('code', 'name')
+    ordering = ('level', 'code')
+    raw_id_fields = ('parent',)
+
+
+# =============================================================================
+# DYNAMIC QUESTIONNAIRE ADMIN
+# =============================================================================
+
+class QuestionSectionInline(admin.TabularInline):
+    model = QuestionSection
+    extra = 1
+    ordering = ('order',)
+
+
+class QuestionInline(admin.TabularInline):
+    model = Question
+    extra = 1
+    ordering = ('order',)
+    fields = ('code', 'question_text', 'answer_type', 'is_required', 'order')
+
+
+class QuestionChoiceInline(admin.TabularInline):
+    model = QuestionChoice
+    extra = 3
+    ordering = ('order',)
+
+
+class QuestionAnswerInline(admin.TabularInline):
+    model = QuestionAnswer
+    extra = 0
+    readonly_fields = ('question', 'created_at')
+    can_delete = False
+
+
+@admin.register(SurveyTemplate)
+class SurveyTemplateAdmin(admin.ModelAdmin):
+    list_display = ('code', 'name', 'template_type', 'target_mtc', 'version', 'is_active', 'created_at')
+    list_filter = ('template_type', 'is_active')
+    search_fields = ('code', 'name', 'description')
+    ordering = ('template_type', 'code')
+    readonly_fields = ('created_at', 'updated_at')
+    inlines = [QuestionSectionInline]
+    raw_id_fields = ('target_mtc', 'created_by')
+
+    fieldsets = (
+        ('Template Information', {
+            'fields': ('code', 'name', 'description', 'version')
+        }),
+        ('Classification', {
+            'fields': ('template_type', 'target_mtc')
+        }),
+        ('Status', {
+            'fields': ('is_active', 'created_by', 'created_at', 'updated_at')
+        }),
+    )
+
+
+@admin.register(QuestionSection)
+class QuestionSectionAdmin(admin.ModelAdmin):
+    list_display = ('code', 'name', 'template', 'order')
+    list_filter = ('template',)
+    search_fields = ('code', 'name')
+    ordering = ('template', 'order')
+    inlines = [QuestionInline]
+
+
+@admin.register(Question)
+class QuestionAdmin(admin.ModelAdmin):
+    list_display = ('code', 'section', 'answer_type', 'is_required', 'mtc_code', 'order')
+    list_filter = ('answer_type', 'is_required', 'section__template')
+    search_fields = ('code', 'question_text', 'keterangan')
+    ordering = ('section', 'order')
+    raw_id_fields = ('mtc_code',)
+    inlines = [QuestionChoiceInline]
+
+    fieldsets = (
+        ('Question Information', {
+            'fields': ('section', 'code', 'question_text', 'order')
+        }),
+        ('Answer Configuration', {
+            'fields': ('answer_type', 'is_required', 'validation_rules')
+        }),
+        ('DESDE-LTC Integration', {
+            'fields': ('mtc_code', 'desde_ltc_description')
+        }),
+        ('Help Text', {
+            'fields': ('keterangan',)
+        }),
+        ('Logic', {
+            'fields': ('show_condition', 'skip_logic'),
+            'classes': ('collapse',)
+        }),
+    )
+
+
+@admin.register(QuestionChoice)
+class QuestionChoiceAdmin(admin.ModelAdmin):
+    list_display = ('question', 'value', 'label', 'mtc_code', 'order', 'has_other_input')
+    list_filter = ('has_other_input', 'question__section__template')
+    search_fields = ('value', 'label', 'question__code')
+    ordering = ('question', 'order')
+    raw_id_fields = ('question', 'mtc_code')
+
+
+@admin.register(DynamicSurveyResponse)
+class DynamicSurveyResponseAdmin(admin.ModelAdmin):
+    list_display = ('template', 'service', 'survey_date', 'surveyor', 'verification_status', 'created_at')
+    list_filter = ('verification_status', 'template', 'survey_date')
+    search_fields = ('service__name', 'surveyor__username', 'surveyor_notes')
+    ordering = ('-survey_date',)
+    readonly_fields = ('created_at', 'updated_at', 'submitted_at', 'verified_at')
+    raw_id_fields = ('template', 'linked_survey', 'service', 'surveyor', 'assigned_verifier', 'verified_by')
+    inlines = [QuestionAnswerInline]
+    filter_horizontal = ('derived_mtc_codes',)
+
+    fieldsets = (
+        ('Response Information', {
+            'fields': ('template', 'linked_survey', 'service', 'survey_date')
+        }),
+        ('Surveyor', {
+            'fields': ('surveyor', 'surveyor_notes')
+        }),
+        ('Verification Workflow', {
+            'fields': ('verification_status', 'assigned_verifier', 'verified_by', 'verified_at', 'verifier_notes', 'rejection_reason')
+        }),
+        ('GPS Location', {
+            'fields': ('latitude', 'longitude', 'location_accuracy'),
+            'classes': ('collapse',)
+        }),
+        ('Derived MTC Codes', {
+            'fields': ('derived_mtc_codes',),
+            'classes': ('collapse',)
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at', 'submitted_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+
+@admin.register(QuestionAnswer)
+class QuestionAnswerAdmin(admin.ModelAdmin):
+    list_display = ('response', 'question', 'get_answer_preview', 'derived_mtc', 'created_at')
+    list_filter = ('question__answer_type', 'response__template')
+    search_fields = ('response__service__name', 'question__code', 'text_value')
+    ordering = ('-created_at',)
+    readonly_fields = ('created_at', 'updated_at')
+    raw_id_fields = ('response', 'question', 'geographic_unit', 'derived_mtc')
+    filter_horizontal = ('selected_choices',)
+
+    def get_answer_preview(self, obj):
+        """Show a preview of the answer value"""
+        if obj.text_value:
+            return obj.text_value[:50] + '...' if len(obj.text_value) > 50 else obj.text_value
+        if obj.number_value is not None:
+            return str(obj.number_value)
+        if obj.boolean_value is not None:
+            return 'Ya' if obj.boolean_value else 'Tidak'
+        if obj.date_value:
+            return str(obj.date_value)
+        if obj.coverage_level:
+            return obj.get_coverage_level_display()
+        return '-'
+    get_answer_preview.short_description = 'Answer'
+
+
+# =============================================================================
+# EXISTING STRUCTURED SURVEY ADMIN
+# =============================================================================
 
 class SurveyAttachmentInline(admin.TabularInline):
     model = SurveyAttachment

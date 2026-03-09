@@ -12,6 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Check, X } from "lucide-react";
+import { Separator } from '@/components/ui/separator';
 
 const roles = [
   {
@@ -111,11 +112,16 @@ export default function RolesPermissionsPage() {
     <>
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-4 p-8">
-        <div>
+      <div className="flex flex-1 flex-col gap-4">
+
+        <div className="px-8 pt-8">
           <h1 className="text-2xl font-bold">Roles & Permissions</h1>
           <p className="text-muted-foreground">Manage user roles and their permissions</p>
         </div>
+
+        <Separator />
+
+        <div className="flex flex-col gap-4 px-8 pb-8">
 
         {/* Role Overview Cards */}
         <div className="grid gap-4 md:grid-cols-3">
@@ -182,7 +188,8 @@ export default function RolesPermissionsPage() {
             </div>
           </CardContent>
         </Card>
-      </div>
+              </div>
+        </div>
     </>
   );
 }

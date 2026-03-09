@@ -301,9 +301,23 @@ All data tables in the application should follow this design standard:
 </Badge>
 ```
 
+### Color Palette
+
+The application uses a consistent color system:
+
+| Role                 | Color     | Use case                           |
+| -------------------- | --------- | ---------------------------------- |
+| Primary (Active)     | `#00979D` | Buttons, links, active states      |
+| Secondary            | `#6B7280` | Secondary actions, muted elements  |
+| Focus Outline        | `#FFBF47` | Focus rings, accessibility         |
+| Primary text         | `#1A1A1A` | Body text, headings                |
+| Secondary text       | `#374151` | Labels, helper text                |
+| Muted text           | `#6B7280` | Hints, placeholders                |
+| Divider / border     | `#E5E7EB` | Lines, cards, separators           |
+
 ### Sidebar Active Menu Color
 
-- Active menu items (both main and submenu) use background color: `#4DA1DB`
+- Active menu items (both main and submenu) use background color: `#00979D` (teal)
 - Active menu text color: `white`
 - Applied automatically via `data-[active=true]` state in `SidebarMenuButton`
 

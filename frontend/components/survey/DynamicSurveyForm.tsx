@@ -7,7 +7,7 @@ import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { DynamicQuestion } from './DynamicQuestion';
 import type { SurveyTemplate, SurveyAnswers, QuestionSection, Question } from '@/lib/types/survey-template';
-import { buildQuestionsMap, getActiveSections, getActiveQuestionsForSection, calculateProgress } from '@/lib/utils/question-logic';
+import { buildQuestionsMap, getActiveSections, getActiveQuestionsForSection, getFlowBasedQuestions, calculateProgress } from '@/lib/utils/question-logic';
 import { useCreateSurveyResponse, useSaveProgress } from '@/hooks/use-survey-responses';
 import { toast } from 'sonner';
 
@@ -62,10 +62,10 @@ export function DynamicSurveyForm({
   // Get current section
   const currentSection = activeSections[currentSectionIndex];
 
-  // Get active questions for current section
+  // Get active questions for current section (uses flow-based branching if available)
   const activeQuestions = useMemo(() => {
     if (!currentSection) return [];
-    return getActiveQuestionsForSection(currentSection, answers, questionsMap);
+    return getFlowBasedQuestions(currentSection, answers, questionsMap);
   }, [currentSection, answers, questionsMap]);
 
   // Calculate progress

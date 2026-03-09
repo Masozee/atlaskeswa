@@ -22,6 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
+import { Separator } from '@/components/ui/separator';
 
 const breadcrumbs = [
   { label: 'Dashboard', href: '/dashboard' },
@@ -106,13 +107,18 @@ export default function ServiceTypesPage() {
     <>
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-4 p-8 pt-0">
-        <div>
+      <div className="flex flex-1 flex-col gap-4">
+
+        <div className="px-8 pt-8">
           <h1 className="text-2xl font-bold tracking-tight">Service Types</h1>
           <p className="text-muted-foreground">
             Types of mental health services available
           </p>
         </div>
+
+        <Separator />
+
+        <div className="flex flex-col gap-4 px-8 pb-8">
 
         <div className="flex gap-2 justify-between items-center">
           <Input
@@ -176,7 +182,8 @@ export default function ServiceTypesPage() {
             </p>
           </div>
         )}
-      </div>
+              </div>
+        </div>
     </>
   );
 }

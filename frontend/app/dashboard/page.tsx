@@ -7,6 +7,7 @@ import { authStore } from '@/store/auth-store';
 import { PageHeader } from "@/components/page-header"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Calendar } from "@/components/ui/calendar"
+import { Separator } from "@/components/ui/separator"
 import { useState } from 'react'
 import {
   BarChart,
@@ -136,12 +137,14 @@ export default function DashboardPage() {
     <>
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-4 p-8">
-        {/* Welcome Message */}
-        <div>
+      <div className="flex flex-1 flex-col gap-4">
+        <div className="px-8 pt-8">
           <h1 className="text-2xl font-bold">Selamat Datang Kembali, {firstName}!</h1>
         </div>
 
+        <Separator />
+
+        <div className="flex flex-col gap-4 px-8 pb-8">
         {/* Stats Grid */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <StatCard
@@ -444,6 +447,7 @@ export default function DashboardPage() {
               </div>
             </CardContent>
           </Card>
+        </div>
         </div>
       </div>
     </>

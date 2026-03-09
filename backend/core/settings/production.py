@@ -32,6 +32,8 @@ DATABASES = {
         'OPTIONS': {
             'charset': 'utf8mb4',
         },
+        'CONN_MAX_AGE': 600,
+        'CONN_HEALTH_CHECKS': True,
     }
 }
 

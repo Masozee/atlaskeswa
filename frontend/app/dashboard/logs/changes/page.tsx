@@ -29,6 +29,7 @@ import {Edit02Icon,
   Search01Icon,
   Download01Icon,
   ArrowRight01Icon,} from "@hugeicons/core-free-icons";
+import { Separator } from '@/components/ui/separator';
 
 // Mock data change logs
 const mockChangeLogs = [
@@ -188,8 +189,9 @@ export default function DataChangeLogsPage() {
     <>
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-4 p-8">
-        <div className="flex items-center justify-between">
+      <div className="flex flex-1 flex-col gap-4">
+
+        <div className="px-8 pt-8 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">Data Change Logs</h1>
             <p className="text-muted-foreground">
@@ -201,6 +203,10 @@ export default function DataChangeLogsPage() {
             Export Audit Trail
           </Button>
         </div>
+
+        <Separator />
+
+        <div className="flex flex-col gap-4 px-8 pb-8">
 
         {/* Statistics */}
         <div className="grid gap-4 md:grid-cols-4">
@@ -388,7 +394,8 @@ export default function DataChangeLogsPage() {
             </Table>
           </CardContent>
         </Card>
-      </div>
+              </div>
+        </div>
     </>
   );
 }

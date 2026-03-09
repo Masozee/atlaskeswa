@@ -96,6 +96,34 @@ export function useSubmitSurvey(id: number) {
   });
 }
 
+// Delete survey response
+export function useDeleteSurveyResponse() {
+  const queryClient = useQueryClient();
+
+  return useMutation<void, Error, number>({
+    mutationFn: async (id) => {
+      return apiClient.delete(`/surveys/responses/${id}/`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['survey-responses'] });
+    },
+  });
+}
+
+// Bulk delete survey responses
+export function useBulkDeleteSurveyResponses() {
+  const queryClient = useQueryClient();
+
+  return useMutation<{ deleted: number }, Error, number[]>({
+    mutationFn: async (ids) => {
+      return apiClient.post<{ deleted: number }>('/surveys/responses/bulk-delete/', { ids });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['survey-responses'] });
+    },
+  });
+}
+
 // Verify or reject survey
 export function useVerifySurvey(id: number) {
   const queryClient = useQueryClient();
@@ -110,6 +138,24 @@ export function useVerifySurvey(id: number) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['survey-response', id] });
+      queryClient.invalidateQueries({ queryKey: ['survey-responses'] });
+    },
+  });
+}
+
+// Approve or reject deletion request
+export function useApproveDeletion() {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    any,
+    Error,
+    { id: number; action: 'approve' | 'reject' }
+  >({
+    mutationFn: async ({ id, action }) => {
+      return apiClient.post(`/surveys/responses/${id}/approve-deletion/`, { action });
+    },
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['survey-responses'] });
     },
   });

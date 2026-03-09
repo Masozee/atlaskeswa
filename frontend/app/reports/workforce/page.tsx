@@ -30,6 +30,7 @@ import {
 } from 'recharts';
 import { HugeiconsIcon } from "@hugeicons/react"
 import {UserMultiple02Icon, BedIcon, Hospital01Icon, UserGroupIcon} from "@hugeicons/core-free-icons";
+import { Separator } from '@/components/ui/separator';
 
 const breadcrumbs: BreadcrumbItemType[] = [
   { label: 'Dashboard', href: '/dashboard' },
@@ -172,13 +173,18 @@ export default function WorkforceCapacityReportPage() {
     <>
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-4 p-6">
-        <div>
+      <div className="flex flex-1 flex-col gap-4">
+
+        <div className="px-6 pt-6">
           <h1 className="text-2xl font-bold">Workforce & Capacity Report</h1>
           <p className="text-muted-foreground">
             Analysis of mental health workforce distribution and service capacity
           </p>
         </div>
+
+        <Separator />
+
+        <div className="flex flex-col gap-4 px-6 pb-6">
 
         {/* Filters */}
         <div className="flex gap-4">
@@ -434,7 +440,8 @@ export default function WorkforceCapacityReportPage() {
             </div>
           </CardContent>
         </Card>
-      </div>
+              </div>
+        </div>
     </>
   );
 }

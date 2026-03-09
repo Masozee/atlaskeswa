@@ -1,9 +1,15 @@
 from django.contrib import admin
-from .models import MainTypeOfCare, BasicStableInputsOfCare, TargetPopulation, ServiceType, Service
+from import_export.admin import ImportExportModelAdmin
+from .models import MainTypeOfCare, BasicStableInputsOfCare, TargetPopulation, ServiceType, Service, KategoriLayanan, KategoriFasilitas
+from .resources import (
+    MainTypeOfCareResource, BSICResource, TargetPopulationResource,
+    ServiceTypeResource, KategoriLayananResource, KategoriFasilitasResource, ServiceResource
+)
 
 
 @admin.register(MainTypeOfCare)
-class MainTypeOfCareAdmin(admin.ModelAdmin):
+class MainTypeOfCareAdmin(ImportExportModelAdmin):
+    resource_class = MainTypeOfCareResource
     list_display = ('code', 'name', 'is_healthcare', 'service_delivery_type', 'level', 'parent', 'is_active')
     list_filter = ('is_healthcare', 'service_delivery_type', 'is_active', 'level')
     search_fields = ('code', 'name', 'description')
@@ -24,7 +30,8 @@ class MainTypeOfCareAdmin(admin.ModelAdmin):
 
 
 @admin.register(BasicStableInputsOfCare)
-class BasicStableInputsOfCareAdmin(admin.ModelAdmin):
+class BasicStableInputsOfCareAdmin(ImportExportModelAdmin):
+    resource_class = BSICResource
     list_display = ('code', 'name', 'is_active', 'created_at')
     list_filter = ('is_active', 'created_at')
     search_fields = ('code', 'name', 'description')
@@ -32,7 +39,8 @@ class BasicStableInputsOfCareAdmin(admin.ModelAdmin):
 
 
 @admin.register(TargetPopulation)
-class TargetPopulationAdmin(admin.ModelAdmin):
+class TargetPopulationAdmin(ImportExportModelAdmin):
+    resource_class = TargetPopulationResource
     list_display = ('name', 'is_active', 'created_at')
     list_filter = ('is_active', 'created_at')
     search_fields = ('name', 'description')
@@ -40,15 +48,35 @@ class TargetPopulationAdmin(admin.ModelAdmin):
 
 
 @admin.register(ServiceType)
-class ServiceTypeAdmin(admin.ModelAdmin):
+class ServiceTypeAdmin(ImportExportModelAdmin):
+    resource_class = ServiceTypeResource
     list_display = ('name', 'is_active', 'created_at')
     list_filter = ('is_active', 'created_at')
     search_fields = ('name', 'description')
     ordering = ('name',)
 
 
+@admin.register(KategoriLayanan)
+class KategoriLayananAdmin(ImportExportModelAdmin):
+    resource_class = KategoriLayananResource
+    list_display = ('code', 'name', 'is_active', 'created_at')
+    list_filter = ('is_active', 'created_at')
+    search_fields = ('code', 'name', 'description')
+    ordering = ('code',)
+
+
+@admin.register(KategoriFasilitas)
+class KategoriFasilitasAdmin(ImportExportModelAdmin):
+    resource_class = KategoriFasilitasResource
+    list_display = ('code', 'name', 'facility_type', 'is_active', 'created_at')
+    list_filter = ('facility_type', 'is_active', 'created_at')
+    search_fields = ('code', 'name', 'description')
+    ordering = ('code',)
+
+
 @admin.register(Service)
-class ServiceAdmin(admin.ModelAdmin):
+class ServiceAdmin(ImportExportModelAdmin):
+    resource_class = ServiceResource
     list_display = ('name', 'city', 'province', 'mtc', 'bsic', 'is_verified', 'is_active', 'created_at')
     list_filter = ('is_verified', 'is_active', 'city', 'province', 'mtc', 'bsic', 'created_at')
     search_fields = ('name', 'description', 'address', 'city', 'province')

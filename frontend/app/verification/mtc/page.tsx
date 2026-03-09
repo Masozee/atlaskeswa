@@ -17,6 +17,7 @@ import { ColumnDef } from '@tanstack/react-table';
 import { HugeiconsIcon } from "@hugeicons/react"
 import {MoreHorizontalIcon, ViewIcon, Tick02Icon, Cancel01Icon} from "@hugeicons/core-free-icons";
 import { DataTable } from '@/components/data-table';
+import { Separator } from '@/components/ui/separator';
 
 const breadcrumbs: BreadcrumbItemType[] = [
   { label: 'Verification & QC', href: '/verification' },
@@ -60,7 +61,7 @@ export default function MTCValidationPage() {
               {code}
             </Badge>
           ) : (
-            <Badge variant="destructive">Missing</Badge>
+            <Badge variant="outline-danger">Missing</Badge>
           );
         },
       },
@@ -86,7 +87,7 @@ export default function MTCValidationPage() {
               {code}
             </Badge>
           ) : (
-            <Badge variant="destructive">Missing</Badge>
+            <Badge variant="outline-danger">Missing</Badge>
           );
         },
       },
@@ -96,7 +97,7 @@ export default function MTCValidationPage() {
         cell: ({ row }) => {
           const type = row.getValue('service_type_name') as string;
           return type ? (
-            <Badge variant="secondary">{type}</Badge>
+            <Badge variant="outline-muted">{type}</Badge>
           ) : (
             <span className="text-muted-foreground">—</span>
           );
@@ -110,11 +111,11 @@ export default function MTCValidationPage() {
           const hasBSIC = row.original.bsic_code;
 
           if (hasMTC && hasBSIC) {
-            return <Badge variant="default" className="bg-green-600">Complete</Badge>;
+            return <Badge variant="outline-success">Complete</Badge>;
           } else if (hasMTC || hasBSIC) {
-            return <Badge variant="secondary">Partial</Badge>;
+            return <Badge variant="outline-warning">Partial</Badge>;
           } else {
-            return <Badge variant="destructive">Incomplete</Badge>;
+            return <Badge variant="outline-danger">Incomplete</Badge>;
           }
         },
       },
@@ -130,7 +131,7 @@ export default function MTCValidationPage() {
           return (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="h-8 w-8 p-0">
+                <Button variant="outline" className="h-8 w-8 p-0">
                   <span className="sr-only">Open menu</span>
                   <HugeiconsIcon icon={MoreHorizontalIcon} size={16} />
                 </Button>
@@ -173,8 +174,9 @@ export default function MTCValidationPage() {
     <div className="flex flex-col">
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex-1 p-6 space-y-6">
-        <div className="flex items-center justify-between">
+      <div className="flex-1 space-y-6">
+
+        <div className="px-6 pt-6 flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">MTC Validation</h1>
             <p className="text-muted-foreground mt-1">
@@ -183,7 +185,7 @@ export default function MTCValidationPage() {
           </div>
           <div className="flex items-center gap-2">
             {incompleteServices.length > 0 && (
-              <Badge variant="destructive" className="text-base px-4 py-2">
+              <Badge variant="outline-danger" className="text-base px-4 py-2">
                 {incompleteServices.length} incomplete
               </Badge>
             )}
@@ -194,6 +196,10 @@ export default function MTCValidationPage() {
             )}
           </div>
         </div>
+
+        <Separator />
+
+        <div className="space-y-6 px-6 pb-6">
 
         {mtcData && (
           <div className="grid grid-cols-4 gap-4">
@@ -231,7 +237,8 @@ export default function MTCValidationPage() {
           showPagination={true}
           pageSize={20}
         />
-      </div>
+              </div>
+        </div>
     </div>
   );
 }

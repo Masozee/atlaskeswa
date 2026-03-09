@@ -1,7 +1,12 @@
+import csv
+import io
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
+from django.urls import reverse
 from decimal import Decimal
+from rest_framework.test import APIClient
+from rest_framework import status
 from .models import (
     MainTypeOfCare, BasicStableInputsOfCare, TargetPopulation,
     ServiceType, Service
@@ -399,3 +404,270 @@ class ServiceTests(TestCase):
         # Service should still exist
         service = Service.objects.get(id=service_id)
         self.assertIsNone(service.created_by)
+
+
+# ---------------------------------------------------------------------------
+# BSIC API endpoint tests
+# ---------------------------------------------------------------------------
+
+class BSICAPITests(TestCase):
+    """API tests for BasicStableInputsOfCare CRUD, bulk-delete, bulk-update, export, import."""
+
+    def setUp(self):
+        self.client = APIClient()
+
+        self.admin = User.objects.create_user(
+            email='admin@test.com', password='pass', role='ADMIN',
+            first_name='Admin', last_name='User'
+        )
+        self.surveyor = User.objects.create_user(
+            email='surveyor@test.com', password='pass', role='SURVEYOR',
+            first_name='Surveyor', last_name='User'
+        )
+        self.viewer = User.objects.create_user(
+            email='viewer@test.com', password='pass', role='VIEWER',
+            first_name='Viewer', last_name='User'
+        )
+
+        self.b1 = BasicStableInputsOfCare.objects.create(code='B1', name='Category One', description='Desc one', is_active=True)
+        self.b2 = BasicStableInputsOfCare.objects.create(code='B2', name='Category Two', description='Desc two', is_active=True)
+        self.b3 = BasicStableInputsOfCare.objects.create(code='B3', name='Category Three', description='Desc three', is_active=False)
+
+    # ---- LIST ----
+
+    def test_list_unauthenticated_returns_401(self):
+        res = self.client.get('/v1/directory/bsic/')
+        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_list_authenticated_returns_all(self):
+        self.client.force_authenticate(user=self.viewer)
+        res = self.client.get('/v1/directory/bsic/')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        # Response is paginated: {count, next, previous, results}
+        self.assertEqual(res.data['count'], 3)
+
+    # ---- CREATE ----
+
+    def test_create_as_admin_succeeds(self):
+        self.client.force_authenticate(user=self.admin)
+        res = self.client.post('/v1/directory/bsic/', {'code': 'B4', 'name': 'New Category', 'is_active': True}, format='json')
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(res.data['code'], 'B4')
+
+    def test_create_as_non_admin_returns_403(self):
+        self.client.force_authenticate(user=self.surveyor)
+        res = self.client.post('/v1/directory/bsic/', {'code': 'B4', 'name': 'New Category'}, format='json')
+        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+
+    # ---- UPDATE ----
+
+    def test_partial_update_as_admin_succeeds(self):
+        self.client.force_authenticate(user=self.admin)
+        res = self.client.patch(f'/v1/directory/bsic/{self.b1.id}/', {'name': 'Updated Name'}, format='json')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data['name'], 'Updated Name')
+
+    def test_partial_update_as_viewer_returns_403(self):
+        self.client.force_authenticate(user=self.viewer)
+        res = self.client.patch(f'/v1/directory/bsic/{self.b1.id}/', {'name': 'Hack'}, format='json')
+        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+
+    # ---- DELETE ----
+
+    def test_delete_as_admin_succeeds(self):
+        self.client.force_authenticate(user=self.admin)
+        res = self.client.delete(f'/v1/directory/bsic/{self.b3.id}/')
+        self.assertEqual(res.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(BasicStableInputsOfCare.objects.filter(id=self.b3.id).exists())
+
+    def test_delete_as_surveyor_returns_403(self):
+        self.client.force_authenticate(user=self.surveyor)
+        res = self.client.delete(f'/v1/directory/bsic/{self.b1.id}/')
+        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+
+    # ---- BULK DELETE ----
+
+    def test_bulk_delete_as_admin_succeeds(self):
+        self.client.force_authenticate(user=self.admin)
+        res = self.client.post('/v1/directory/bsic/bulk-delete/', {'ids': [self.b1.id, self.b2.id]}, format='json')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data['deleted'], 2)
+        self.assertFalse(BasicStableInputsOfCare.objects.filter(id__in=[self.b1.id, self.b2.id]).exists())
+
+    def test_bulk_delete_empty_ids_returns_400(self):
+        self.client.force_authenticate(user=self.admin)
+        res = self.client.post('/v1/directory/bsic/bulk-delete/', {'ids': []}, format='json')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_bulk_delete_invalid_payload_returns_400(self):
+        self.client.force_authenticate(user=self.admin)
+        res = self.client.post('/v1/directory/bsic/bulk-delete/', {'ids': 'not-a-list'}, format='json')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_bulk_delete_as_non_admin_returns_403(self):
+        self.client.force_authenticate(user=self.viewer)
+        res = self.client.post('/v1/directory/bsic/bulk-delete/', {'ids': [self.b1.id]}, format='json')
+        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+
+    # ---- BULK UPDATE ----
+
+    def test_bulk_update_is_active_as_admin_succeeds(self):
+        self.client.force_authenticate(user=self.admin)
+        res = self.client.post(
+            '/v1/directory/bsic/bulk-update/',
+            {'ids': [self.b1.id, self.b2.id], 'updates': {'is_active': False}},
+            format='json'
+        )
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data['updated'], 2)
+        self.assertFalse(BasicStableInputsOfCare.objects.get(id=self.b1.id).is_active)
+        self.assertFalse(BasicStableInputsOfCare.objects.get(id=self.b2.id).is_active)
+
+    def test_bulk_update_disallowed_field_returns_400(self):
+        self.client.force_authenticate(user=self.admin)
+        res = self.client.post(
+            '/v1/directory/bsic/bulk-update/',
+            {'ids': [self.b1.id], 'updates': {'code': 'HACKED'}},
+            format='json'
+        )
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_bulk_update_as_non_admin_returns_403(self):
+        self.client.force_authenticate(user=self.surveyor)
+        res = self.client.post(
+            '/v1/directory/bsic/bulk-update/',
+            {'ids': [self.b1.id], 'updates': {'is_active': False}},
+            format='json'
+        )
+        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_bulk_update_empty_ids_returns_400(self):
+        self.client.force_authenticate(user=self.admin)
+        res = self.client.post(
+            '/v1/directory/bsic/bulk-update/',
+            {'ids': [], 'updates': {'is_active': False}},
+            format='json'
+        )
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    # ---- EXPORT ----
+
+    def test_export_all_as_authenticated_returns_csv(self):
+        self.client.force_authenticate(user=self.viewer)
+        res = self.client.get('/v1/directory/bsic/export/')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res['Content-Type'], 'text/csv')
+        self.assertIn('attachment', res['Content-Disposition'])
+        content = res.content.decode('utf-8')
+        reader = csv.DictReader(io.StringIO(content))
+        rows = list(reader)
+        self.assertEqual(len(rows), 3)
+
+    def test_export_selective_by_ids(self):
+        self.client.force_authenticate(user=self.viewer)
+        res = self.client.get(f'/v1/directory/bsic/export/?ids={self.b1.id},{self.b2.id}')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        content = res.content.decode('utf-8')
+        reader = csv.DictReader(io.StringIO(content))
+        rows = list(reader)
+        self.assertEqual(len(rows), 2)
+        codes = {r['Code'] for r in rows}
+        self.assertIn('B1', codes)
+        self.assertIn('B2', codes)
+
+    def test_export_unauthenticated_returns_401(self):
+        res = self.client.get('/v1/directory/bsic/export/')
+        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_export_csv_headers(self):
+        self.client.force_authenticate(user=self.admin)
+        res = self.client.get('/v1/directory/bsic/export/')
+        content = res.content.decode('utf-8')
+        first_line = content.split('\r\n')[0]
+        self.assertIn('Code', first_line)
+        self.assertIn('Name', first_line)
+        self.assertIn('Status', first_line)
+
+    # ---- IMPORT ----
+
+    def _make_csv(self, rows):
+        """Helper to build an in-memory CSV upload file."""
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow(['code', 'name', 'description', 'is_active'])
+        for r in rows:
+            writer.writerow(r)
+        buf.seek(0)
+        return io.BytesIO(buf.read().encode('utf-8'))
+
+    def test_import_as_admin_creates_records(self):
+        self.client.force_authenticate(user=self.admin)
+        csv_file = self._make_csv([
+            ['B10', 'Imported One', 'desc', 'true'],
+            ['B11', 'Imported Two', '', 'false'],
+        ])
+        res = self.client.post(
+            '/v1/directory/bsic/import/',
+            {'file': csv_file},
+            format='multipart'
+        )
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data['created'], 2)
+        self.assertEqual(res.data['errors'], [])
+        self.assertTrue(BasicStableInputsOfCare.objects.filter(code='B10').exists())
+        self.assertTrue(BasicStableInputsOfCare.objects.filter(code='B11').exists())
+
+    def test_import_skips_duplicate_codes(self):
+        self.client.force_authenticate(user=self.admin)
+        csv_file = self._make_csv([
+            ['B1', 'Duplicate', 'desc', 'true'],   # B1 already exists
+            ['B99', 'Brand New', 'desc', 'true'],
+        ])
+        res = self.client.post(
+            '/v1/directory/bsic/import/',
+            {'file': csv_file},
+            format='multipart'
+        )
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data['created'], 1)
+        self.assertEqual(len(res.data['errors']), 1)
+
+    def test_import_missing_required_field_reports_error(self):
+        self.client.force_authenticate(user=self.admin)
+        buf = io.BytesIO(b'code,description\nB20,no name here\n')
+        res = self.client.post('/v1/directory/bsic/import/', {'file': buf}, format='multipart')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data['created'], 0)
+        self.assertGreater(len(res.data['errors']), 0)
+
+    def test_import_no_file_returns_400(self):
+        self.client.force_authenticate(user=self.admin)
+        res = self.client.post('/v1/directory/bsic/import/', {}, format='multipart')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_import_as_non_admin_returns_403(self):
+        self.client.force_authenticate(user=self.surveyor)
+        csv_file = self._make_csv([['B99', 'Test', '', 'true']])
+        res = self.client.post('/v1/directory/bsic/import/', {'file': csv_file}, format='multipart')
+        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_import_exported_format_roundtrip(self):
+        """Exported CSV (capitalized headers + Status column) must reimport cleanly."""
+        self.client.force_authenticate(user=self.admin)
+        # Build a CSV in the exact format the export endpoint produces
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow(['ID', 'Code', 'Name', 'Description', 'Status', 'Created At'])
+        writer.writerow([99, 'B50', 'Roundtrip Cat', 'Some desc', 'Active', '2025-01-01 00:00'])
+        writer.writerow([100, 'B51', 'Inactive Cat', '', 'Inactive', '2025-01-01 00:00'])
+        buf.seek(0)
+        csv_bytes = io.BytesIO(buf.read().encode('utf-8'))
+
+        res = self.client.post('/v1/directory/bsic/import/', {'file': csv_bytes}, format='multipart')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data['created'], 2)
+        self.assertEqual(res.data['errors'], [])
+        b50 = BasicStableInputsOfCare.objects.get(code='B50')
+        b51 = BasicStableInputsOfCare.objects.get(code='B51')
+        self.assertTrue(b50.is_active)
+        self.assertFalse(b51.is_active)

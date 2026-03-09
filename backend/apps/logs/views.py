@@ -95,7 +95,9 @@ class VerificationLogViewSet(viewsets.ReadOnlyModelViewSet):
     """
     ViewSet for VerificationLog (read-only)
     """
-    queryset = VerificationLog.objects.select_related('survey', 'verifier')
+    queryset = VerificationLog.objects.select_related(
+        'survey__service', 'performed_by', 'previous_verifier', 'new_verifier'
+    )
     serializer_class = VerificationLogSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
@@ -189,7 +191,7 @@ class SystemErrorViewSet(viewsets.ReadOnlyModelViewSet):
     """
     ViewSet for SystemError (read-only for non-admins)
     """
-    queryset = SystemError.objects.all()
+    queryset = SystemError.objects.select_related('user', 'resolved_by')
     serializer_class = SystemErrorSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]

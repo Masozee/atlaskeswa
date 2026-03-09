@@ -3,20 +3,14 @@ from .models import HelpCategory, HelpArticle, FAQ, SupportTicket, SupportTicket
 
 
 class HelpCategorySerializer(serializers.ModelSerializer):
-    articles_count = serializers.SerializerMethodField()
-    faqs_count = serializers.SerializerMethodField()
+    articles_count = serializers.IntegerField(read_only=True)
+    faqs_count = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = HelpCategory
         fields = ['id', 'name', 'slug', 'description', 'icon', 'order', 'is_active',
                   'articles_count', 'faqs_count', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
-
-    def get_articles_count(self, obj):
-        return obj.articles.filter(status='published').count()
-
-    def get_faqs_count(self, obj):
-        return obj.faqs.filter(is_active=True).count()
 
 
 class HelpArticleSerializer(serializers.ModelSerializer):
@@ -70,7 +64,7 @@ class SupportTicketSerializer(serializers.ModelSerializer):
     assigned_to_name = serializers.CharField(source='assigned_to.full_name', read_only=True, allow_null=True)
     category_name = serializers.CharField(source='category.name', read_only=True, allow_null=True)
     replies = SupportTicketReplySerializer(many=True, read_only=True)
-    replies_count = serializers.SerializerMethodField()
+    replies_count = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = SupportTicket
@@ -80,22 +74,16 @@ class SupportTicketSerializer(serializers.ModelSerializer):
                   'resolved_at']
         read_only_fields = ['id', 'user', 'created_at', 'updated_at']
 
-    def get_replies_count(self, obj):
-        return obj.replies.count()
-
 
 class SupportTicketListSerializer(serializers.ModelSerializer):
     """Lighter serializer for listing tickets"""
     user_name = serializers.CharField(source='user.full_name', read_only=True)
     assigned_to_name = serializers.CharField(source='assigned_to.full_name', read_only=True, allow_null=True)
     category_name = serializers.CharField(source='category.name', read_only=True, allow_null=True)
-    replies_count = serializers.SerializerMethodField()
+    replies_count = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = SupportTicket
         fields = ['id', 'user_name', 'subject', 'status', 'priority', 'assigned_to_name',
                   'category_name', 'replies_count', 'created_at']
         read_only_fields = ['id', 'created_at']
-
-    def get_replies_count(self, obj):
-        return obj.replies.count()

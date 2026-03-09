@@ -203,7 +203,116 @@ export function buildQuestionsMap(sections: QuestionSection[]): Map<number, Ques
 }
 
 /**
- * Calculate progress percentage based on required questions answered
+ * Get flow-based active questions for a section.
+ * Uses skip_logic and next_question_code to determine which questions
+ * are reachable based on current answers, following branching paths.
+ *
+ * Flow logic:
+ * 1. Start with the first question (by order)
+ * 2. Show the question
+ * 3. If answered, determine next question:
+ *    a. Selected choice's next_question_code (highest priority)
+ *    b. Question's skip_logic[0].goto (fallback)
+ *    c. Next question by order (default)
+ * 4. Continue until we hit an unanswered question or reach the end
+ */
+export function getFlowBasedQuestions(
+  section: QuestionSection,
+  allResponses: SurveyAnswers,
+  questionsMap?: Map<number, Question>
+): Question[] {
+  if (!section.questions || section.questions.length === 0) return [];
+
+  // First filter by show_condition
+  const visibleQuestions = section.questions
+    .filter((q) => {
+      if (q.show_condition) {
+        return evaluateShowCondition(q.show_condition, allResponses);
+      }
+      if (!q.parent_question) return true;
+      if (!questionsMap) return true;
+      const parent = questionsMap.get(q.parent_question);
+      if (!parent) return true;
+      const parentAnswer = allResponses[parent.code];
+      if (parentAnswer === null || parentAnswer === undefined) return false;
+      return evaluateCondition(parentAnswer, q.show_if_value);
+    })
+    .sort((a, b) => a.order - b.order);
+
+  if (visibleQuestions.length === 0) return [];
+
+  // Check if ANY question has branching logic
+  const hasBranching = visibleQuestions.some(
+    (q) =>
+      (q.skip_logic && q.skip_logic.length > 0 && q.skip_logic[0].goto) ||
+      (q.choices && q.choices.some((c) => c.next_question_code))
+  );
+
+  if (!hasBranching) {
+    // No branching — return all visible questions
+    return visibleQuestions;
+  }
+
+  // Build code-to-question map for this section
+  const codeMap = new Map<string, Question>();
+  visibleQuestions.forEach((q) => codeMap.set(q.code, q));
+
+  // Build flow path starting from first question
+  const result: Question[] = [];
+  const visited = new Set<string>();
+  let current: Question | undefined = visibleQuestions[0];
+
+  while (current && !visited.has(current.code)) {
+    visited.add(current.code);
+    result.push(current);
+
+    const answer = allResponses[current.code];
+    const isAnswered = answer !== null && answer !== undefined && answer !== '';
+
+    if (!isAnswered) {
+      // Stop here — show up to the first unanswered question
+      break;
+    }
+
+    let nextCode: string | undefined;
+
+    // 1. Check choice-level branching (selected choice's next_question_code)
+    if (current.choices && current.choices.length > 0) {
+      const selectedChoice = current.choices.find((c) => c.value === answer);
+      if (selectedChoice?.next_question_code) {
+        nextCode = selectedChoice.next_question_code;
+      }
+    }
+
+    // 2. Fallback to question-level skip_logic
+    if (!nextCode && current.skip_logic && current.skip_logic.length > 0 && current.skip_logic[0].goto) {
+      nextCode = current.skip_logic[0].goto;
+    }
+
+    // 3. Default: next question by order
+    if (!nextCode) {
+      const currentIdx = visibleQuestions.indexOf(current);
+      if (currentIdx < visibleQuestions.length - 1) {
+        current = visibleQuestions[currentIdx + 1];
+        continue;
+      }
+      break;
+    }
+
+    // Follow the branch — could be in same section or cross-section
+    current = codeMap.get(nextCode);
+    if (!current) {
+      // Target question not in this section — stop here
+      break;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Calculate progress percentage based on required questions answered.
+ * Uses flow-based questions when branching is available.
  */
 export function calculateProgress(
   sections: QuestionSection[],
@@ -216,7 +325,8 @@ export function calculateProgress(
   let answeredRequired = 0;
 
   activeSections.forEach((section) => {
-    const activeQuestions = getActiveQuestionsForSection(section, answers, questionsMap);
+    // Use flow-based questions for sections with branching
+    const activeQuestions = getFlowBasedQuestions(section, answers, questionsMap);
 
     activeQuestions.forEach((question) => {
       if (question.is_required) {

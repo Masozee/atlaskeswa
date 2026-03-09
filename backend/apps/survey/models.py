@@ -2,14 +2,501 @@ from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 
 
+# =============================================================================
+# GEOGRAPHIC UNITS
+# =============================================================================
+
+class GeographicUnit(models.Model):
+    """Indonesian administrative geographic units for dropdown selections"""
+
+    class Level(models.TextChoices):
+        PROVINSI = 'PROVINSI', 'Provinsi'
+        KABUPATEN_KOTA = 'KABUPATEN_KOTA', 'Kabupaten/Kota'
+        KECAMATAN = 'KECAMATAN', 'Kecamatan'
+        DESA_KELURAHAN = 'DESA_KELURAHAN', 'Desa/Kelurahan'
+
+    # BPS code (Badan Pusat Statistik)
+    code = models.CharField(max_length=20, unique=True, db_index=True)
+    name = models.CharField(max_length=200, db_index=True)
+    level = models.CharField(max_length=20, choices=Level.choices, db_index=True)
+
+    # Hierarchy
+    parent = models.ForeignKey(
+        'self',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='children'
+    )
+
+    # Center coordinates (for map display)
+    latitude = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
+    longitude = models.DecimalField(max_digits=11, decimal_places=7, null=True, blank=True)
+
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = 'geographic_units'
+        ordering = ['level', 'name']
+        indexes = [
+            models.Index(fields=['level', 'parent']),
+            models.Index(fields=['parent', 'name']),
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.get_level_display()})"
+
+    def get_full_path(self):
+        """Returns full path like 'Jawa Tengah > Kebumen > Gombong > Gombong'"""
+        parts = [self.name]
+        current = self.parent
+        while current:
+            parts.insert(0, current.name)
+            current = current.parent
+        return ' > '.join(parts)
+
+
+# =============================================================================
+# DYNAMIC QUESTIONNAIRE MODELS
+# =============================================================================
+
+class SurveyTemplate(models.Model):
+    """Template for dynamic questionnaires - complements the structured Survey model"""
+
+    TEMPLATE_TYPES = [
+        ('RESIDENTIAL', 'Rawat Inap (R)'),
+        ('DAY_CARE', 'Rawat Harian (D)'),
+        ('OUTPATIENT', 'Rawat Jalan (O)'),
+        ('ACCESSIBILITY', 'Aksesibilitas (A)'),
+        ('INFORMATION', 'Informasi (I)'),
+        ('BASIC_DATA', 'Data Dasar'),
+        ('GENERAL', 'Umum'),
+    ]
+
+    name = models.CharField(max_length=200)
+    code = models.CharField(max_length=50, unique=True, db_index=True)
+    description = models.TextField(blank=True)
+    version = models.CharField(max_length=20, default="1.0")
+
+    # Which MTC codes does this template help determine?
+    target_mtc = models.ForeignKey(
+        'directory.MainTypeOfCare',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='survey_templates',
+        help_text='The MTC type this template helps classify (R, D, O, A, I)'
+    )
+    template_type = models.CharField(max_length=20, choices=TEMPLATE_TYPES, default='GENERAL')
+
+    is_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(
+        'accounts.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_templates'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'survey_templates'
+        ordering = ['template_type', 'name']
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+
+class QuestionSection(models.Model):
+    """Sections to group questions within a template"""
+
+    template = models.ForeignKey(
+        SurveyTemplate,
+        on_delete=models.CASCADE,
+        related_name='sections'
+    )
+
+    code = models.CharField(max_length=50)
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    order = models.PositiveIntegerField(default=0)
+
+    # Introduction text for enumerator
+    introduction_text = models.TextField(blank=True)
+
+    # Conditional display
+    show_condition = models.JSONField(
+        null=True,
+        blank=True,
+        help_text='JSON condition: {"question_code": "Q3", "operator": "equals", "value": "KESEHATAN"}'
+    )
+
+    class Meta:
+        db_table = 'survey_question_sections'
+        ordering = ['template', 'order']
+        unique_together = ['template', 'code']
+
+    def __str__(self):
+        return f"{self.template.code} - {self.name}"
+
+
+class Question(models.Model):
+    """Individual survey questions with DESDE-LTC integration"""
+
+    class AnswerType(models.TextChoices):
+        # Basic types
+        TEXT = 'TEXT', 'Teks'
+        TEXTAREA = 'TEXTAREA', 'Teks Panjang'
+        NUMBER = 'NUMBER', 'Angka'
+        INTEGER = 'INTEGER', 'Bilangan Bulat'
+        DATE = 'DATE', 'Tanggal'
+        TIME = 'TIME', 'Waktu'
+        BOOLEAN = 'BOOLEAN', 'Ya/Tidak'
+
+        # Choice types
+        SINGLE_CHOICE = 'SINGLE_CHOICE', 'Pilihan Tunggal'
+        MULTIPLE_CHOICE = 'MULTIPLE_CHOICE', 'Pilihan Ganda'
+
+        # Geographic types (cascading dropdowns)
+        GEO_PROVINSI = 'GEO_PROVINSI', 'Pilih Provinsi'
+        GEO_KABUPATEN = 'GEO_KABUPATEN', 'Pilih Kabupaten/Kota'
+        GEO_KECAMATAN = 'GEO_KECAMATAN', 'Pilih Kecamatan'
+        GEO_DESA = 'GEO_DESA', 'Pilih Desa/Kelurahan'
+        GEO_FULL = 'GEO_FULL', 'Alamat Lengkap (Provinsi s/d Desa)'
+
+        # Coverage level (for Q16-type questions)
+        COVERAGE_LEVEL = 'COVERAGE_LEVEL', 'Tingkat Cakupan Wilayah'
+
+        # Contact types
+        PHONE = 'PHONE', 'Nomor Telepon'
+        EMAIL = 'EMAIL', 'Email'
+        URL = 'URL', 'Website'
+
+        # Special types
+        FILE = 'FILE', 'Upload File'
+        GPS = 'GPS', 'Koordinat GPS'
+
+        # Composite/Table types
+        STAFF_TABLE = 'STAFF_TABLE', 'Tabel Data Staf'
+        DIAGNOSIS_TABLE = 'DIAGNOSIS_TABLE', 'Tabel Diagnosis'
+
+    section = models.ForeignKey(
+        QuestionSection,
+        on_delete=models.CASCADE,
+        related_name='questions'
+    )
+
+    # Question identification
+    code = models.CharField(max_length=50, db_index=True)
+    question_text = models.TextField()
+
+    # Answer configuration
+    answer_type = models.CharField(max_length=30, choices=AnswerType.choices)
+    is_required = models.BooleanField(default=False)
+    order = models.PositiveIntegerField(default=0)
+
+    # DESDE-LTC Integration - Link to existing MTC model
+    mtc_code = models.ForeignKey(
+        'directory.MainTypeOfCare',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='questions',
+        help_text='The MTC code this question helps determine'
+    )
+    desde_ltc_description = models.TextField(
+        blank=True,
+        help_text='DESDE-LTC specific description for this question'
+    )
+
+    # Keterangan (Help text / Instructions for enumerator)
+    keterangan = models.TextField(blank=True, help_text='Detailed explanation/instructions')
+
+    # Validation rules
+    validation_rules = models.JSONField(
+        null=True,
+        blank=True,
+        help_text='JSON: {"min": 0, "max": 100, "pattern": "regex", "max_length": 500}'
+    )
+
+    # Conditional logic - when to show this question
+    show_condition = models.JSONField(
+        null=True,
+        blank=True,
+        help_text='JSON: {"question_code": "Q2", "operator": "equals", "value": "YA"}'
+    )
+
+    # Skip logic - where to go after answering
+    skip_logic = models.JSONField(
+        null=True,
+        blank=True,
+        help_text='JSON: [{"value": "YA", "goto": "RQ2"}, {"value": "TIDAK", "goto": "RQ5"}]'
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'survey_questions'
+        ordering = ['section', 'order']
+        unique_together = ['section', 'code']
+
+    def __str__(self):
+        return f"{self.code}: {self.question_text[:50]}"
+
+
+class QuestionChoice(models.Model):
+    """Choices for single/multiple choice questions"""
+
+    question = models.ForeignKey(
+        Question,
+        on_delete=models.CASCADE,
+        related_name='choices'
+    )
+
+    value = models.CharField(max_length=100)
+    label = models.TextField()
+    order = models.PositiveIntegerField(default=0)
+
+    # Link choice to BSIC code (from categories page)
+    mtc_code = models.ForeignKey(
+        'directory.BasicStableInputsOfCare',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='question_choices',
+        help_text='BSIC code derived when this choice is selected'
+    )
+
+    # Keterangan for this specific choice
+    keterangan = models.TextField(blank=True)
+
+    # Skip logic for this choice
+    next_question_code = models.CharField(max_length=50, blank=True)
+
+    # If selecting this requires additional text input ("Lainnya, sebutkan...")
+    has_other_input = models.BooleanField(default=False)
+    other_input_label = models.CharField(max_length=100, blank=True, default='Sebutkan')
+
+    class Meta:
+        db_table = 'survey_question_choices'
+        ordering = ['question', 'order']
+
+    def __str__(self):
+        return f"{self.question.code} - {self.label[:30]}"
+
+
+class DynamicSurveyResponse(models.Model):
+    """
+    Dynamic survey response - extends the concept of existing Survey model.
+    Can be linked to an existing Survey for additional dynamic questions,
+    or used standalone for pure dynamic questionnaires.
+    """
+
+    class Status(models.TextChoices):
+        DRAFT = 'DRAFT', 'Draf'
+        SUBMITTED = 'SUBMITTED', 'Diajukan'
+        VERIFIED = 'VERIFIED', 'Terverifikasi'
+        REJECTED = 'REJECTED', 'Ditolak'
+
+    template = models.ForeignKey(
+        SurveyTemplate,
+        on_delete=models.PROTECT,
+        related_name='responses'
+    )
+
+    # Link to existing Survey (optional - for extending structured surveys)
+    linked_survey = models.ForeignKey(
+        'Survey',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='dynamic_responses',
+        help_text='Link to structured survey if this extends it'
+    )
+
+    # Or link directly to Service (if standalone)
+    service = models.ForeignKey(
+        'directory.Service',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='dynamic_survey_responses'
+    )
+
+    # Surveyor info - same pattern as existing Survey model
+    surveyor = models.ForeignKey(
+        'accounts.User',
+        on_delete=models.PROTECT,
+        related_name='dynamic_surveys_conducted',
+        limit_choices_to={'role': 'SURVEYOR'}
+    )
+    survey_date = models.DateField(db_index=True)
+    surveyor_notes = models.TextField(blank=True)
+
+    # Verification workflow - same pattern as existing Survey model
+    verification_status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.DRAFT,
+        db_index=True
+    )
+    assigned_verifier = models.ForeignKey(
+        'accounts.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='dynamic_surveys_to_verify',
+        limit_choices_to={'role': 'VERIFIER'}
+    )
+    verified_by = models.ForeignKey(
+        'accounts.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='dynamic_surveys_verified'
+    )
+    verified_at = models.DateTimeField(null=True, blank=True)
+    verifier_notes = models.TextField(blank=True)
+    rejection_reason = models.TextField(blank=True)
+
+    # Deletion request workflow
+    deletion_requested = models.BooleanField(default=False, db_index=True)
+    deletion_requested_at = models.DateTimeField(null=True, blank=True)
+    deletion_requested_by = models.ForeignKey(
+        'accounts.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='deletion_requests_made'
+    )
+    deletion_reason = models.TextField(blank=True)
+
+    # GPS - same pattern as existing Survey model
+    latitude = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
+    longitude = models.DecimalField(max_digits=11, decimal_places=7, null=True, blank=True)
+    location_accuracy = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+
+    # Derived DESDE-LTC codes based on answers (ManyToMany to existing MTC)
+    derived_mtc_codes = models.ManyToManyField(
+        'directory.MainTypeOfCare',
+        blank=True,
+        related_name='derived_from_responses',
+        help_text='MTC codes derived from questionnaire answers'
+    )
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'dynamic_survey_responses'
+        ordering = ['-survey_date']
+        indexes = [
+            models.Index(fields=['template', '-survey_date']),
+            models.Index(fields=['surveyor', '-survey_date']),
+            models.Index(fields=['verification_status', '-survey_date']),
+        ]
+
+    def __str__(self):
+        return f"Response to {self.template.code} on {self.survey_date}"
+
+
+class QuestionAnswer(models.Model):
+    """Individual answers to questions"""
+
+    COVERAGE_CHOICES = [
+        ('DESA_KELURAHAN', 'Desa/Kelurahan'),
+        ('KECAMATAN', 'Kecamatan'),
+        ('KABUPATEN_KOTA', 'Kabupaten/Kota'),
+        ('PROVINSI', 'Provinsi'),
+        ('NASIONAL', 'Nasional'),
+    ]
+
+    response = models.ForeignKey(
+        DynamicSurveyResponse,
+        on_delete=models.CASCADE,
+        related_name='answers'
+    )
+    question = models.ForeignKey(
+        Question,
+        on_delete=models.CASCADE,
+        related_name='answers'
+    )
+
+    # Answer values - use appropriate field based on question type
+    text_value = models.TextField(blank=True)
+    number_value = models.DecimalField(max_digits=15, decimal_places=4, null=True, blank=True)
+    date_value = models.DateField(null=True, blank=True)
+    time_value = models.TimeField(null=True, blank=True)
+    boolean_value = models.BooleanField(null=True)
+
+    # For choice questions - link to actual choices
+    selected_choices = models.ManyToManyField(
+        QuestionChoice,
+        blank=True,
+        related_name='selected_in_answers'
+    )
+    other_text = models.TextField(blank=True, help_text='For "Lainnya, sebutkan" answers')
+
+    # For geographic questions - link to GeographicUnit
+    geographic_unit = models.ForeignKey(
+        GeographicUnit,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='answers'
+    )
+
+    # For coverage level questions
+    coverage_level = models.CharField(max_length=20, blank=True, choices=COVERAGE_CHOICES)
+
+    # For file uploads
+    file = models.FileField(upload_to='survey_answers/%Y/%m/', null=True, blank=True)
+
+    # For GPS coordinates
+    gps_latitude = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
+    gps_longitude = models.DecimalField(max_digits=11, decimal_places=7, null=True, blank=True)
+
+    # For complex table data (staff, diagnosis, etc.)
+    table_data = models.JSONField(null=True, blank=True)
+
+    # Derived MTC code from this specific answer
+    derived_mtc = models.ForeignKey(
+        'directory.MainTypeOfCare',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='derived_from_answers',
+        help_text='MTC code derived from this answer'
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'survey_question_answers'
+        unique_together = ['response', 'question']
+        ordering = ['response', 'question__section__order', 'question__order']
+
+    def __str__(self):
+        return f"Answer to {self.question.code} in Response #{self.response_id}"
+
+
+# =============================================================================
+# EXISTING STRUCTURED SURVEY MODELS
+# =============================================================================
+
 class Survey(models.Model):
     """Survey data collection for services with verification workflow"""
 
     class Status(models.TextChoices):
-        DRAFT = 'DRAFT', 'Draft'
-        SUBMITTED = 'SUBMITTED', 'Submitted'
-        VERIFIED = 'VERIFIED', 'Verified'
-        REJECTED = 'REJECTED', 'Rejected'
+        DRAFT = 'DRAFT', 'Draf'
+        SUBMITTED = 'SUBMITTED', 'Diajukan'
+        VERIFIED = 'VERIFIED', 'Terverifikasi'
+        REJECTED = 'REJECTED', 'Ditolak'
 
     # Related Service
     service = models.ForeignKey(
@@ -235,9 +722,9 @@ class SurveyAttachment(models.Model):
     """File attachments for surveys (photos, documents)"""
 
     class AttachmentType(models.TextChoices):
-        PHOTO = 'PHOTO', 'Photo'
-        DOCUMENT = 'DOCUMENT', 'Document'
-        OTHER = 'OTHER', 'Other'
+        PHOTO = 'PHOTO', 'Foto'
+        DOCUMENT = 'DOCUMENT', 'Dokumen'
+        OTHER = 'OTHER', 'Lainnya'
 
     survey = models.ForeignKey(
         Survey,
@@ -270,13 +757,13 @@ class SurveyAuditLog(models.Model):
     """Audit trail for survey changes and verification workflow"""
 
     class Action(models.TextChoices):
-        CREATED = 'CREATED', 'Created'
-        UPDATED = 'UPDATED', 'Updated'
-        SUBMITTED = 'SUBMITTED', 'Submitted'
-        ASSIGNED = 'ASSIGNED', 'Assigned to Verifier'
-        VERIFIED = 'VERIFIED', 'Verified'
-        REJECTED = 'REJECTED', 'Rejected'
-        RESUBMITTED = 'RESUBMITTED', 'Resubmitted'
+        CREATED = 'CREATED', 'Dibuat'
+        UPDATED = 'UPDATED', 'Diperbarui'
+        SUBMITTED = 'SUBMITTED', 'Diajukan'
+        ASSIGNED = 'ASSIGNED', 'Ditugaskan ke Verifikator'
+        VERIFIED = 'VERIFIED', 'Diverifikasi'
+        REJECTED = 'REJECTED', 'Ditolak'
+        RESUBMITTED = 'RESUBMITTED', 'Diajukan Ulang'
 
     survey = models.ForeignKey(
         Survey,

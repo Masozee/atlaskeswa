@@ -6,7 +6,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -30,13 +29,18 @@ import {AlertCircleIcon,
   Download01Icon,
   CodeIcon,
   RefreshIcon,
-  MoreHorizontalIcon,} from "@hugeicons/core-free-icons";
+  MoreHorizontalIcon,
+  Tick02Icon,
+  Copy01Icon,
+  Delete01Icon,} from "@hugeicons/core-free-icons";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Separator } from '@/components/ui/separator';
 
 // Mock error logs
 const mockErrorLogs = [
@@ -202,8 +206,9 @@ export default function SystemErrorsPage() {
     <>
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-4 p-8">
-        <div className="flex items-center justify-between">
+      <div className="flex flex-1 flex-col gap-4">
+
+        <div className="px-8 pt-8 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">System Errors</h1>
             <p className="text-muted-foreground">
@@ -221,6 +226,10 @@ export default function SystemErrorsPage() {
             </Button>
           </div>
         </div>
+
+        <Separator />
+
+        <div className="flex flex-col gap-4 px-8 pb-8">
 
         {/* Statistics */}
         <div className="grid gap-4 md:grid-cols-5">
@@ -274,85 +283,67 @@ export default function SystemErrorsPage() {
         </div>
 
         {/* Filters */}
-        <div className="space-y-3">
-          <div>
-            <h3 className="text-sm font-medium">Filter & Pencarian</h3>
-            <p className="text-xs text-muted-foreground">Gunakan filter di bawah untuk mempersempit hasil pencarian</p>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center rounded-md border">
+            <Select value={timeRange} onValueChange={setTimeRange}>
+              <SelectTrigger className="h-10 w-44 border-0 rounded-r-none">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="today">Hari Ini</SelectItem>
+                <SelectItem value="yesterday">Kemarin</SelectItem>
+                <SelectItem value="week">7 Hari Terakhir</SelectItem>
+                <SelectItem value="month">30 Hari Terakhir</SelectItem>
+              </SelectContent>
+            </Select>
+            <div className="w-px h-5 bg-border" />
+            <Select value={levelFilter} onValueChange={setLevelFilter}>
+              <SelectTrigger className="h-10 w-36 border-0 rounded-none">
+                <SelectValue placeholder="All" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="ERROR">Error</SelectItem>
+                <SelectItem value="WARNING">Warning</SelectItem>
+                <SelectItem value="INFO">Info</SelectItem>
+              </SelectContent>
+            </Select>
+            <div className="w-px h-5 bg-border" />
+            <Select value={sourceFilter} onValueChange={setSourceFilter}>
+              <SelectTrigger className="h-10 w-40 border-0 rounded-none">
+                <SelectValue placeholder="All" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="Backend API">Backend API</SelectItem>
+                <SelectItem value="Frontend">Frontend</SelectItem>
+                <SelectItem value="Authentication">Authentication</SelectItem>
+                <SelectItem value="File Upload">File Upload</SelectItem>
+                <SelectItem value="Email Service">Email Service</SelectItem>
+              </SelectContent>
+            </Select>
+            <div className="w-px h-5 bg-border" />
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="h-10 w-36 border-0 rounded-l-none">
+                <SelectValue placeholder="All" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="resolved">Resolved</SelectItem>
+                <SelectItem value="unresolved">Unresolved</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-          <div className="flex items-end justify-between gap-4">
-            <div className="flex-1 max-w-md">
-              <Label htmlFor="search" className="text-xs text-muted-foreground mb-1.5 block">Pencarian</Label>
-              <div className="relative">
-                <HugeiconsIcon icon={Search01Icon} size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  id="search"
-                  placeholder="Cari error, endpoint..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 h-10"
-                />
-              </div>
-            </div>
-            <div className="flex gap-3">
-            <div className="w-56">
-              <Label htmlFor="timeRange" className="text-xs text-muted-foreground mb-1.5 block">Rentang Waktu</Label>
-              <Select value={timeRange} onValueChange={setTimeRange}>
-                <SelectTrigger id="timeRange" className="h-10 w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="today">Hari Ini</SelectItem>
-                  <SelectItem value="yesterday">Kemarin</SelectItem>
-                  <SelectItem value="week">7 Hari Terakhir</SelectItem>
-                  <SelectItem value="month">30 Hari Terakhir</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="w-56">
-              <Label htmlFor="level" className="text-xs text-muted-foreground mb-1.5 block">Tingkat Severity</Label>
-              <Select value={levelFilter} onValueChange={setLevelFilter}>
-                <SelectTrigger id="level" className="h-10 w-full">
-                  <SelectValue placeholder="Level" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Semua Level</SelectItem>
-                  <SelectItem value="ERROR">Error</SelectItem>
-                  <SelectItem value="WARNING">Warning</SelectItem>
-                  <SelectItem value="INFO">Info</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="w-56">
-              <Label htmlFor="source" className="text-xs text-muted-foreground mb-1.5 block">Sumber Error</Label>
-              <Select value={sourceFilter} onValueChange={setSourceFilter}>
-                <SelectTrigger id="source" className="h-10 w-full">
-                  <SelectValue placeholder="Source" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Semua Source</SelectItem>
-                  <SelectItem value="Backend API">Backend API</SelectItem>
-                  <SelectItem value="Frontend">Frontend</SelectItem>
-                  <SelectItem value="Authentication">Authentication</SelectItem>
-                  <SelectItem value="File Upload">File Upload</SelectItem>
-                  <SelectItem value="Email Service">Email Service</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="w-56">
-              <Label htmlFor="status" className="text-xs text-muted-foreground mb-1.5 block">Status</Label>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger id="status" className="h-10 w-full">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Semua Status</SelectItem>
-                  <SelectItem value="resolved">Resolved</SelectItem>
-                  <SelectItem value="unresolved">Unresolved</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="w-px h-5 bg-border" />
+          <div className="relative flex-1 max-w-md">
+            <HugeiconsIcon icon={Search01Icon} size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Cari error, endpoint..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 h-10"
+            />
           </div>
-        </div>
         </div>
 
         {/* Error Logs Table */}
@@ -408,11 +399,11 @@ export default function SystemErrorsPage() {
                       <TableCell className="text-sm">{log.user}</TableCell>
                       <TableCell>
                         {log.resolved ? (
-                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                          <Badge variant="outline-success">
                             Resolved
                           </Badge>
                         ) : (
-                          <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+                          <Badge variant="outline-danger">
                             Unresolved
                           </Badge>
                         )}
@@ -420,7 +411,7 @@ export default function SystemErrorsPage() {
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm">
+                            <Button variant="outline" size="sm">
                               <HugeiconsIcon icon={MoreHorizontalIcon} size={16} />
                             </Button>
                           </DropdownMenuTrigger>
@@ -430,12 +421,16 @@ export default function SystemErrorsPage() {
                               View Details
                             </DropdownMenuItem>
                             <DropdownMenuItem>
+                              <HugeiconsIcon icon={Tick02Icon} size={16} className="mr-2" />
                               Mark as Resolved
                             </DropdownMenuItem>
                             <DropdownMenuItem>
+                              <HugeiconsIcon icon={Copy01Icon} size={16} className="mr-2" />
                               Copy Error Message
                             </DropdownMenuItem>
+                            <DropdownMenuSeparator />
                             <DropdownMenuItem className="text-red-600">
+                              <HugeiconsIcon icon={Delete01Icon} size={16} className="mr-2" />
                               Delete Log
                             </DropdownMenuItem>
                           </DropdownMenuContent>
@@ -448,7 +443,8 @@ export default function SystemErrorsPage() {
             </Table>
           </CardContent>
         </Card>
-      </div>
+              </div>
+        </div>
     </>
   );
 }

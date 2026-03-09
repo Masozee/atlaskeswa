@@ -25,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Separator } from '@/components/ui/separator';
 
 const breadcrumbs = [
   { label: 'Dashboard', href: '/dashboard' },
@@ -116,11 +117,16 @@ export default function AddServicePage() {
     <>
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-4 p-8">
-        <div>
+      <div className="flex flex-1 flex-col gap-4">
+
+        <div className="px-8 pt-8">
           <h1 className="text-2xl font-bold">Add New Service</h1>
           <p className="text-muted-foreground">Register a new mental health service</p>
         </div>
+
+        <Separator />
+
+        <div className="flex flex-col gap-4 px-8 pb-8">
 
         <div className="max-w-4xl">
           <form
@@ -674,7 +680,8 @@ export default function AddServicePage() {
             </div>
           </form>
         </div>
-      </div>
+              </div>
+        </div>
     </>
   );
 }

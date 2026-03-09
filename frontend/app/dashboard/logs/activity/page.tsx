@@ -31,6 +31,7 @@ import {Activity01Icon,
   CheckmarkCircle02Icon,
   AlertCircleIcon,
   InformationCircleIcon,} from "@hugeicons/core-free-icons";
+import { Separator } from '@/components/ui/separator';
 
 // Mock activity logs data
 const mockActivityLogs = [
@@ -210,8 +211,9 @@ export default function ActivityLogsPage() {
     <>
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-4 p-8">
-        <div className="flex items-center justify-between">
+      <div className="flex flex-1 flex-col gap-4">
+
+        <div className="px-8 pt-8 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">Activity Logs</h1>
             <p className="text-muted-foreground">Monitor semua aktivitas pengguna dalam sistem</p>
@@ -221,6 +223,10 @@ export default function ActivityLogsPage() {
             Export Logs
           </Button>
         </div>
+
+        <Separator />
+
+        <div className="flex flex-col gap-4 px-8 pb-8">
 
         {/* Statistics Cards */}
         <div className="grid gap-4 md:grid-cols-5">
@@ -403,7 +409,8 @@ export default function ActivityLogsPage() {
             </Table>
           </CardContent>
         </Card>
-      </div>
+              </div>
+        </div>
     </>
   );
 }
