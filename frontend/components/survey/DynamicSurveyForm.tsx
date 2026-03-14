@@ -59,6 +59,7 @@ export function DynamicSurveyForm({
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
   const [currentMtcContext, setCurrentMtcContext] = useState<string>('');
   const [currentMtcLabel, setCurrentMtcLabel] = useState<string>('');
 
@@ -348,18 +349,39 @@ export function DynamicSurveyForm({
       });
 
         toast.success('Survey berhasil disimpan dan siap untuk disubmit');
-
-      if (onSuccess) {
-        onSuccess();
-      } else {
-        router.push('/dashboard/survey/responses');
-      }
+        setIsSubmitted(true);
     } catch (error: any) {
       toast.error(error.message || 'Gagal menyimpan survey');
     } finally {
       setIsSaving(false);
     }
   };
+
+  if (isSubmitted) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-6 py-20 text-center">
+        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/10">
+          <svg className="h-10 w-10 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-2xl font-bold">Terima Kasih!</h2>
+          <p className="text-muted-foreground max-w-sm">
+            Jawaban Anda telah berhasil disimpan. Terima kasih telah mengisi survei ini.
+          </p>
+        </div>
+        <div className="flex gap-3">
+          <Button variant="outline" onClick={() => router.push('/dashboard/survey/responses')}>
+            Lihat Semua Respons
+          </Button>
+          <Button onClick={() => router.push('/dashboard')}>
+            Kembali ke Dashboard
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (!currentSection) {
     return (

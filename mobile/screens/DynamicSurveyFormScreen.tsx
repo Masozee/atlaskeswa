@@ -66,6 +66,7 @@ export default function DynamicSurveyFormScreen({
   const [speakingCode, setSpeakingCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
   const [template, setTemplate] = useState<SurveyTemplate | null>(null);
   const [answers, setAnswers] = useState<SurveyAnswers>({});
   const [otherTexts, setOtherTexts] = useState<Record<string, string>>({});
@@ -454,13 +455,16 @@ export default function DynamicSurveyFormScreen({
 
       if (responseId) {
         await apiClient.patch(`/surveys/responses/${responseId}/`, payload);
-        Alert.alert('Berhasil', submit ? 'Survei berhasil disubmit' : 'Survei berhasil disimpan');
       } else {
         await apiClient.post('/surveys/responses/', payload);
-        Alert.alert('Berhasil', submit ? 'Survei berhasil disubmit' : 'Survei berhasil disimpan');
       }
 
-      onSave();
+      if (submit) {
+        setIsSubmitted(true);
+      } else {
+        Alert.alert('Berhasil', 'Survei berhasil disimpan');
+        onSave();
+      }
     } catch (err: any) {
       console.error('Failed to save:', err);
       Alert.alert('Error', err?.message || 'Gagal menyimpan survei');
@@ -1367,6 +1371,24 @@ export default function DynamicSurveyFormScreen({
     );
   }
 
+  // --- THANK YOU SCREEN ---
+  if (isSubmitted) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', padding: 32 }]}>
+        <View style={styles.thankYouIcon}>
+          <MaterialIcons name="check-circle" size={56} color="#03979D" />
+        </View>
+        <Text style={styles.thankYouTitle}>Terima Kasih!</Text>
+        <Text style={styles.thankYouSubtitle}>
+          Jawaban Anda telah berhasil disimpan. Terima kasih telah mengisi survei ini.
+        </Text>
+        <TouchableOpacity style={[styles.submitButton, { marginTop: 32, paddingHorizontal: 32 }]} onPress={onSave}>
+          <Text style={styles.submitButtonText}>Kembali</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   // --- MAIN QUESTIONNAIRE ---
   return (
     <KeyboardAvoidingView
@@ -1598,6 +1620,9 @@ const styles = StyleSheet.create({
   nextButtonText: { fontSize: 14, fontWeight: '600', color: '#fff' },
   submitButton: { flex: 1, backgroundColor: '#03979D', borderRadius: 8, paddingVertical: 12, alignItems: 'center' },
   submitButtonText: { fontSize: 14, fontWeight: '600', color: '#fff' },
+  thankYouIcon: { marginBottom: 16 },
+  thankYouTitle: { fontSize: 28, fontWeight: '700', color: '#1a1a1a', marginBottom: 12, textAlign: 'center' },
+  thankYouSubtitle: { fontSize: 15, color: '#6b7280', textAlign: 'center', lineHeight: 22, maxWidth: 280 },
   draftButton: { flex: 1, backgroundColor: '#e5e7eb', borderRadius: 8, paddingVertical: 12, alignItems: 'center' },
   draftButtonText: { fontSize: 14, fontWeight: '600', color: '#374151' },
   cancelButton: { flex: 1, backgroundColor: '#e5e7eb', borderRadius: 8, paddingVertical: 12, alignItems: 'center' },
