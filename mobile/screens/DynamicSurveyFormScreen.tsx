@@ -1431,6 +1431,16 @@ export default function DynamicSurveyFormScreen({
           automaticallyAdjustKeyboardInsets
           contentContainerStyle={{ flexGrow: 1, paddingBottom: 32 }}
         >
+          {/* Survey code */}
+          {template.code ? (
+            <View style={styles.surveyCodeRow}>
+              <Text style={styles.surveyCodeLabel}>Kode Survei</Text>
+              <View style={styles.surveyCodeBadge}>
+                <Text style={styles.surveyCodeText}>{template.code}</Text>
+              </View>
+            </View>
+          ) : null}
+
           {/* Section Header */}
           {currentSection && (
             <View style={styles.sectionHeaderContainer}>
@@ -1515,6 +1525,12 @@ const styles = StyleSheet.create({
   // Template info
   templateName: { fontSize: 18, fontWeight: '700', color: '#374151', marginBottom: 16 },
   templateDesc: { fontSize: 12, color: '#6b7280', lineHeight: 18, marginBottom: 16 },
+
+  // Survey code
+  surveyCodeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+  surveyCodeLabel: { fontSize: 10, fontWeight: '600', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 1 },
+  surveyCodeBadge: { backgroundColor: '#e6f7f7', borderRadius: 4, paddingHorizontal: 8, paddingVertical: 2 },
+  surveyCodeText: { fontSize: 11, fontWeight: '700', color: '#03979D' },
 
   // Section header
   sectionHeaderContainer: { marginBottom: 20 },
