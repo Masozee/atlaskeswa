@@ -357,6 +357,7 @@ export function DynamicQuestion({ question, value, onChange, onOtherTextChange, 
           </p>
         </div>
       )}
+      <span className="inline-block text-xs font-bold text-primary/70 tracking-wide uppercase mb-0.5">{question.code}</span>
       <ClickableLabel
         htmlFor={question.code}
         description={helpText}

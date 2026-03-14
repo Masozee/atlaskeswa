@@ -415,12 +415,6 @@ export function DynamicSurveyForm({
         </div>
       </div>
 
-      {/* Survey code */}
-      <div className="flex items-center gap-2">
-        <span className="text-xs font-semibold tracking-widest text-muted-foreground uppercase">Kode Survei</span>
-        <span className="rounded bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">{template.code}</span>
-      </div>
-
       {/* Section header */}
       <div className="border-b pb-4">
         <h2 className="text-xl font-semibold">{sectionTitle}</h2>
