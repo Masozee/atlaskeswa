@@ -433,6 +433,13 @@ class QuestionViewSet(viewsets.ModelViewSet):
             return [IsAdmin()]
         return [IsAuthenticated()]
 
+    @action(detail=False, methods=['get'], url_path='sections')
+    def list_sections(self, request):
+        """Return all question sections (lightweight, no nested questions)."""
+        sections = QuestionSection.objects.all().order_by('order')
+        data = [{'id': s.id, 'code': s.code, 'name': s.name, 'order': s.order, 'template': s.template_id} for s in sections]
+        return Response(data)
+
     @action(detail=False, methods=['post'], url_path='bulk-delete')
     def bulk_delete(self, request):
         """Delete multiple questions by IDs."""
@@ -595,6 +602,33 @@ class QuestionViewSet(viewsets.ModelViewSet):
                 created_count += 1
 
         return Response({'created': created_count, 'updated': updated_count, 'errors': errors})
+
+
+class QuestionSectionViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing Question Sections (ADMIN only)
+    Supports CRUD operations for survey template sections
+    """
+    queryset = QuestionSection.objects.select_related('template').prefetch_related('questions__choices')
+    permission_classes = [IsAuthenticated]
+    pagination_class = None
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['template']
+    search_fields = ['code', 'name']
+    ordering = ['template__id', 'order']
+
+    def get_serializer_class(self):
+        if self.action in ['create', 'update', 'partial_update']:
+            from .serializers import QuestionSectionCreateUpdateSerializer
+            return QuestionSectionCreateUpdateSerializer
+        from .serializers import QuestionSectionSerializer
+        return QuestionSectionSerializer
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            from apps.accounts.permissions import IsAdmin
+            return [IsAdmin()]
+        return [IsAuthenticated()]
 
 
 class QuestionChoiceViewSet(viewsets.ModelViewSet):
@@ -850,6 +884,16 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
 
     def _update_answers(self, response, answers_data):
         """Update answers for a response with batched operations"""
+        # Separate __other_text keys from regular answers
+        other_texts = {}
+        clean_answers = {}
+        for key, val in answers_data.items():
+            if key.endswith('__other_text'):
+                other_texts[key.replace('__other_text', '')] = val
+            else:
+                clean_answers[key] = val
+        answers_data = clean_answers
+
         template = response.template
         questions = Question.objects.filter(section__template=template)
         question_map = {q.code: q for q in questions}
@@ -877,7 +921,7 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
         update_fields = [
             'text_value', 'number_value', 'date_value', 'time_value',
             'boolean_value', 'geographic_unit_id', 'coverage_level',
-            'table_data', 'gps_latitude', 'gps_longitude',
+            'table_data', 'gps_latitude', 'gps_longitude', 'other_text',
         ]
 
         for question_code, answer_value in answers_data.items():
@@ -902,6 +946,7 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
             answer.table_data = None
             answer.gps_latitude = None
             answer.gps_longitude = None
+            answer.other_text = other_texts.get(question_code, '')
 
             # Set the appropriate field based on answer type
             if question.answer_type in ['TEXT', 'TEXTAREA', 'PHONE', 'EMAIL', 'URL']:

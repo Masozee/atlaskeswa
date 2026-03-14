@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth, useCurrentUser } from '@/hooks/use-auth';
-import { Toaster } from 'sonner';
+
 
 export default function SurveyLayout({
   children,
@@ -44,7 +44,6 @@ export default function SurveyLayout({
   return (
     <div className="min-h-screen bg-muted/30">
       {children}
-      <Toaster />
     </div>
   );
 }

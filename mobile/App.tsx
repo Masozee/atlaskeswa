@@ -1,9 +1,10 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, BackHandler } from 'react-native';
+import { StyleSheet, Text, View, Image, BackHandler } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useState, useEffect } from 'react';
 import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
+import { SettingsProvider } from './contexts/SettingsContext';
 import LoginScreen from './screens/LoginScreen';
 import HomePage from './screens/HomePage';
 import SurveyListScreen from './screens/SurveyListScreen';
@@ -170,7 +171,13 @@ export default function App() {
   };
 
   if (!fontsLoaded || isLoading) {
-    return null; // Or a splash screen
+    return (
+      <View style={styles.splashContainer}>
+        <Image source={require('./assets/logo.png')} style={styles.splashLogo} resizeMode="contain" />
+        <Text style={styles.splashText}>OMMHA</Text>
+        <Text style={styles.splashSubtitle}>Pemetaan Layanan Kesehatan Jiwa{'\n'}Indonesia berbasis DESDE-LTC</Text>
+      </View>
+    );
   }
 
   // Set default font family globally
@@ -214,16 +221,18 @@ export default function App() {
 
   return (
     <GestureHandlerRootView style={styles.gestureHandler}>
-      <SafeAreaProvider>
-        {isAuthenticated ? (
-          <BaseLayout onNavigate={handleBottomNavigation}>
-            {renderScreen()}
-          </BaseLayout>
-        ) : (
-          <LoginScreen onLoginSuccess={handleLoginSuccess} />
-        )}
-        <StatusBar style="auto" />
-      </SafeAreaProvider>
+      <SettingsProvider>
+        <SafeAreaProvider>
+          {isAuthenticated ? (
+            <BaseLayout onNavigate={handleBottomNavigation}>
+              {renderScreen()}
+            </BaseLayout>
+          ) : (
+            <LoginScreen onLoginSuccess={handleLoginSuccess} />
+          )}
+          <StatusBar style="auto" />
+        </SafeAreaProvider>
+      </SettingsProvider>
     </GestureHandlerRootView>
   );
 }
@@ -231,5 +240,29 @@ export default function App() {
 const styles = StyleSheet.create({
   gestureHandler: {
     flex: 1,
+  },
+  splashContainer: {
+    flex: 1,
+    backgroundColor: '#f5f6f7',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 16,
+  },
+  splashLogo: {
+    width: 96,
+    height: 96,
+  },
+  splashText: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#1a1a1a',
+    letterSpacing: -0.4,
+  },
+  splashSubtitle: {
+    fontSize: 12,
+    color: '#6b7280',
+    textAlign: 'center',
+    lineHeight: 18,
+    paddingHorizontal: 32,
   },
 });

@@ -1,9 +1,11 @@
 from django.contrib import admin
+from import_export.admin import ImportExportModelAdmin
 from .models import (
     Survey, SurveyAttachment, SurveyAuditLog,
     GeographicUnit, SurveyTemplate, QuestionSection, Question,
     QuestionChoice, DynamicSurveyResponse, QuestionAnswer
 )
+from .resources import QuestionChoiceResource
 
 
 # =============================================================================
@@ -111,7 +113,8 @@ class QuestionAdmin(admin.ModelAdmin):
 
 
 @admin.register(QuestionChoice)
-class QuestionChoiceAdmin(admin.ModelAdmin):
+class QuestionChoiceAdmin(ImportExportModelAdmin):
+    resource_classes = [QuestionChoiceResource]
     list_display = ('question', 'value', 'label', 'mtc_code', 'order', 'has_other_input')
     list_filter = ('has_other_input', 'question__section__template')
     search_fields = ('value', 'label', 'question__code')

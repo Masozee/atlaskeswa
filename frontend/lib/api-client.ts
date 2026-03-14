@@ -131,7 +131,7 @@ export class ApiClient {
     if (!response.ok) {
       if (isJson) {
         const errorData = await response.json();
-        const message = errorData.detail || errorData.message || 'An error occurred';
+        const message = errorData.detail || errorData.message || errorData.error || `Request failed with status ${response.status}`;
         const err = new Error(message) as Error & ApiError;
         err.status = response.status;
         err.errors = errorData;
@@ -192,6 +192,31 @@ export class ApiClient {
 
   getAccessToken(): string | null {
     return this.accessToken;
+  }
+
+  /**
+   * Make a raw fetch request using the API base URL and current auth token.
+   * Unlike `request()`, this does NOT set Content-Type or parse the response.
+   * Useful for file downloads (blob) and multipart uploads (FormData).
+   */
+  async fetchRaw(endpoint: string, options: RequestInit = {}): Promise<Response> {
+    const url = `${this.baseURL}${endpoint}`;
+    const headers = new Headers(options.headers);
+    if (this.accessToken && !headers.has('Authorization')) {
+      headers.set('Authorization', `Bearer ${this.accessToken}`);
+    }
+    const response = await fetch(url, { ...options, headers });
+    // If 401 and we have a refresh token, try refreshing
+    if (response.status === 401 && this.refreshToken) {
+      const refreshed = await this.refreshAccessToken();
+      if (refreshed) {
+        headers.set('Authorization', `Bearer ${this.accessToken}`);
+        return fetch(url, { ...options, headers });
+      }
+      this.clearTokensFromStorage();
+      if (typeof window !== 'undefined') window.location.href = '/login';
+    }
+    return response;
   }
 
   // HTTP methods

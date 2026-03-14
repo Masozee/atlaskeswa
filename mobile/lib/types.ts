@@ -26,6 +26,7 @@ export type QuestionType =
   | 'GPS'
   | 'STAFF_TABLE'
   | 'DIAGNOSIS_TABLE'
+  | 'REPEATING_TABLE'
   | 'LOCATION';
 
 export type SurveyStatus = 'DRAFT' | 'SUBMITTED' | 'VERIFIED' | 'REJECTED';
@@ -41,6 +42,18 @@ export interface QuestionOption {
   next_question_code?: string;
   has_other_input?: boolean;
   other_input_label?: string;
+  cabang_mtc?: string;
+  kode_desde_ltc?: string;
+}
+
+export interface TableColumn {
+  code: string;
+  label: string;
+  type: 'number' | 'text';
+}
+
+export interface TableConfig {
+  columns: TableColumn[];
 }
 
 export interface Question {
@@ -50,12 +63,14 @@ export interface Question {
   answer_type: QuestionType;
   is_required: boolean;
   order: number;
+  introduction_text?: string;
   keterangan?: string;
   show_condition?: Record<string, any>;
   skip_logic?: Array<{ value: string; goto: string }>;
   choices?: QuestionOption[];
   parent_question?: number;
   show_if_value?: string | string[];
+  table_config?: TableConfig;
 }
 
 export interface QuestionSection {

@@ -14,7 +14,7 @@ export function useSpeechSynthesis(options: UseSpeechSynthesisOptions = {}) {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [volume, setVolume] = useState(options.defaultVolume ?? 1);
-  const [rate, setRate] = useState(options.defaultRate ?? 0.9);
+  const [rate, setRate] = useState(options.defaultRate ?? 1.1);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const currentTextRef = useRef<string>('');
 

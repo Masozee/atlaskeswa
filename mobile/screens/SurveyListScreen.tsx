@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { Add01Icon, PencilEdit01Icon, Delete02Icon, Calendar03Icon, Location01Icon, UserIcon, NoteIcon } from 'hugeicons-react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import TopHeader from '../components/TopHeader';
 import { apiClient } from '../services/api';
 import type { SurveyResponseItem, PaginatedResponse } from '../lib/types';
@@ -106,7 +106,7 @@ export default function SurveyListScreen({ onSelectSurvey, onAddNew }: SurveyLis
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#00979D" />
+        <ActivityIndicator size="large" color="#03979D" />
         <Text style={styles.loadingText}>Memuat survei...</Text>
       </View>
     );
@@ -122,14 +122,14 @@ export default function SurveyListScreen({ onSelectSurvey, onAddNew }: SurveyLis
         </View>
 
         <TouchableOpacity style={styles.addButton} onPress={onAddNew}>
-          <Add01Icon size={18} color="#fff" strokeWidth={2} />
+          <MaterialIcons name="add" size={18} color="#fff" />
           <Text style={styles.addButtonText}>Survei Baru</Text>
         </TouchableOpacity>
 
         <ScrollView
           style={styles.list}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#00979D']} />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#03979D']} />
           }
         >
           {surveys.length > 0 ? (
@@ -178,7 +178,7 @@ export default function SurveyListScreen({ onSelectSurvey, onAddNew }: SurveyLis
 
                 <View style={styles.surveyMeta}>
                   <View style={styles.metaItem}>
-                    <Calendar03Icon size={13} color="#6b7280" strokeWidth={2} />
+                    <MaterialIcons name="event" size={13} color="#6b7280" />
                     <Text style={styles.metaText}>
                       {new Date(survey.survey_date).toLocaleDateString('id-ID', {
                         day: 'numeric',
@@ -189,13 +189,13 @@ export default function SurveyListScreen({ onSelectSurvey, onAddNew }: SurveyLis
                   </View>
                   {survey.service_city ? (
                     <View style={styles.metaItem}>
-                      <Location01Icon size={13} color="#6b7280" strokeWidth={2} />
+                      <MaterialIcons name="place" size={13} color="#6b7280" />
                       <Text style={styles.metaText}>{survey.service_city}</Text>
                     </View>
                   ) : null}
                   {survey.surveyor_name ? (
                     <View style={styles.metaItem}>
-                      <UserIcon size={13} color="#6b7280" strokeWidth={2} />
+                      <MaterialIcons name="person" size={13} color="#6b7280" />
                       <Text style={styles.metaText}>{survey.surveyor_name}</Text>
                     </View>
                   ) : null}
@@ -203,7 +203,7 @@ export default function SurveyListScreen({ onSelectSurvey, onAddNew }: SurveyLis
 
                 {survey.survey_period_start && survey.survey_period_end ? (
                   <View style={styles.periodRow}>
-                    <NoteIcon size={13} color="#6b7280" strokeWidth={2} />
+                    <MaterialIcons name="notes" size={13} color="#6b7280" />
                     <Text style={styles.metaText}>
                       Periode: {new Date(survey.survey_period_start).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
                       {' - '}
@@ -217,7 +217,7 @@ export default function SurveyListScreen({ onSelectSurvey, onAddNew }: SurveyLis
                     style={styles.actionButtonEdit}
                     onPress={(e) => { e.stopPropagation(); onSelectSurvey(survey.id); }}
                   >
-                    <PencilEdit01Icon size={14} color="#00979D" strokeWidth={2} />
+                    <MaterialIcons name="edit" size={14} color="#03979D" />
                     <Text style={styles.actionButtonEditText}>Edit</Text>
                   </TouchableOpacity>
                   {survey.deletion_requested ? (
@@ -229,7 +229,7 @@ export default function SurveyListScreen({ onSelectSurvey, onAddNew }: SurveyLis
                       style={styles.actionButtonDelete}
                       onPress={(e) => { e.stopPropagation(); handleRequestDeletion(survey.id); }}
                     >
-                      <Delete02Icon size={14} color="#ef4444" strokeWidth={2} />
+                      <MaterialIcons name="delete" size={14} color="#ef4444" />
                       <Text style={styles.actionButtonDeleteText}>Hapus</Text>
                     </TouchableOpacity>
                   )}
@@ -261,7 +261,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#00979D',
+    backgroundColor: '#03979D',
     marginHorizontal: 20,
     marginTop: 16,
     marginBottom: 16,
@@ -299,7 +299,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 10,
-    backgroundColor: '#00979D',
+    backgroundColor: '#03979D',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -361,7 +361,7 @@ const styles = StyleSheet.create({
   actionButtonEditText: {
     fontSize: 12,
     fontWeight: '500',
-    color: '#00979D',
+    color: '#03979D',
   },
   actionButtonDelete: {
     flex: 1,

@@ -8,9 +8,10 @@ import {
   ActivityIndicator,
   TouchableOpacity,
 } from 'react-native';
-import { ArrowRight01Icon, Task01Icon } from 'hugeicons-react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import TopHeader from '../components/TopHeader';
 import { apiClient } from '../services/api';
+import { useTheme, useFontScale } from '../contexts/SettingsContext';
 
 interface Survey {
   id: number;
@@ -48,6 +49,10 @@ export default function HomePage({ onNavigateToSurveys, onSelectSurvey }: HomePa
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
 
+  const theme = useTheme();
+  const fs = useFontScale();
+  const c = theme.colors;
+
   const fetchData = async () => {
     try {
       setError('');
@@ -72,13 +77,6 @@ export default function HomePage({ onNavigateToSurveys, onSelectSurvey }: HomePa
   const onRefresh = () => {
     setRefreshing(true);
     fetchData();
-  };
-
-  const getFirstName = () => {
-    if (user?.full_name) {
-      return user.full_name.split(' ')[0];
-    }
-    return user?.email.split('@')[0] || 'User';
   };
 
   const getFullName = () => {
@@ -118,37 +116,37 @@ export default function HomePage({ onNavigateToSurveys, onSelectSurvey }: HomePa
 
   if (loading) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#00979D" />
-        <Text style={styles.loadingText}>Memuat dashboard...</Text>
+      <View style={[styles.centered, { backgroundColor: c.background }]}>
+        <ActivityIndicator size="large" color="#03979D" />
+        <Text style={[styles.loadingText, { color: c.textMuted, fontSize: fs(12) }]}>Memuat dashboard...</Text>
       </View>
     );
   }
 
   if (error) {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.errorText}>{error}</Text>
+      <View style={[styles.centered, { backgroundColor: c.background }]}>
+        <Text style={[styles.errorText, { fontSize: fs(12) }]}>{error}</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: c.background }]}>
       <TopHeader />
       <ScrollView
         style={styles.scrollContainer}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#00979D']} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#03979D']} />
         }
       >
         {/* Hero Card */}
-        <View style={styles.heroCard}>
-          <Text style={styles.heroSubgreeting}>Selamat pagi,</Text>
-          <Text style={styles.heroGreeting}>{getFullName()}</Text>
+        <View style={[styles.heroCard, { backgroundColor: c.heroBg }]}>
+          <Text style={[styles.heroSubgreeting, { fontSize: fs(14) }]}>Selamat pagi,</Text>
+          <Text style={[styles.heroGreeting, { fontSize: fs(22) }]}>{getFullName()}</Text>
           <View style={styles.heroCountRow}>
-            <Task01Icon size={18} color="rgba(255,255,255,0.9)" strokeWidth={1.5} />
-            <Text style={styles.heroSurveyCount}>
+            <MaterialIcons name="assignment" size={18} color="rgba(255,255,255,0.9)" />
+            <Text style={[styles.heroSurveyCount, { fontSize: fs(14) }]}>
               {stats?.surveys.total || 0} Survei tercatat
             </Text>
           </View>
@@ -158,23 +156,28 @@ export default function HomePage({ onNavigateToSurveys, onSelectSurvey }: HomePa
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <View>
-              <Text style={styles.sectionTitle}>Survei Terbaru</Text>
-              <Text style={styles.sectionDesc}>5 survei terakhir yang telah Anda kerjakan</Text>
+              <Text style={[styles.sectionTitle, { color: c.text, fontSize: fs(16) }]}>Survei Terbaru</Text>
+              <Text style={[styles.sectionDesc, { color: c.textMuted, fontSize: fs(11) }]}>5 survei terakhir yang telah Anda kerjakan</Text>
             </View>
             <TouchableOpacity style={styles.seeAllButton} onPress={onNavigateToSurveys}>
-              <Text style={styles.seeAllText}>Lihat Semua</Text>
+              <Text style={[styles.seeAllText, { fontSize: fs(13) }]}>Lihat Semua</Text>
             </TouchableOpacity>
           </View>
 
           {stats?.recent_surveys && stats.recent_surveys.length > 0 ? (
             stats.recent_surveys.slice(0, 5).map((survey) => (
-              <TouchableOpacity key={survey.id} style={styles.surveyCard} onPress={() => onSelectSurvey(survey.id)} activeOpacity={0.7}>
+              <TouchableOpacity
+                key={survey.id}
+                style={[styles.surveyCard, { backgroundColor: c.surface, borderColor: c.border }]}
+                onPress={() => onSelectSurvey(survey.id)}
+                activeOpacity={0.7}
+              >
                 <View style={styles.surveyLeft}>
-                  <Text style={styles.surveyName} numberOfLines={1}>{survey.service_name}</Text>
+                  <Text style={[styles.surveyName, { color: c.text, fontSize: fs(13) }]} numberOfLines={1}>{survey.service_name}</Text>
                   {survey.template_name ? (
-                    <Text style={styles.surveyTemplate} numberOfLines={1}>{survey.template_name}</Text>
+                    <Text style={[styles.surveyTemplate, { color: c.textMuted, fontSize: fs(11) }]} numberOfLines={1}>{survey.template_name}</Text>
                   ) : null}
-                  <Text style={styles.surveyDate}>
+                  <Text style={[styles.surveyDate, { color: c.textPlaceholder, fontSize: fs(11) }]}>
                     {new Date(survey.survey_date || survey.created_at).toLocaleDateString('id-ID', {
                       day: 'numeric',
                       month: 'short',
@@ -191,7 +194,7 @@ export default function HomePage({ onNavigateToSurveys, onSelectSurvey }: HomePa
                   <Text
                     style={[
                       styles.statusText,
-                      { color: getStatusColor(survey.verification_status) },
+                      { color: getStatusColor(survey.verification_status), fontSize: fs(11) },
                     ]}
                   >
                     {getStatusLabel(survey.verification_status)}
@@ -201,7 +204,7 @@ export default function HomePage({ onNavigateToSurveys, onSelectSurvey }: HomePa
             ))
           ) : (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>Belum ada survei</Text>
+              <Text style={[styles.emptyText, { color: c.textPlaceholder, fontSize: fs(13) }]}>Belum ada survei</Text>
             </View>
           )}
         </View>
@@ -211,15 +214,13 @@ export default function HomePage({ onNavigateToSurveys, onSelectSurvey }: HomePa
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f6f7' },
+  container: { flex: 1 },
   scrollContainer: { flex: 1 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
-  loadingText: { marginTop: 12, fontSize: 12, color: '#6b7280' },
-  errorText: { fontSize: 12, color: '#dc2626', textAlign: 'center' },
+  loadingText: { marginTop: 12 },
+  errorText: { color: '#dc2626', textAlign: 'center' },
 
-  // Hero Card
   heroCard: {
-    backgroundColor: '#00979D',
     borderRadius: 16,
     marginHorizontal: 20,
     marginTop: 4,
@@ -229,11 +230,9 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   heroSubgreeting: {
-    fontSize: 14,
     color: 'rgba(255,255,255,0.8)',
   },
   heroGreeting: {
-    fontSize: 22,
     fontWeight: '700',
     color: '#ffffff',
     letterSpacing: -0.4,
@@ -245,12 +244,10 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   heroSurveyCount: {
-    fontSize: 14,
     color: 'rgba(255,255,255,0.9)',
     fontWeight: '500',
   },
 
-  // Section
   section: {
     paddingHorizontal: 20,
     marginTop: 12,
@@ -263,13 +260,9 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   sectionTitle: {
-    fontSize: 16,
     fontWeight: '700',
-    color: '#1a1a1a',
   },
   sectionDesc: {
-    fontSize: 11,
-    color: '#6b7280',
     marginTop: 2,
   },
   seeAllButton: {
@@ -279,38 +272,28 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   seeAllText: {
-    fontSize: 13,
     fontWeight: '500',
-    color: '#00979D',
+    color: '#03979D',
   },
 
-  // Survey Card - outlined
   surveyCard: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#e5e7eb',
     borderRadius: 12,
     padding: 14,
     marginBottom: 8,
-    backgroundColor: '#ffffff',
   },
   surveyLeft: { flex: 1, marginRight: 10 },
   surveyName: {
-    fontSize: 13,
     fontWeight: '600',
-    color: '#1a1a1a',
     marginBottom: 2,
   },
   surveyTemplate: {
-    fontSize: 11,
-    color: '#6b7280',
     marginBottom: 2,
   },
   surveyDate: {
-    fontSize: 11,
-    color: '#9ca3af',
   },
   statusBadge: {
     paddingHorizontal: 10,
@@ -318,10 +301,9 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   statusText: {
-    fontSize: 11,
     fontWeight: '600',
   },
 
   emptyState: { padding: 40, alignItems: 'center' },
-  emptyText: { fontSize: 13, color: '#9ca3af' },
+  emptyText: {},
 });

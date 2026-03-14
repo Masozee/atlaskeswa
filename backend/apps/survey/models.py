@@ -180,6 +180,7 @@ class Question(models.Model):
         # Composite/Table types
         STAFF_TABLE = 'STAFF_TABLE', 'Tabel Data Staf'
         DIAGNOSIS_TABLE = 'DIAGNOSIS_TABLE', 'Tabel Diagnosis'
+        REPEATING_TABLE = 'REPEATING_TABLE', 'Tabel Dinamis (baris berulang)'
 
     section = models.ForeignKey(
         QuestionSection,
@@ -209,6 +210,9 @@ class Question(models.Model):
         blank=True,
         help_text='DESDE-LTC specific description for this question'
     )
+
+    # Introduction text (preamble shown before this question)
+    introduction_text = models.TextField(blank=True, help_text='Contextual text displayed above this question')
 
     # Keterangan (Help text / Instructions for enumerator)
     keterangan = models.TextField(blank=True, help_text='Detailed explanation/instructions')
@@ -278,6 +282,10 @@ class QuestionChoice(models.Model):
     # If selecting this requires additional text input ("Lainnya, sebutkan...")
     has_other_input = models.BooleanField(default=False)
     other_input_label = models.CharField(max_length=100, blank=True, default='Sebutkan')
+
+    # DESDE-LTC classification fields
+    cabang_mtc = models.CharField(max_length=50, blank=True, help_text='Cabang MTC')
+    kode_desde_ltc = models.CharField(max_length=20, blank=True, help_text='Kode DESDE-LTC (e.g. R.1.1.3)')
 
     class Meta:
         db_table = 'survey_question_choices'
@@ -473,12 +481,18 @@ class QuestionAnswer(models.Model):
         help_text='MTC code derived from this answer'
     )
 
+    # MTC context for repeated detail questions (e.g. "R2", "R3.1.1")
+    context_key = models.CharField(
+        max_length=50, blank=True, default='',
+        help_text='MTC context code for repeated detail questions (e.g. "R2", "R3.1.1")'
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = 'survey_question_answers'
-        unique_together = ['response', 'question']
+        unique_together = [['response', 'question', 'context_key']]
         ordering = ['response', 'question__section__order', 'question__order']
 
     def __str__(self):

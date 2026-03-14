@@ -404,12 +404,15 @@ export interface QuestionChoice {
   next_question_code?: string;
   has_other_input: boolean;
   other_input_label?: string;
+  cabang_mtc?: string;
+  kode_desde_ltc?: string;
 }
 
 export interface Question {
   id: number;
   section: number;
   section_name?: string;
+  section_code?: string;
   code: string;
   question_text: string;
   answer_type: string;
@@ -418,6 +421,7 @@ export interface Question {
   mtc_code?: number;
   mtc_code_display?: string;
   desde_ltc_description?: string;
+  introduction_text?: string;
   keterangan?: string;
   show_condition?: { question_code: string; operator: string; value: string } | null;
   skip_logic?: { value: string; goto: string }[] | null;

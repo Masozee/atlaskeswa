@@ -27,6 +27,7 @@ export type QuestionType =
   | 'GPS'
   | 'STAFF_TABLE'
   | 'DIAGNOSIS_TABLE'
+  | 'REPEATING_TABLE'
   | 'LOCATION';  // Custom location input with fixed Provinsi/Kabupaten, dropdown Kecamatan, text Desa, auto-GPS
 
 // Backend SurveyTemplate.TEMPLATE_TYPES choices
@@ -53,6 +54,8 @@ export interface QuestionOption {
   next_question_code?: string;
   has_other_input?: boolean;
   other_input_label?: string;
+  cabang_mtc?: string;
+  kode_desde_ltc?: string;
 }
 
 export interface TableColumn {
@@ -90,6 +93,7 @@ export interface Question {
   mtc_code?: number | null;
   mtc_code_display?: string;
   desde_ltc_description?: string;
+  introduction_text?: string;  // Contextual preamble shown above this question
   keterangan?: string;  // Backend uses keterangan for help text
   validation_rules?: ValidationRules;
   show_condition?: Record<string, any>;

@@ -219,7 +219,8 @@ export function buildQuestionsMap(sections: QuestionSection[]): Map<number, Ques
 export function getFlowBasedQuestions(
   section: QuestionSection,
   allResponses: SurveyAnswers,
-  questionsMap?: Map<number, Question>
+  questionsMap?: Map<number, Question>,
+  allSections?: QuestionSection[]
 ): Question[] {
   if (!section.questions || section.questions.length === 0) return [];
 
@@ -241,26 +242,49 @@ export function getFlowBasedQuestions(
 
   if (visibleQuestions.length === 0) return [];
 
-  // Check if ANY question has branching logic
-  const hasBranching = visibleQuestions.some(
-    (q) =>
-      (q.skip_logic && q.skip_logic.length > 0 && q.skip_logic[0].goto) ||
-      (q.choices && q.choices.some((c) => c.next_question_code))
-  );
-
-  if (!hasBranching) {
-    // No branching — return all visible questions
-    return visibleQuestions;
-  }
+  // Always use flow-based progressive reveal:
+  // show questions one at a time, each revealed only after the previous is answered.
+  // If branching (skip_logic / next_question_code) is present it is followed;
+  // otherwise questions are revealed in order.
 
   // Build code-to-question map for this section
   const codeMap = new Map<string, Question>();
   visibleQuestions.forEach((q) => codeMap.set(q.code, q));
 
-  // Build flow path starting from first question
+  // Determine entry point from cross-section navigation:
+  // if a question in another section was answered and its selected choice's
+  // next_question_code points into this section, start from that question.
+  let startCode: string | undefined;
+  if (allSections) {
+    const sectionCodes = new Set(visibleQuestions.map((q) => q.code));
+    outer: for (const otherSection of allSections) {
+      if (otherSection.id === section.id) continue;
+      for (const q of otherSection.questions || []) {
+        const answer = allResponses[q.code];
+        if (answer === null || answer === undefined || answer === '') continue;
+        // Check choice-level next_question_code
+        const selectedChoice = q.choices?.find((c) => c.value === answer);
+        if (selectedChoice?.next_question_code && sectionCodes.has(selectedChoice.next_question_code)) {
+          startCode = selectedChoice.next_question_code;
+          break outer;
+        }
+        // Check question-level skip_logic
+        if (q.skip_logic) {
+          for (const rule of q.skip_logic) {
+            if (rule.value === String(answer) && rule.goto && sectionCodes.has(rule.goto)) {
+              startCode = rule.goto;
+              break outer;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Build flow path starting from entry point (or first question)
   const result: Question[] = [];
   const visited = new Set<string>();
-  let current: Question | undefined = visibleQuestions[0];
+  let current: Question | undefined = (startCode && codeMap.get(startCode)) || visibleQuestions[0];
 
   while (current && !visited.has(current.code)) {
     visited.add(current.code);
@@ -299,11 +323,17 @@ export function getFlowBasedQuestions(
       break;
     }
 
-    // Follow the branch — could be in same section or cross-section
+    // Follow the branch
     current = codeMap.get(nextCode);
     if (!current) {
-      // Target question not in this section — stop here
-      break;
+      // Target question not in this section — fall back to next by order
+      const lastQ = result[result.length - 1];
+      const currentIdx = visibleQuestions.indexOf(lastQ);
+      if (currentIdx < visibleQuestions.length - 1) {
+        current = visibleQuestions[currentIdx + 1];
+      } else {
+        break;
+      }
     }
   }
 
@@ -326,7 +356,7 @@ export function calculateProgress(
 
   activeSections.forEach((section) => {
     // Use flow-based questions for sections with branching
-    const activeQuestions = getFlowBasedQuestions(section, answers, questionsMap);
+    const activeQuestions = getFlowBasedQuestions(section, answers, questionsMap, sections);
 
     activeQuestions.forEach((question) => {
       if (question.is_required) {

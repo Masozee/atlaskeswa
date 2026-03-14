@@ -1,7 +1,9 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import BottomNavigation from './BottomNavigation';
+import { useTheme } from '../contexts/SettingsContext';
 
 interface BaseLayoutProps {
   children: React.ReactNode;
@@ -9,13 +11,16 @@ interface BaseLayoutProps {
 }
 
 export default function BaseLayout({ children, onNavigate }: BaseLayoutProps) {
+  const theme = useTheme();
+  const c = theme.colors;
+
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
+    <SafeAreaView style={[styles.container, { backgroundColor: c.surface }]}>
+      <View style={[styles.content, { backgroundColor: c.background }]}>
         {children}
       </View>
-
       <BottomNavigation onNavigate={onNavigate} />
+      <StatusBar style={theme.dark ? 'light' : 'dark'} />
     </SafeAreaView>
   );
 }
@@ -23,10 +28,8 @@ export default function BaseLayout({ children, onNavigate }: BaseLayoutProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
   },
   content: {
     flex: 1,
-    backgroundColor: '#f5f6f7',
   },
 });

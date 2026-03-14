@@ -187,7 +187,7 @@ export default function SurveyWizardPage() {
     <div className="min-h-screen">
       {/* Header */}
       <header className="bg-background border-b sticky top-0 z-10">
-        <div className="max-w-5xl mx-auto px-6 py-4">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-xl font-bold">
@@ -210,7 +210,7 @@ export default function SurveyWizardPage() {
 
       {/* Step Indicator */}
       <div className="bg-background border-b">
-        <div className="max-w-5xl mx-auto px-6 py-4">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3">
           <div className="flex items-center gap-4">
             <div className={cn(
               'flex items-center gap-2',
@@ -261,8 +261,8 @@ export default function SurveyWizardPage() {
       </div>
 
       {/* Content - Same layout for all steps */}
-      <main className="max-w-5xl mx-auto px-6 py-8">
-        <div className="flex gap-6">
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
+        <div className="flex gap-4">
           {/* Content Area */}
           <div className="flex-1 min-w-0">
             {/* Introduction Step */}

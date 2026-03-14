@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Notification02Icon, MenuSquareIcon } from 'hugeicons-react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import NetInfo from '@react-native-community/netinfo';
 import { apiClient } from '../services/api';
+import { useTheme, useFontScale } from '../contexts/SettingsContext';
 
 interface User {
   first_name: string;
@@ -14,6 +15,9 @@ interface User {
 export default function TopHeader() {
   const [user, setUser] = useState<User | null>(null);
   const [isOnline, setIsOnline] = useState(true);
+  const theme = useTheme();
+  const fs = useFontScale();
+  const c = theme.colors;
 
   useEffect(() => {
     fetchUser();
@@ -52,35 +56,35 @@ export default function TopHeader() {
   };
 
   return (
-    <View style={styles.wrapper}>
+    <View style={[styles.wrapper, { backgroundColor: c.background }]}>
       <View style={styles.container}>
         {/* Left: Avatar + Name + Role */}
         <View style={styles.leftSection}>
           <View style={styles.avatarContainer}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{getInitials()}</Text>
+            <View style={[styles.avatar, { backgroundColor: c.avatarBg }]}>
+              <Text style={[styles.avatarText, { fontSize: fs(16) }]}>{getInitials()}</Text>
             </View>
             <View style={[
               styles.statusDot,
-              { backgroundColor: isOnline ? '#10b981' : '#ef4444' }
+              { backgroundColor: isOnline ? '#10b981' : '#ef4444', borderColor: c.statusDotBorder }
             ]} />
           </View>
           <View style={styles.userInfo}>
-            <Text style={styles.userName}>{getFullName()}</Text>
-            {user?.role && <Text style={styles.userRole}>{getRoleDisplay()}</Text>}
+            <Text style={[styles.userName, { color: c.text, fontSize: fs(14) }]}>{getFullName()}</Text>
+            {user?.role && <Text style={[styles.userRole, { color: c.textMuted, fontSize: fs(11) }]}>{getRoleDisplay()}</Text>}
           </View>
         </View>
 
         {/* Right: Notification + Menu */}
         <View style={styles.rightSection}>
-          <View style={styles.iconWrapper}>
+          <View style={[styles.iconWrapper, { backgroundColor: c.iconWrapper }]}>
             <TouchableOpacity style={styles.iconButton}>
-              <Notification02Icon size={20} color="rgba(0, 0, 0, 0.7)" strokeWidth={2} />
+              <MaterialIcons name="notifications" size={20} color={c.iconDefault} />
             </TouchableOpacity>
           </View>
-          <View style={styles.iconWrapper}>
+          <View style={[styles.iconWrapper, { backgroundColor: c.iconWrapper }]}>
             <TouchableOpacity style={styles.iconButton}>
-              <MenuSquareIcon size={20} color="rgba(0, 0, 0, 0.7)" strokeWidth={2} />
+              <MaterialIcons name="menu" size={20} color={c.iconDefault} />
             </TouchableOpacity>
           </View>
         </View>
@@ -91,7 +95,6 @@ export default function TopHeader() {
 
 const styles = StyleSheet.create({
   wrapper: {
-    backgroundColor: '#f5f6f7',
     paddingTop: 12,
     paddingBottom: 12,
   },
@@ -121,7 +124,6 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: '#07579e',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -133,22 +135,16 @@ const styles = StyleSheet.create({
     height: 12,
     borderRadius: 6,
     borderWidth: 2,
-    borderColor: '#f5f6f7',
   },
   avatarText: {
     color: '#fff',
-    fontSize: 16,
     fontWeight: '600',
   },
   userName: {
-    fontSize: 14,
     fontWeight: '600',
-    color: '#1a1a1a',
   },
   userRole: {
-    fontSize: 11,
     fontWeight: '400',
-    color: '#6b7280',
   },
   rightSection: {
     flexDirection: 'row',
@@ -156,7 +152,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   iconWrapper: {
-    backgroundColor: '#ffffff',
     borderRadius: 12,
     width: 40,
     height: 40,

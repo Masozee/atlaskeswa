@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,15 +14,18 @@ import TopHeader from '../components/TopHeader';
 import { apiClient } from '../services/api';
 import { syncQueue } from '../services/syncQueue';
 import { database } from '../services/database';
-import { useEffect } from 'react';
+import { useSettings, useTheme, useFontScale } from '../contexts/SettingsContext';
 
 interface SettingsScreenProps {
   onLogout: () => void;
 }
 
 export default function SettingsScreen({ onLogout }: SettingsScreenProps) {
-  const [darkMode, setDarkMode] = useState(false);
-  const [largeText, setLargeText] = useState(false);
+  const { settings, updateSetting } = useSettings();
+  const theme = useTheme();
+  const fs = useFontScale();
+  const c = theme.colors;
+
   const [syncing, setSyncing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<number | null>(null);
   const [lastSyncStatus, setLastSyncStatus] = useState<string | null>(null);
@@ -113,8 +116,6 @@ export default function SettingsScreen({ onLogout }: SettingsScreenProps) {
     setSyncing(true);
     try {
       const result = await syncQueue.processQueue();
-
-      // Reload last sync time
       await loadLastSyncTime();
 
       if (result.success > 0) {
@@ -134,44 +135,32 @@ export default function SettingsScreen({ onLogout }: SettingsScreenProps) {
     }
   };
 
-  const toggleDarkMode = (value: boolean) => {
-    setDarkMode(value);
-    // TODO: Implement dark mode theme switching
-    Alert.alert('Coming Soon', 'Dark mode will be available in a future update.');
-  };
-
-  const toggleLargeText = (value: boolean) => {
-    setLargeText(value);
-    // TODO: Implement accessibility text scaling
-    Alert.alert('Coming Soon', 'Large text will be available in a future update.');
-  };
-
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: c.background }]}>
       <TopHeader />
       <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.scrollContent}>
         {/* Page Title */}
         <View style={styles.pageHeader}>
-          <Text style={styles.pageTitle}>Settings</Text>
+          <Text style={[styles.pageTitle, { color: c.textSecondary, fontSize: fs(22) }]}>Settings</Text>
         </View>
 
         {/* Appearance Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Appearance</Text>
-            <Text style={styles.sectionSubtitle}>Customize how the app looks</Text>
+            <Text style={[styles.sectionTitle, { color: c.textSecondary, fontSize: fs(14) }]}>Appearance</Text>
+            <Text style={[styles.sectionSubtitle, { color: c.textMuted, fontSize: fs(11) }]}>Customize how the app looks</Text>
           </View>
-          <View style={styles.card}>
+          <View style={[styles.card, { backgroundColor: c.surface }]}>
             <View style={styles.settingItem}>
               <View style={styles.settingText}>
-                <Text style={styles.settingLabel}>Dark Mode</Text>
-                <Text style={styles.settingDescription}>Use dark theme</Text>
+                <Text style={[styles.settingLabel, { color: c.textSecondary, fontSize: fs(13) }]}>Dark Mode</Text>
+                <Text style={[styles.settingDescription, { color: c.textMuted, fontSize: fs(11) }]}>Use dark theme</Text>
               </View>
               <Switch
-                value={darkMode}
-                onValueChange={toggleDarkMode}
+                value={settings.darkMode}
+                onValueChange={(value) => updateSetting('darkMode', value)}
                 trackColor={{ false: '#d1d5db', true: '#8ed8f8' }}
-                thumbColor={darkMode ? '#07579e' : '#f3f4f6'}
+                thumbColor={settings.darkMode ? '#03979D' : '#f3f4f6'}
               />
             </View>
           </View>
@@ -180,48 +169,78 @@ export default function SettingsScreen({ onLogout }: SettingsScreenProps) {
         {/* Accessibility Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Accessibility</Text>
-            <Text style={styles.sectionSubtitle}>Make the app easier to use</Text>
+            <Text style={[styles.sectionTitle, { color: c.textSecondary, fontSize: fs(14) }]}>Accessibility</Text>
+            <Text style={[styles.sectionSubtitle, { color: c.textMuted, fontSize: fs(11) }]}>Make the app easier to use</Text>
           </View>
-          <View style={styles.card}>
+          <View style={[styles.card, { backgroundColor: c.surface }]}>
             <View style={styles.settingItem}>
               <View style={styles.settingText}>
-                <Text style={styles.settingLabel}>Large Text</Text>
-                <Text style={styles.settingDescription}>Increase text size</Text>
+                <Text style={[styles.settingLabel, { color: c.textSecondary, fontSize: fs(13) }]}>Large Text</Text>
+                <Text style={[styles.settingDescription, { color: c.textMuted, fontSize: fs(11) }]}>Increase text size throughout the app</Text>
               </View>
               <Switch
-                value={largeText}
-                onValueChange={toggleLargeText}
+                value={settings.largeText}
+                onValueChange={(value) => updateSetting('largeText', value)}
                 trackColor={{ false: '#d1d5db', true: '#8ed8f8' }}
-                thumbColor={largeText ? '#07579e' : '#f3f4f6'}
+                thumbColor={settings.largeText ? '#03979D' : '#f3f4f6'}
               />
             </View>
+            <View style={[styles.settingDivider, { backgroundColor: c.border }]} />
+            <View style={styles.settingItem}>
+              <View style={styles.settingText}>
+                <Text style={[styles.settingLabel, { color: c.textSecondary, fontSize: fs(13) }]}>Text-to-Speech</Text>
+                <Text style={[styles.settingDescription, { color: c.textMuted, fontSize: fs(11) }]}>Read survey questions aloud (tap the speaker icon)</Text>
+              </View>
+              <Switch
+                value={settings.ttsEnabled}
+                onValueChange={(value) => updateSetting('ttsEnabled', value)}
+                trackColor={{ false: '#d1d5db', true: '#8ed8f8' }}
+                thumbColor={settings.ttsEnabled ? '#03979D' : '#f3f4f6'}
+              />
+            </View>
+            {settings.ttsEnabled && (
+              <>
+                <View style={[styles.settingDivider, { backgroundColor: c.border }]} />
+                <View style={styles.settingItem}>
+                  <View style={styles.settingText}>
+                    <Text style={[styles.settingLabel, { color: c.textSecondary, fontSize: fs(13) }]}>Auto-Play TTS</Text>
+                    <Text style={[styles.settingDescription, { color: c.textMuted, fontSize: fs(11) }]}>Automatically read each question aloud when it appears</Text>
+                  </View>
+                  <Switch
+                    value={settings.ttsAutoPlay}
+                    onValueChange={(value) => updateSetting('ttsAutoPlay', value)}
+                    trackColor={{ false: '#d1d5db', true: '#8ed8f8' }}
+                    thumbColor={settings.ttsAutoPlay ? '#03979D' : '#f3f4f6'}
+                  />
+                </View>
+              </>
+            )}
           </View>
         </View>
 
         {/* Data Sync Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Data Management</Text>
-            <Text style={styles.sectionSubtitle}>Sync offline data to server</Text>
+            <Text style={[styles.sectionTitle, { color: c.textSecondary, fontSize: fs(14) }]}>Data Management</Text>
+            <Text style={[styles.sectionSubtitle, { color: c.textMuted, fontSize: fs(11) }]}>Sync offline data to server</Text>
           </View>
 
-          <View style={styles.card}>
+          <View style={[styles.card, { backgroundColor: c.surface }]}>
             <View style={styles.settingItem}>
               <View style={styles.settingText}>
-                <Text style={styles.settingLabel}>Last Sync</Text>
-                <Text style={styles.settingDescription}>{formatLastSyncTime()}</Text>
+                <Text style={[styles.settingLabel, { color: c.textSecondary, fontSize: fs(13) }]}>Last Sync</Text>
+                <Text style={[styles.settingDescription, { color: c.textMuted, fontSize: fs(11) }]}>{formatLastSyncTime()}</Text>
               </View>
             </View>
           </View>
 
           <TouchableOpacity
-            style={styles.actionButton}
+            style={[styles.actionButton, { backgroundColor: c.surface }]}
             onPress={handleSyncData}
             disabled={syncing}
           >
-            {syncing && <ActivityIndicator size="small" color="#07579e" />}
-            <Text style={styles.actionButtonText}>
+            {syncing && <ActivityIndicator size="small" color="#03979D" />}
+            <Text style={[styles.actionButtonText, { fontSize: fs(13) }]}>
               {syncing ? 'Syncing...' : 'Sync Data to Server'}
             </Text>
           </TouchableOpacity>
@@ -230,20 +249,20 @@ export default function SettingsScreen({ onLogout }: SettingsScreenProps) {
         {/* Server Configuration Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Server Configuration</Text>
-            <Text style={styles.sectionSubtitle}>Set the API server URL</Text>
+            <Text style={[styles.sectionTitle, { color: c.textSecondary, fontSize: fs(14) }]}>Server Configuration</Text>
+            <Text style={[styles.sectionSubtitle, { color: c.textMuted, fontSize: fs(11) }]}>Set the API server URL</Text>
           </View>
-          <View style={styles.card}>
+          <View style={[styles.card, { backgroundColor: c.surface }]}>
             <View style={{ marginBottom: 8 }}>
-              <Text style={styles.settingLabel}>API Server URL</Text>
-              <Text style={styles.settingDescription}>Current: {apiClient.getBaseURL()}</Text>
+              <Text style={[styles.settingLabel, { color: c.textSecondary, fontSize: fs(13) }]}>API Server URL</Text>
+              <Text style={[styles.settingDescription, { color: c.textMuted, fontSize: fs(11) }]}>Current: {apiClient.getBaseURL()}</Text>
             </View>
             <View style={styles.serverInputRow}>
-              <View style={styles.serverInputContainer}>
+              <View style={[styles.serverInputContainer, { backgroundColor: c.background }]}>
                 <TextInput
-                  style={styles.serverInput}
+                  style={[styles.serverInput, { color: c.textSecondary, fontSize: fs(12) }]}
                   placeholder="https://api.example.com/v1"
-                  placeholderTextColor="#9ca3af"
+                  placeholderTextColor={c.textPlaceholder}
                   value={serverUrl}
                   onChangeText={setServerUrl}
                   autoCapitalize="none"
@@ -259,7 +278,7 @@ export default function SettingsScreen({ onLogout }: SettingsScreenProps) {
                 onPress={handleSaveServerUrl}
                 disabled={!canSaveServerUrl}
               >
-                <Text style={styles.serverSaveButtonText}>Save</Text>
+                <Text style={[styles.serverSaveButtonText, { fontSize: fs(12) }]}>Save</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -268,14 +287,14 @@ export default function SettingsScreen({ onLogout }: SettingsScreenProps) {
         {/* About Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>About</Text>
-            <Text style={styles.sectionSubtitle}>App information</Text>
+            <Text style={[styles.sectionTitle, { color: c.textSecondary, fontSize: fs(14) }]}>About</Text>
+            <Text style={[styles.sectionSubtitle, { color: c.textMuted, fontSize: fs(11) }]}>App information</Text>
           </View>
-          <View style={styles.card}>
+          <View style={[styles.card, { backgroundColor: c.surface }]}>
             <View style={styles.settingItem}>
               <View style={styles.settingText}>
-                <Text style={styles.settingLabel}>Version</Text>
-                <Text style={styles.settingDescription}>1.0.0</Text>
+                <Text style={[styles.settingLabel, { color: c.textSecondary, fontSize: fs(13) }]}>Version</Text>
+                <Text style={[styles.settingDescription, { color: c.textMuted, fontSize: fs(11) }]}>1.0.0</Text>
               </View>
             </View>
           </View>
@@ -284,10 +303,10 @@ export default function SettingsScreen({ onLogout }: SettingsScreenProps) {
         {/* Logout Button */}
         <View style={styles.section}>
           <TouchableOpacity
-            style={styles.logoutButton}
+            style={[styles.logoutButton, { backgroundColor: c.surface }]}
             onPress={handleLogout}
           >
-            <Text style={styles.logoutButtonText}>Logout</Text>
+            <Text style={[styles.logoutButtonText, { fontSize: fs(13) }]}>Logout</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -298,7 +317,6 @@ export default function SettingsScreen({ onLogout }: SettingsScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f6f7',
   },
   scrollContainer: {
     flex: 1,
@@ -312,9 +330,7 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   pageTitle: {
-    fontSize: 22,
     fontWeight: 'bold',
-    color: '#374151',
   },
   section: {
     marginTop: 14,
@@ -324,18 +340,13 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   sectionTitle: {
-    fontSize: 14,
     fontWeight: '600',
-    color: '#374151',
     marginBottom: 2,
   },
   sectionSubtitle: {
-    fontSize: 11,
     fontWeight: '400',
-    color: '#6b7280',
   },
   card: {
-    backgroundColor: '#ffffff',
     borderRadius: 12,
     padding: 14,
   },
@@ -348,41 +359,37 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   settingLabel: {
-    fontSize: 13,
     fontWeight: '600',
-    color: '#374151',
     marginBottom: 2,
   },
   settingDescription: {
-    fontSize: 11,
-    color: '#6b7280',
+  },
+  settingDivider: {
+    height: 1,
+    marginVertical: 12,
   },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#ffffff',
     borderRadius: 12,
     paddingVertical: 12,
     gap: 6,
     marginTop: 10,
   },
   actionButtonText: {
-    fontSize: 13,
     fontWeight: '600',
-    color: '#07579e',
+    color: '#03979D',
   },
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#ffffff',
     borderRadius: 12,
     paddingVertical: 12,
     gap: 6,
   },
   logoutButtonText: {
-    fontSize: 13,
     fontWeight: '600',
     color: '#dc2626',
   },
@@ -392,18 +399,15 @@ const styles = StyleSheet.create({
   },
   serverInputContainer: {
     flex: 1,
-    backgroundColor: '#f5f6f7',
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 8,
   },
   serverInput: {
-    fontSize: 12,
-    color: '#374151',
     padding: 0,
   },
   serverSaveButton: {
-    backgroundColor: '#07579e',
+    backgroundColor: '#03979D',
     borderRadius: 8,
     paddingHorizontal: 14,
     justifyContent: 'center',
@@ -413,7 +417,6 @@ const styles = StyleSheet.create({
   },
   serverSaveButtonText: {
     color: '#ffffff',
-    fontSize: 12,
     fontWeight: '600',
   },
 });

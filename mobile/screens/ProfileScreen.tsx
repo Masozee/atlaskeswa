@@ -9,9 +9,10 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { Edit02Icon, Tick01Icon, Cancel01Icon } from 'hugeicons-react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import TopHeader from '../components/TopHeader';
 import { apiClient } from '../services/api';
+import { useTheme, useFontScale } from '../contexts/SettingsContext';
 
 interface UserProfile {
   id: string;
@@ -29,11 +30,14 @@ export default function ProfileScreen() {
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Edit form fields
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
   const [organization, setOrganization] = useState('');
+
+  const theme = useTheme();
+  const fs = useFontScale();
+  const c = theme.colors;
 
   useEffect(() => {
     fetchProfile();
@@ -43,7 +47,6 @@ export default function ProfileScreen() {
     try {
       const data = await apiClient.get<UserProfile>('/accounts/users/me/');
       setProfile(data);
-      // Initialize form fields
       setFirstName(data.first_name || '');
       setLastName(data.last_name || '');
       setPhone(data.phone || '');
@@ -56,12 +59,9 @@ export default function ProfileScreen() {
     }
   };
 
-  const handleEdit = () => {
-    setIsEditing(true);
-  };
+  const handleEdit = () => setIsEditing(true);
 
   const handleCancel = () => {
-    // Reset form to original values
     if (profile) {
       setFirstName(profile.first_name || '');
       setLastName(profile.last_name || '');
@@ -89,7 +89,6 @@ export default function ProfileScreen() {
       setIsEditing(false);
       Alert.alert('Success', 'Profile updated successfully');
     } catch (err: any) {
-      console.error('Failed to update profile:', err);
       Alert.alert('Error', err?.message || 'Failed to update profile');
     } finally {
       setSaving(false);
@@ -102,11 +101,11 @@ export default function ProfileScreen() {
 
   if (loading) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: c.background }]}>
         <TopHeader />
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#07579e" />
-          <Text style={styles.loadingText}>Loading profile...</Text>
+          <ActivityIndicator size="large" color="#03979D" />
+          <Text style={[styles.loadingText, { color: c.textMuted, fontSize: fs(12) }]}>Loading profile...</Text>
         </View>
       </View>
     );
@@ -114,164 +113,148 @@ export default function ProfileScreen() {
 
   if (!profile) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: c.background }]}>
         <TopHeader />
         <View style={styles.centered}>
-          <Text style={styles.errorText}>Failed to load profile</Text>
+          <Text style={[styles.errorText, { fontSize: fs(12) }]}>Failed to load profile</Text>
         </View>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: c.background }]}>
       <TopHeader />
       <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.scrollContent}>
-        {/* Page Title */}
         <View style={styles.pageHeader}>
-          <Text style={styles.pageTitle}>Profil</Text>
+          <Text style={[styles.pageTitle, { color: c.text, fontSize: fs(16) }]}>Profil</Text>
         </View>
 
-        {/* Header Card */}
-        <View style={styles.header}>
+        <View style={[styles.header, { backgroundColor: c.surface, borderColor: c.border }]}>
           <View style={styles.headerContent}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
+            <View style={[styles.avatar, { backgroundColor: c.avatarBg }]}>
+              <Text style={[styles.avatarText, { fontSize: fs(26) }]}>
                 {profile.first_name.charAt(0)}{profile.last_name.charAt(0)}
               </Text>
             </View>
-            <Text style={styles.headerName}>
+            <Text style={[styles.headerName, { color: c.text, fontSize: fs(18) }]}>
               {profile.first_name} {profile.last_name}
             </Text>
-            <Text style={styles.headerRole}>{getRoleDisplay(profile.role)}</Text>
+            <Text style={[styles.headerRole, { color: c.textMuted, fontSize: fs(13) }]}>{getRoleDisplay(profile.role)}</Text>
           </View>
           {!isEditing && (
             <TouchableOpacity style={styles.editButton} onPress={handleEdit}>
-              <Edit02Icon size={14} color="#ffffff" strokeWidth={2} />
-              <Text style={styles.editButtonText}>Edit Profil</Text>
+              <MaterialIcons name="edit" size={14} color="#ffffff" />
+              <Text style={[styles.editButtonText, { fontSize: fs(13) }]}>Edit Profil</Text>
             </TouchableOpacity>
           )}
         </View>
 
-        {/* Profile Information */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Informasi Pribadi</Text>
+            <Text style={[styles.sectionTitle, { color: c.text, fontSize: fs(14) }]}>Informasi Pribadi</Text>
           </View>
-          <View style={styles.card}>
-            {/* First Name */}
+          <View style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
             <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>Nama Depan</Text>
+              <Text style={[styles.fieldLabel, { color: c.textPlaceholder, fontSize: fs(11) }]}>Nama Depan</Text>
               {isEditing ? (
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { color: c.textSecondary, backgroundColor: c.background, fontSize: fs(13) }]}
                   value={firstName}
                   onChangeText={setFirstName}
                   placeholder="Enter first name"
+                  placeholderTextColor={c.textPlaceholder}
                   editable={!saving}
                 />
               ) : (
-                <Text style={styles.fieldValue}>{profile.first_name}</Text>
+                <Text style={[styles.fieldValue, { color: c.text, fontSize: fs(14) }]}>{profile.first_name}</Text>
               )}
             </View>
-
-            <View style={styles.divider} />
-
-            {/* Last Name */}
+            <View style={[styles.divider, { backgroundColor: c.border }]} />
             <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>Nama Belakang</Text>
+              <Text style={[styles.fieldLabel, { color: c.textPlaceholder, fontSize: fs(11) }]}>Nama Belakang</Text>
               {isEditing ? (
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { color: c.textSecondary, backgroundColor: c.background, fontSize: fs(13) }]}
                   value={lastName}
                   onChangeText={setLastName}
                   placeholder="Enter last name"
+                  placeholderTextColor={c.textPlaceholder}
                   editable={!saving}
                 />
               ) : (
-                <Text style={styles.fieldValue}>{profile.last_name}</Text>
+                <Text style={[styles.fieldValue, { color: c.text, fontSize: fs(14) }]}>{profile.last_name}</Text>
               )}
             </View>
-
-            <View style={styles.divider} />
-
-            {/* Email */}
+            <View style={[styles.divider, { backgroundColor: c.border }]} />
             <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>Email</Text>
-              <Text style={styles.fieldValue}>{profile.email}</Text>
+              <Text style={[styles.fieldLabel, { color: c.textPlaceholder, fontSize: fs(11) }]}>Email</Text>
+              <Text style={[styles.fieldValue, { color: c.text, fontSize: fs(14) }]}>{profile.email}</Text>
               {isEditing && (
-                <Text style={styles.fieldHint}>Email cannot be changed</Text>
+                <Text style={[styles.fieldHint, { color: c.textPlaceholder, fontSize: fs(10) }]}>Email cannot be changed</Text>
               )}
             </View>
-
-            <View style={styles.divider} />
-
-            {/* Phone */}
+            <View style={[styles.divider, { backgroundColor: c.border }]} />
             <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>No. Telepon</Text>
+              <Text style={[styles.fieldLabel, { color: c.textPlaceholder, fontSize: fs(11) }]}>No. Telepon</Text>
               {isEditing ? (
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { color: c.textSecondary, backgroundColor: c.background, fontSize: fs(13) }]}
                   value={phone}
                   onChangeText={setPhone}
                   placeholder="Enter phone number"
+                  placeholderTextColor={c.textPlaceholder}
                   keyboardType="phone-pad"
                   editable={!saving}
                 />
               ) : (
-                <Text style={styles.fieldValue}>{profile.phone || '-'}</Text>
+                <Text style={[styles.fieldValue, { color: c.text, fontSize: fs(14) }]}>{profile.phone || '-'}</Text>
               )}
             </View>
-
-            <View style={styles.divider} />
-
-            {/* Organization */}
+            <View style={[styles.divider, { backgroundColor: c.border }]} />
             <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>Organisasi</Text>
+              <Text style={[styles.fieldLabel, { color: c.textPlaceholder, fontSize: fs(11) }]}>Organisasi</Text>
               {isEditing ? (
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { color: c.textSecondary, backgroundColor: c.background, fontSize: fs(13) }]}
                   value={organization}
                   onChangeText={setOrganization}
                   placeholder="Enter organization"
+                  placeholderTextColor={c.textPlaceholder}
                   editable={!saving}
                 />
               ) : (
-                <Text style={styles.fieldValue}>{profile.organization || '-'}</Text>
+                <Text style={[styles.fieldValue, { color: c.text, fontSize: fs(14) }]}>{profile.organization || '-'}</Text>
               )}
             </View>
           </View>
         </View>
 
-        {/* Account Information */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Informasi Akun</Text>
+            <Text style={[styles.sectionTitle, { color: c.text, fontSize: fs(14) }]}>Informasi Akun</Text>
           </View>
-          <View style={styles.card}>
+          <View style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
             <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>Role</Text>
-              <Text style={styles.fieldValue}>{getRoleDisplay(profile.role)}</Text>
+              <Text style={[styles.fieldLabel, { color: c.textPlaceholder, fontSize: fs(11) }]}>Role</Text>
+              <Text style={[styles.fieldValue, { color: c.text, fontSize: fs(14) }]}>{getRoleDisplay(profile.role)}</Text>
             </View>
-
-            <View style={styles.divider} />
-
+            <View style={[styles.divider, { backgroundColor: c.border }]} />
             <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>User ID</Text>
-              <Text style={styles.fieldValue}>{profile.id}</Text>
+              <Text style={[styles.fieldLabel, { color: c.textPlaceholder, fontSize: fs(11) }]}>User ID</Text>
+              <Text style={[styles.fieldValue, { color: c.text, fontSize: fs(14) }]}>{profile.id}</Text>
             </View>
           </View>
         </View>
 
-        {/* Action Buttons */}
         {isEditing && (
           <View style={styles.actionButtons}>
             <TouchableOpacity
-              style={[styles.button, styles.cancelButton]}
+              style={[styles.button, { backgroundColor: c.surface }]}
               onPress={handleCancel}
               disabled={saving}
             >
-              <Text style={styles.cancelButtonText}>Batal</Text>
+              <Text style={[styles.cancelButtonText, { color: c.textSecondary, fontSize: fs(12) }]}>Batal</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.button, styles.saveButton]}
@@ -281,7 +264,7 @@ export default function ProfileScreen() {
               {saving ? (
                 <ActivityIndicator size="small" color="#ffffff" />
               ) : (
-                <Text style={styles.saveButtonText}>Simpan</Text>
+                <Text style={[styles.saveButtonText, { fontSize: fs(12) }]}>Simpan</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -292,151 +275,55 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f6f7',
-  },
-  scrollContainer: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: 24,
-  },
-  centered: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 12,
-    color: '#6b7280',
-  },
-  errorText: {
-    fontSize: 12,
-    color: '#dc2626',
-    textAlign: 'center',
-  },
-  pageHeader: {
-    alignItems: 'center',
-    paddingTop: 12,
-    paddingBottom: 4,
-  },
-  pageTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1a1a1a',
-  },
+  container: { flex: 1 },
+  scrollContainer: { flex: 1 },
+  scrollContent: { paddingBottom: 24 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
+  loadingText: { marginTop: 12 },
+  errorText: { color: '#dc2626', textAlign: 'center' },
+  pageHeader: { alignItems: 'center', paddingTop: 12, paddingBottom: 4 },
+  pageTitle: { fontWeight: '600' },
   header: {
-    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#e5e7eb',
     padding: 24,
     alignItems: 'center',
     borderRadius: 16,
     marginHorizontal: 20,
     marginTop: 16,
   },
-  headerContent: {
-    alignItems: 'center',
-    marginBottom: 12,
-    gap: 2,
-  },
+  headerContent: { alignItems: 'center', marginBottom: 12, gap: 2 },
   avatar: {
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: '#07579e',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 12,
   },
-  avatarText: {
-    color: '#ffffff',
-    fontSize: 26,
-    fontWeight: '700',
-  },
-  headerName: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1a1a1a',
-  },
-  headerRole: {
-    fontSize: 13,
-    color: '#6b7280',
-  },
+  avatarText: { color: '#ffffff', fontWeight: '700' },
+  headerName: { fontWeight: '700' },
+  headerRole: {},
   editButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#07579e',
+    backgroundColor: '#03979D',
     paddingHorizontal: 20,
     paddingVertical: 9,
     borderRadius: 10,
     gap: 6,
   },
-  editButtonText: {
-    color: '#ffffff',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  section: {
-    marginTop: 20,
-    paddingHorizontal: 20,
-  },
-  sectionHeader: {
-    marginBottom: 10,
-  },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#1a1a1a',
-  },
-  card: {
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 12,
-    padding: 16,
-  },
-  fieldGroup: {
-    paddingVertical: 10,
-  },
-  fieldLabel: {
-    fontSize: 11,
-    fontWeight: '400',
-    color: '#9ca3af',
-    marginBottom: 2,
-  },
-  fieldValue: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#1a1a1a',
-  },
-  fieldHint: {
-    fontSize: 10,
-    color: '#9ca3af',
-    marginTop: 3,
-    fontStyle: 'italic',
-  },
-  input: {
-    fontSize: 13,
-    color: '#374151',
-    backgroundColor: '#f9fafb',
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 8,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#f3f4f6',
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    gap: 10,
-    paddingHorizontal: 16,
-    marginTop: 20,
-  },
+  editButtonText: { color: '#ffffff', fontWeight: '600' },
+  section: { marginTop: 20, paddingHorizontal: 20 },
+  sectionHeader: { marginBottom: 10 },
+  sectionTitle: { fontWeight: '700' },
+  card: { borderWidth: 1, borderRadius: 12, padding: 16 },
+  fieldGroup: { paddingVertical: 10 },
+  fieldLabel: { fontWeight: '400', marginBottom: 2 },
+  fieldValue: { fontWeight: '500' },
+  fieldHint: { marginTop: 3, fontStyle: 'italic' },
+  input: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8 },
+  divider: { height: 1 },
+  actionButtons: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, marginTop: 20 },
   button: {
     flex: 1,
     flexDirection: 'row',
@@ -446,20 +333,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     gap: 6,
   },
-  cancelButton: {
-    backgroundColor: '#ffffff',
-  },
-  cancelButtonText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#374151',
-  },
-  saveButton: {
-    backgroundColor: '#07579e',
-  },
-  saveButtonText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#ffffff',
-  },
+  cancelButtonText: { fontWeight: '600' },
+  saveButton: { backgroundColor: '#03979D' },
+  saveButtonText: { color: '#ffffff', fontWeight: '600' },
 });

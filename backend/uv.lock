@@ -230,6 +230,7 @@ dependencies = [
     { name = "pillow" },
     { name = "pymysql" },
     { name = "python-dotenv" },
+    { name = "tablib" },
     { name = "whitenoise" },
 ]
 
@@ -244,5 +245,6 @@ requires-dist = [
     { name = "pillow", specifier = ">=12.0.0" },
     { name = "pymysql", specifier = ">=1.1.0" },
     { name = "python-dotenv", specifier = ">=1.1.0" },
+    { name = "tablib", specifier = ">=3.9.0" },
     { name = "whitenoise", specifier = ">=6.6.0" },
 ]

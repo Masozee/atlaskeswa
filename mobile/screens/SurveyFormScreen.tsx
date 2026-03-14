@@ -8,8 +8,10 @@ import {
   TextInput,
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
-import { ArrowLeft01Icon, Location01Icon, ArrowDown01Icon, Calendar03Icon } from 'hugeicons-react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import NetInfo from '@react-native-community/netinfo';
 import TopHeader from '../components/TopHeader';
@@ -301,7 +303,7 @@ export default function SurveyFormScreen({ surveyId, onBack, onSave }: SurveyFor
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#07579e" />
+        <ActivityIndicator size="large" color="#03979D" />
         <Text style={styles.loadingText}>Loading survey...</Text>
       </View>
     );
@@ -314,7 +316,7 @@ export default function SurveyFormScreen({ surveyId, onBack, onSave }: SurveyFor
         <View style={styles.contentWrapper}>
           <View style={styles.header}>
             <TouchableOpacity onPress={() => setShowServicePicker(false)} style={styles.backIcon}>
-              <ArrowLeft01Icon size={24} color="#111827" strokeWidth={2} />
+              <MaterialIcons name="arrow-back" size={24} color="#111827" />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Select Service</Text>
             <View style={{ width: 24 }} />
@@ -336,20 +338,28 @@ export default function SurveyFormScreen({ surveyId, onBack, onSave }: SurveyFor
   }
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
       <TopHeader />
       <View style={styles.contentWrapper}>
         {/* Header */}
         <View style={styles.pageHeader}>
           <TouchableOpacity onPress={onBack} style={styles.backIcon}>
-            <ArrowLeft01Icon size={24} color="#374151" strokeWidth={2} />
+            <MaterialIcons name="arrow-back" size={24} color="#374151" />
           </TouchableOpacity>
           <Text style={styles.pageTitle}>
             {surveyId ? 'Edit Survey' : 'New Survey'}
           </Text>
         </View>
 
-        <ScrollView style={styles.content}>
+        <ScrollView
+          style={styles.content}
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
+          contentContainerStyle={{ flexGrow: 1, paddingBottom: 32 }}
+        >
         {/* Service Selection */}
         <View style={styles.formGroup}>
           <Text style={styles.label}>Which mental health service facility are you surveying? *</Text>
@@ -360,7 +370,7 @@ export default function SurveyFormScreen({ surveyId, onBack, onSave }: SurveyFor
             <Text style={selectedServiceName ? styles.pickerText : styles.pickerPlaceholder}>
               {selectedServiceName || 'Select a service'}
             </Text>
-            <ArrowDown01Icon size={20} color="#6b7280" strokeWidth={2} />
+            <MaterialIcons name="arrow-drop-down" size={20} color="#6b7280" />
           </TouchableOpacity>
         </View>
 
@@ -375,7 +385,7 @@ export default function SurveyFormScreen({ surveyId, onBack, onSave }: SurveyFor
               placeholder="YYYY-MM-DD"
               placeholderTextColor="#9ca3af"
             />
-            <Calendar03Icon size={20} color="#6b7280" strokeWidth={2} />
+            <MaterialIcons name="event" size={20} color="#6b7280" />
           </View>
         </View>
 
@@ -390,7 +400,7 @@ export default function SurveyFormScreen({ surveyId, onBack, onSave }: SurveyFor
               placeholder="YYYY-MM-DD"
               placeholderTextColor="#9ca3af"
             />
-            <Calendar03Icon size={20} color="#6b7280" strokeWidth={2} />
+            <MaterialIcons name="event" size={20} color="#6b7280" />
           </View>
         </View>
 
@@ -404,7 +414,7 @@ export default function SurveyFormScreen({ surveyId, onBack, onSave }: SurveyFor
               placeholder="YYYY-MM-DD"
               placeholderTextColor="#9ca3af"
             />
-            <Calendar03Icon size={20} color="#6b7280" strokeWidth={2} />
+            <MaterialIcons name="event" size={20} color="#6b7280" />
           </View>
         </View>
 
@@ -781,7 +791,7 @@ export default function SurveyFormScreen({ surveyId, onBack, onSave }: SurveyFor
             onPress={captureLocation}
             disabled={capturingLocation}
           >
-            <Location01Icon size={20} color="#07579e" strokeWidth={2} />
+            <MaterialIcons name="place" size={20} color="#03979D" />
             <Text style={styles.locationButtonText}>
               {capturingLocation ? 'Capturing...' : formData.latitude ? 'Update Location' : 'Capture Location'}
             </Text>
@@ -836,7 +846,7 @@ export default function SurveyFormScreen({ surveyId, onBack, onSave }: SurveyFor
         </View>
         </ScrollView>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -971,7 +981,7 @@ const styles = StyleSheet.create({
   },
   locationButtonText: {
     fontSize: 18,
-    color: '#07579e',
+    color: '#03979D',
     fontWeight: '600',
   },
   locationInfo: {
@@ -1037,7 +1047,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   submitButton: {
-    backgroundColor: '#07579e',
+    backgroundColor: '#03979D',
     borderRadius: 8,
     paddingVertical: 14,
     alignItems: 'center',

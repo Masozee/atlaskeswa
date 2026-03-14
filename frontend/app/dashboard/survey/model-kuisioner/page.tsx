@@ -1,6 +1,8 @@
 "use client";
 
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useEffect, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { toast } from "sonner";
 import {
   ColumnDef,
   flexRender,
@@ -26,6 +28,7 @@ import {
   useUpdateQuestionChoice,
   useDeleteQuestionChoice,
   useBasicStableInputsOfCare,
+  useQuestionSections,
 } from "@/hooks/use-services";
 import { Question, QuestionChoice } from "@/lib/types/api";
 import { Badge } from "@/components/ui/badge";
@@ -103,20 +106,13 @@ const ANSWER_TYPES = [
   { value: "MULTIPLE_CHOICE", label: "Pilihan Ganda" },
   { value: "STAFF_TABLE", label: "Tabel Staff" },
   { value: "DIAGNOSIS_TABLE", label: "Tabel Diagnosis" },
+  { value: "REPEATING_TABLE", label: "Tabel Dinamis (baris berulang)" },
   { value: "GPS", label: "GPS" },
   { value: "FILE", label: "File Upload" },
 ];
 
-type PageTab = "dasar" | "layanan" | "detail";
 type DialogTab = "detail" | "pilihan";
 type ImportResult = { created: number; updated: number; errors: { row: number; error: string }[] };
-
-function getPageTab(code: string): PageTab {
-  const upper = code.toUpperCase();
-  if (upper.startsWith("QL")) return "layanan";
-  if (upper.startsWith("Q")) return "dasar";
-  return "detail";
-}
 
 function AnswerTypeBadge({ type }: { type: string }) {
   const choiceTypes = ["SINGLE_CHOICE", "MULTIPLE_CHOICE"];
@@ -192,7 +188,7 @@ function ChoicesPanel({ questionId, allQuestions = [] }: { questionId: number; a
   const updateChoice = useUpdateQuestionChoice();
   const deleteChoice = useDeleteQuestionChoice();
 
-  const emptyForm = { value: "", label: "", keterangan: "", order: 0, next_question_code: "", mtc_code: "" };
+  const emptyForm = { value: "", label: "", keterangan: "", order: 0, next_question_code: "", mtc_code: "", has_other_input: false, other_input_label: "Sebutkan", cabang_mtc: "", kode_desde_ltc: "" };
   const [addForm, setAddForm] = useState(emptyForm);
   const [addOpen, setAddOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
@@ -200,18 +196,18 @@ function ChoicesPanel({ questionId, allQuestions = [] }: { questionId: number; a
 
   function startEdit(c: QuestionChoice) {
     setEditId(c.id);
-    setEditForm({ value: c.value, label: c.label, keterangan: c.keterangan ?? "", order: c.order, next_question_code: c.next_question_code ?? "", mtc_code: c.mtc_code ? String(c.mtc_code) : "" });
+    setEditForm({ value: c.value, label: c.label, keterangan: c.keterangan ?? "", order: c.order, next_question_code: c.next_question_code ?? "", mtc_code: c.mtc_code ? String(c.mtc_code) : "", has_other_input: c.has_other_input ?? false, other_input_label: c.other_input_label ?? "Sebutkan", cabang_mtc: c.cabang_mtc ?? "", kode_desde_ltc: c.kode_desde_ltc ?? "" });
   }
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
-    await createChoice.mutateAsync({ question: questionId, value: addForm.value, label: addForm.label, order: addForm.order || choices.length + 1, next_question_code: addForm.next_question_code, mtc_code: addForm.mtc_code ? Number(addForm.mtc_code) : undefined });
+    await createChoice.mutateAsync({ question: questionId, value: addForm.value, label: addForm.label, order: addForm.order || choices.length + 1, next_question_code: addForm.next_question_code, mtc_code: addForm.mtc_code ? Number(addForm.mtc_code) : undefined, has_other_input: addForm.has_other_input, other_input_label: addForm.has_other_input ? addForm.other_input_label : "", cabang_mtc: addForm.cabang_mtc, kode_desde_ltc: addForm.kode_desde_ltc });
     setAddForm(emptyForm);
     setAddOpen(false);
   }
 
   async function handleEditSave(choiceId: number) {
-    await updateChoice.mutateAsync({ id: choiceId, question: questionId, value: editForm.value, label: editForm.label, order: editForm.order, next_question_code: editForm.next_question_code, mtc_code: editForm.mtc_code ? Number(editForm.mtc_code) : undefined });
+    await updateChoice.mutateAsync({ id: choiceId, question: questionId, value: editForm.value, label: editForm.label, order: editForm.order, next_question_code: editForm.next_question_code, mtc_code: editForm.mtc_code ? Number(editForm.mtc_code) : undefined, has_other_input: editForm.has_other_input, other_input_label: editForm.has_other_input ? editForm.other_input_label : "", cabang_mtc: editForm.cabang_mtc, kode_desde_ltc: editForm.kode_desde_ltc });
     setEditId(null);
   }
 
@@ -241,8 +237,19 @@ function ChoicesPanel({ questionId, allQuestions = [] }: { questionId: number; a
             </select>
           </div>
           <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1"><Label className="text-xs">Cabang MTC</Label><Input value={addForm.cabang_mtc} onChange={(e) => setAddForm((f) => ({ ...f, cabang_mtc: e.target.value }))} placeholder="e.g. Rumah Sakit" className="h-8 text-sm" maxLength={50} /></div>
+            <div className="space-y-1"><Label className="text-xs">Kode DESDE-LTC</Label><Input value={addForm.kode_desde_ltc} onChange={(e) => setAddForm((f) => ({ ...f, kode_desde_ltc: e.target.value }))} placeholder="e.g. R.1.1.3" className="h-8 text-sm" /></div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1"><Label className="text-xs">Lanjut ke</Label><select value={addForm.next_question_code} onChange={(e) => setAddForm((f) => ({ ...f, next_question_code: e.target.value }))} className="w-full rounded-md border px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring bg-background h-8"><option value="">— Tidak ada —</option>{allQuestions.map((q) => <option key={q.id} value={q.code}>{q.code} — {q.question_text.slice(0, 30)}{q.question_text.length > 30 ? '...' : ''}</option>)}</select></div>
             <div className="space-y-1"><Label className="text-xs">Urutan</Label><Input type="number" value={addForm.order || ''} onChange={(e) => setAddForm((f) => ({ ...f, order: parseInt(e.target.value) || 0 }))} placeholder={String(choices.length + 1)} className="h-8 text-sm" /></div>
+          </div>
+          <div className="flex items-center gap-3">
+            <Checkbox id="add-has-other" checked={addForm.has_other_input} onCheckedChange={(checked) => setAddForm((f) => ({ ...f, has_other_input: !!checked }))} />
+            <Label htmlFor="add-has-other" className="text-xs cursor-pointer">Butuh input tambahan</Label>
+            {addForm.has_other_input && (
+              <Input value={addForm.other_input_label} onChange={(e) => setAddForm((f) => ({ ...f, other_input_label: e.target.value }))} placeholder="Label input (e.g. Sebutkan)" className="h-8 text-sm flex-1" />
+            )}
           </div>
           <div className="flex justify-end gap-2">
             <Button type="button" size="sm" variant="ghost" onClick={() => { setAddOpen(false); setAddForm(emptyForm); }}>Batal</Button>
@@ -264,6 +271,8 @@ function ChoicesPanel({ questionId, allQuestions = [] }: { questionId: number; a
                 <TableHead className="w-12 text-center">#</TableHead>
                 <TableHead className="w-24">Nilai</TableHead>
                 <TableHead>Label</TableHead>
+                <TableHead className="w-36">Cabang MTC</TableHead>
+                <TableHead className="w-28">DESDE-LTC</TableHead>
                 <TableHead className="w-48">Kode MTC</TableHead>
                 <TableHead className="w-28">Lanjut ke</TableHead>
                 <TableHead className="w-20"></TableHead>
@@ -282,6 +291,17 @@ function ChoicesPanel({ questionId, allQuestions = [] }: { questionId: number; a
                     </TableCell>
                     <TableCell>
                       <Input value={editForm.label} onChange={(e) => setEditForm((f) => ({ ...f, label: e.target.value }))} className="h-7 text-xs p-1" />
+                      <div className="flex items-center gap-2 mt-1">
+                        <Checkbox id={`edit-other-${c.id}`} checked={editForm.has_other_input} onCheckedChange={(checked) => setEditForm((f) => ({ ...f, has_other_input: !!checked }))} className="h-3.5 w-3.5" />
+                        <label htmlFor={`edit-other-${c.id}`} className="text-[10px] text-muted-foreground cursor-pointer">+ Input</label>
+                        {editForm.has_other_input && <Input value={editForm.other_input_label} onChange={(e) => setEditForm((f) => ({ ...f, other_input_label: e.target.value }))} placeholder="Label" className="h-6 text-[10px] p-1 flex-1" />}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Input value={editForm.cabang_mtc} onChange={(e) => setEditForm((f) => ({ ...f, cabang_mtc: e.target.value }))} className="h-7 text-xs p-1" maxLength={50} placeholder="Cabang MTC" />
+                    </TableCell>
+                    <TableCell>
+                      <Input value={editForm.kode_desde_ltc} onChange={(e) => setEditForm((f) => ({ ...f, kode_desde_ltc: e.target.value }))} className="h-7 text-xs p-1" placeholder="R.1.1.3" />
                     </TableCell>
                     <TableCell>
                       <select value={editForm.mtc_code} onChange={(e) => setEditForm((f) => ({ ...f, mtc_code: e.target.value }))} className="w-full rounded border px-1 py-0.5 text-xs bg-background outline-none focus:ring-1 focus:ring-ring">
@@ -308,7 +328,9 @@ function ChoicesPanel({ questionId, allQuestions = [] }: { questionId: number; a
                   <TableRow key={c.id}>
                     <TableCell className="text-center text-sm text-muted-foreground">{c.order}</TableCell>
                     <TableCell><span className="font-mono text-sm font-medium">{c.value}</span></TableCell>
-                    <TableCell><div className="text-sm whitespace-normal break-words">{c.label}</div></TableCell>
+                    <TableCell><div className="text-sm whitespace-normal break-words">{c.label}{c.has_other_input && <Badge variant="outline" className="text-[10px] ml-1.5 align-middle">+ Input{c.other_input_label ? `: ${c.other_input_label}` : ''}</Badge>}</div></TableCell>
+                    <TableCell>{c.cabang_mtc ? <span className="text-xs">{c.cabang_mtc}</span> : <span className="text-xs text-muted-foreground">-</span>}</TableCell>
+                    <TableCell>{c.kode_desde_ltc ? <span className="font-mono text-xs">{c.kode_desde_ltc}</span> : <span className="text-xs text-muted-foreground">-</span>}</TableCell>
                     <TableCell>
                       {c.mtc_code_display
                         ? <span className="text-xs whitespace-normal break-words">{c.mtc_code_display}</span>
@@ -346,20 +368,22 @@ function QuestionDialog({ open, onOpenChange, editTarget, onSubmit, isPending, a
   allQuestions: Question[];
 }) {
   const [activeTab, setActiveTab] = useState<DialogTab>("detail");
-  const [form, setForm] = useState({ code: "", question_text: "", answer_type: "TEXT", is_required: true, order: 1, desde_ltc_description: "", keterangan: "", skip_logic: null as any });
+  const [form, setForm] = useState({ section: 0, code: "", question_text: "", answer_type: "TEXT", is_required: true, order: 1, desde_ltc_description: "", introduction_text: "", keterangan: "", skip_logic: null as any });
+
+  const { data: sections = [] } = useQuestionSections();
 
   useMemo(() => {
     setActiveTab("detail");
     if (editTarget) {
-      setForm({ code: editTarget.code, question_text: editTarget.question_text, answer_type: editTarget.answer_type, is_required: editTarget.is_required, order: editTarget.order, desde_ltc_description: editTarget.desde_ltc_description ?? "", keterangan: editTarget.keterangan ?? "", skip_logic: editTarget.skip_logic ?? null });
+      setForm({ section: editTarget.section, code: editTarget.code, question_text: editTarget.question_text, answer_type: editTarget.answer_type, is_required: editTarget.is_required, order: editTarget.order, desde_ltc_description: editTarget.desde_ltc_description ?? "", introduction_text: editTarget.introduction_text ?? "", keterangan: editTarget.keterangan ?? "", skip_logic: editTarget.skip_logic ?? null });
     } else {
-      setForm({ code: "", question_text: "", answer_type: "TEXT", is_required: true, order: 1, desde_ltc_description: "", keterangan: "", skip_logic: null });
+      setForm({ section: sections[0]?.id || 0, code: "", question_text: "", answer_type: "TEXT", is_required: true, order: 1, desde_ltc_description: "", introduction_text: "", keterangan: "", skip_logic: null });
     }
   }, [editTarget, open]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{editTarget ? `Edit Pertanyaan — ${editTarget.code}` : "Tambah Pertanyaan"}</DialogTitle>
         </DialogHeader>
@@ -390,11 +414,25 @@ function QuestionDialog({ open, onOpenChange, editTarget, onSubmit, isPending, a
         {/* Detail tab */}
         {activeTab === "detail" && (
           <form id="question-form" onSubmit={(e) => { e.preventDefault(); onSubmit(form); }} className="space-y-4 pt-1">
+            <div className="space-y-2">
+              <Label htmlFor="q-section">Section *</Label>
+              <select
+                id="q-section"
+                value={form.section || ""}
+                onChange={(e) => setForm((f) => ({ ...f, section: parseInt(e.target.value) || 0 }))}
+                className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring bg-background"
+                required
+              >
+                <option value="" disabled>— Pilih Section —</option>
+                {sections.map((s) => <option key={s.id} value={s.id}>{s.name}{s.code ? ` (${s.code})` : ''}</option>)}
+              </select>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2"><Label htmlFor="q-code">Kode *</Label><Input id="q-code" value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))} placeholder="e.g. Q1, QL1, RQA" required /></div>
               <div className="space-y-2"><Label htmlFor="q-order">Urutan</Label><Input id="q-order" type="number" value={form.order} onChange={(e) => setForm((f) => ({ ...f, order: parseInt(e.target.value) || 1 }))} /></div>
             </div>
             <div className="space-y-2"><Label htmlFor="q-text">Teks Pertanyaan *</Label><Textarea id="q-text" value={form.question_text} onChange={(e) => setForm((f) => ({ ...f, question_text: e.target.value }))} placeholder="Teks pertanyaan lengkap" rows={3} required /></div>
+            <div className="space-y-2"><Label htmlFor="q-intro">Teks Pengantar</Label><Textarea id="q-intro" value={form.introduction_text} onChange={(e) => setForm((f) => ({ ...f, introduction_text: e.target.value }))} placeholder="Teks kontekstual yang ditampilkan di atas pertanyaan ini" rows={3} /><p className="text-[10px] text-muted-foreground">Teks ini akan muncul sebagai kotak kuning sebelum pertanyaan.</p></div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label htmlFor="q-type">Tipe Jawaban *</Label>
@@ -461,13 +499,29 @@ function QuestionsTable({ questions, showMtc, onEdit, onDelete, onView }: {
   questions: Question[]; showMtc: boolean;
   onEdit: (q: Question) => void; onDelete: (q: Question) => void; onView: (q: Question) => void;
 }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [search, setSearch] = useState("");
   const [sortAZ, setSortAZ] = useState(false);
   const [filterType, setFilterType] = useState("ALL");
   const [filterRequired, setFilterRequired] = useState("ALL");
   const [sorting, setSorting] = useState<SortingState>([]);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
+  const [pagination, setPagination] = useState<PaginationState>(() => ({
+    pageIndex: Math.max(0, (Number(searchParams.get("page")) || 1) - 1),
+    pageSize: Number(searchParams.get("size")) || 10,
+  }));
+  const [jumpPage, setJumpPage] = useState("");
+  const isFirstRender = useRef(true);
+
+  // Sync page to URL
+  useEffect(() => {
+    if (isFirstRender.current) { isFirstRender.current = false; return; }
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("page", String(pagination.pageIndex + 1));
+    params.set("size", String(pagination.pageSize));
+    router.replace(`?${params.toString()}`, { scroll: false });
+  }, [pagination.pageIndex, pagination.pageSize]);
   const bulkDelete = useBulkDeleteQuestion();
 
   const filtered = useMemo(() => {
@@ -547,6 +601,7 @@ function QuestionsTable({ questions, showMtc, onEdit, onDelete, onView }: {
     state: { sorting, globalFilter: search, rowSelection, pagination },
     onGlobalFilterChange: (v) => { setSearch(v); setPagination((p) => ({ ...p, pageIndex: 0 })); },
     enableRowSelection: true,
+    autoResetPageIndex: false,
   });
 
   const selectedIds = table.getSelectedRowModel().rows.map((r) => r.original.id);
@@ -602,9 +657,9 @@ function QuestionsTable({ questions, showMtc, onEdit, onDelete, onView }: {
               <Button variant="outline" size="sm"><Download01Icon className="w-4 h-4 mr-2" />Export Pilihan</Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => exportQuestions(selectedIds, 'csv')}>Export sebagai CSV</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => exportQuestions(selectedIds, 'xlsx')}>Export sebagai XLSX</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => exportQuestions(selectedIds, 'json')}>Export sebagai JSON</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => exportQuestions(selectedIds, 'csv').then(() => toast.success('Export CSV berhasil')).catch((e) => toast.error(e.message))}>Export sebagai CSV</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => exportQuestions(selectedIds, 'xlsx').then(() => toast.success('Export XLSX berhasil')).catch((e) => toast.error(e.message))}>Export sebagai XLSX</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => exportQuestions(selectedIds, 'json').then(() => toast.success('Export JSON berhasil')).catch((e) => toast.error(e.message))}>Export sebagai JSON</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           <Button variant="destructive" size="sm" onClick={async () => { await bulkDelete.mutateAsync(selectedIds); setRowSelection({}); }} disabled={bulkDelete.isPending}>
@@ -631,104 +686,212 @@ function QuestionsTable({ questions, showMtc, onEdit, onDelete, onView }: {
         </Table>
       </div>
 
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          {table.getFilteredRowModel().rows.length > 0
-            ? `Menampilkan ${pagination.pageIndex * pagination.pageSize + 1}–${Math.min((pagination.pageIndex + 1) * pagination.pageSize, table.getFilteredRowModel().rows.length)} dari ${table.getFilteredRowModel().rows.length}`
-            : "Tidak ada hasil"}
-        </p>
-        <div className="flex items-center gap-1">
-          <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}><ArrowLeft01Icon className="h-4 w-4" /></Button>
-          <span className="text-sm px-2">Hal {table.getState().pagination.pageIndex + 1} / {table.getPageCount() || 1}</span>
-          <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}><ArrowRight01Icon className="h-4 w-4" /></Button>
-        </div>
-      </div>
+      {/* Pagination */}
+      {(() => {
+        const pageCount = table.getPageCount() || 1;
+        const currentPage = pagination.pageIndex;
+        const totalRows = table.getFilteredRowModel().rows.length;
+
+        // Build page number buttons: first, ..., window around current, ..., last
+        const buildPages = () => {
+          const pages: (number | "...")[] = [];
+          if (pageCount <= 7) {
+            for (let i = 0; i < pageCount; i++) pages.push(i);
+          } else {
+            pages.push(0);
+            if (currentPage > 2) pages.push("...");
+            for (let i = Math.max(1, currentPage - 1); i <= Math.min(pageCount - 2, currentPage + 1); i++) pages.push(i);
+            if (currentPage < pageCount - 3) pages.push("...");
+            pages.push(pageCount - 1);
+          }
+          return pages;
+        };
+
+        return (
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <p className="text-sm text-muted-foreground">
+                {totalRows > 0
+                  ? `Menampilkan ${currentPage * pagination.pageSize + 1}–${Math.min((currentPage + 1) * pagination.pageSize, totalRows)} dari ${totalRows}`
+                  : "Tidak ada hasil"}
+              </p>
+              <select
+                className="h-8 rounded-md border border-input bg-background px-2 text-sm"
+                value={pagination.pageSize}
+                onChange={(e) => setPagination((p) => ({ ...p, pageIndex: 0, pageSize: Number(e.target.value) }))}
+              >
+                {[10, 25, 50, 100].map((s) => <option key={s} value={s}>{s} / hal</option>)}
+              </select>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={() => table.setPageIndex(0)} disabled={!table.getCanPreviousPage()} title="Halaman pertama">
+                <ArrowLeft01Icon className="h-3.5 w-3.5" />
+                <ArrowLeft01Icon className="h-3.5 w-3.5 -ml-2" />
+              </Button>
+              <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>
+                <ArrowLeft01Icon className="h-4 w-4" />
+              </Button>
+              {buildPages().map((p, i) =>
+                p === "..." ? (
+                  <span key={`ellipsis-${i}`} className="px-1 text-sm text-muted-foreground select-none">…</span>
+                ) : (
+                  <Button
+                    key={p}
+                    variant={p === currentPage ? "default" : "outline"}
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                    onClick={() => table.setPageIndex(p as number)}
+                  >
+                    {(p as number) + 1}
+                  </Button>
+                )
+              )}
+              <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>
+                <ArrowRight01Icon className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={() => table.setPageIndex(pageCount - 1)} disabled={!table.getCanNextPage()} title="Halaman terakhir">
+                <ArrowRight01Icon className="h-3.5 w-3.5" />
+                <ArrowRight01Icon className="h-3.5 w-3.5 -ml-2" />
+              </Button>
+              <div className="flex items-center gap-1 ml-2">
+                <span className="text-sm text-muted-foreground">Ke hal</span>
+                <Input
+                  className="h-8 w-14 text-center"
+                  value={jumpPage}
+                  onChange={(e) => setJumpPage(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      const p = Math.max(1, Math.min(pageCount, Number(jumpPage))) - 1;
+                      if (!isNaN(p)) { table.setPageIndex(p); setJumpPage(""); }
+                    }
+                  }}
+                  placeholder={String(currentPage + 1)}
+                />
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
 
 // ─── Question Drawer ──────────────────────────────────────────────────────────
 
-function QuestionDrawer({ question, open, onOpenChange, onEdit, allQuestions = [] }: {
+function QuestionDrawer({ question, open, onOpenChange, onSave, allQuestions = [] }: {
   question: Question | null; open: boolean;
-  onOpenChange: (v: boolean) => void; onEdit: (q: Question) => void;
+  onOpenChange: (v: boolean) => void; onSave: (id: number, data: Partial<Question>) => Promise<void>;
   allQuestions?: Question[];
 }) {
   const choiceTypes = ["SINGLE_CHOICE", "MULTIPLE_CHOICE"];
-  const hasChoices = question && choiceTypes.includes(question.answer_type);
+  const hasChoices = question && choiceTypes.includes(question?.answer_type);
+  const { data: sections = [] } = useQuestionSections();
+  const [form, setForm] = useState({ section: 0, code: "", question_text: "", answer_type: "TEXT", is_required: true, order: 1, desde_ltc_description: "", introduction_text: "", keterangan: "", skip_logic: null as any });
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (question) {
+      setForm({ section: question.section, code: question.code, question_text: question.question_text, answer_type: question.answer_type, is_required: question.is_required, order: question.order, desde_ltc_description: question.desde_ltc_description ?? "", introduction_text: question.introduction_text ?? "", keterangan: question.keterangan ?? "", skip_logic: question.skip_logic ?? null });
+    }
+  }, [question]);
+
+  async function handleSave() {
+    if (!question) return;
+    setSaving(true);
+    try {
+      await onSave(question.id, form);
+      toast.success("Pertanyaan berhasil disimpan");
+    } catch { toast.error("Gagal menyimpan"); }
+    finally { setSaving(false); }
+  }
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="sm:max-w-3xl w-full flex flex-col gap-0 p-0 overflow-hidden">
+      <SheetContent side="right" className="sm:max-w-4xl w-full flex flex-col gap-0 p-0 overflow-hidden">
         {question && (
           <>
             <SheetHeader className="px-6 pt-6 pb-4 border-b">
               <div className="flex items-start gap-3 pr-6">
                 <span className="font-mono text-2xl font-bold text-primary leading-none">{question.code}</span>
-                <AnswerTypeBadge type={question.answer_type} />
+                <AnswerTypeBadge type={form.answer_type} />
               </div>
               <SheetTitle className="text-base font-normal text-foreground leading-snug mt-1">
-                {question.question_text}
+                {form.question_text || question.question_text}
               </SheetTitle>
             </SheetHeader>
 
-            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-              {/* Meta info */}
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">Seksi</p>
-                  <p className="font-medium">{question.section_name ?? `Seksi ${question.section}`}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">Urutan</p>
-                  <p className="font-medium">{question.order}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">Wajib Diisi</p>
-                  {question.is_required
-                    ? <Badge variant="outline" className="text-xs text-primary border-primary">Ya</Badge>
-                    : <Badge variant="outline" className="text-xs text-muted-foreground">Tidak</Badge>}
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">Selanjutnya</p>
-                  {question.skip_logic && question.skip_logic.length > 0
-                    ? <Badge variant="outline" className="font-mono text-xs text-primary border-primary">{question.skip_logic[0].goto}</Badge>
-                    : <span className="text-sm text-muted-foreground">-</span>}
-                </div>
-                {question.mtc_code_display && (
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Kode MTC</p>
-                    <Badge variant="outline" className="font-mono text-xs">{question.mtc_code_display}</Badge>
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
+              {/* ── Informasi Dasar ── */}
+              <div>
+                <p className="text-sm font-semibold text-foreground mb-1">Informasi Dasar</p>
+                <p className="text-xs text-muted-foreground mb-3">Section, kode pertanyaan, urutan, dan tipe jawaban.</p>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label className="text-xs">Section *</Label>
+                      <select value={form.section || ""} onChange={(e) => setForm((f) => ({ ...f, section: parseInt(e.target.value) || 0 }))} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring bg-background" required>
+                        <option value="" disabled>— Pilih Section —</option>
+                        {sections.map((s) => <option key={s.id} value={s.id}>{s.name}{s.code ? ` (${s.code})` : ''}</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-2"><Label className="text-xs">Kode *</Label><Input value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))} placeholder="e.g. Q1, QL1" /></div>
                   </div>
-                )}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2"><Label className="text-xs">Urutan</Label><Input type="number" value={form.order} onChange={(e) => setForm((f) => ({ ...f, order: parseInt(e.target.value) || 1 }))} /></div>
+                    <div className="space-y-2">
+                      <Label className="text-xs">Tipe Jawaban *</Label>
+                      <select value={form.answer_type} onChange={(e) => setForm((f) => ({ ...f, answer_type: e.target.value }))} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring bg-background">
+                        {ANSWER_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              {question.desde_ltc_description && (
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">Deskripsi DESDE-LTC</p>
-                  <p className="text-sm">{question.desde_ltc_description}</p>
+              {/* ── Konten Pertanyaan ── */}
+              <div>
+                <p className="text-sm font-semibold text-foreground mb-1">Konten Pertanyaan</p>
+                <p className="text-xs text-muted-foreground mb-3">Teks pertanyaan dan keterangan untuk enumerator.</p>
+                <div className="space-y-3">
+                  <div className="space-y-2"><Label className="text-xs">Teks Pertanyaan *</Label><Textarea value={form.question_text} onChange={(e) => setForm((f) => ({ ...f, question_text: e.target.value }))} rows={3} /></div>
+                  <div className="space-y-2"><Label className="text-xs">Teks Pengantar</Label><Textarea value={form.introduction_text} onChange={(e) => setForm((f) => ({ ...f, introduction_text: e.target.value }))} rows={3} placeholder="Teks kontekstual yang ditampilkan di atas pertanyaan ini" /><p className="text-[10px] text-muted-foreground">Teks ini akan muncul sebagai kotak kuning sebelum pertanyaan.</p></div>
+                  <div className="space-y-2"><Label className="text-xs">Keterangan</Label><Textarea value={form.keterangan} onChange={(e) => setForm((f) => ({ ...f, keterangan: e.target.value }))} rows={2} placeholder="Petunjuk pengisian untuk enumerator" /></div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox id="drawer-required" checked={form.is_required} onCheckedChange={(v) => setForm((f) => ({ ...f, is_required: !!v }))} />
+                    <Label htmlFor="drawer-required" className="text-sm font-normal cursor-pointer">Wajib diisi</Label>
+                  </div>
                 </div>
-              )}
+              </div>
 
+              {/* ── Klasifikasi & Navigasi ── */}
+              <div>
+                <p className="text-sm font-semibold text-foreground mb-1">Klasifikasi & Navigasi</p>
+                <p className="text-xs text-muted-foreground mb-3">Deskripsi DESDE-LTC dan logika lompat pertanyaan.</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2"><Label className="text-xs">Deskripsi DESDE-LTC</Label><Input value={form.desde_ltc_description} onChange={(e) => setForm((f) => ({ ...f, desde_ltc_description: e.target.value }))} placeholder="Panduan klasifikasi" /></div>
+                  <div className="space-y-2">
+                    <Label className="text-xs">Pertanyaan Selanjutnya</Label>
+                    <select value={form.skip_logic?.[0]?.goto ?? ""} onChange={(e) => { const val = e.target.value; setForm((f) => ({ ...f, skip_logic: val ? [{ value: "_next", goto: val }] : null })); }} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring bg-background">
+                      <option value="">— Tidak ada —</option>
+                      {allQuestions.filter((q) => q.code !== form.code).map((q) => <option key={q.id} value={q.code}>{q.code} — {q.question_text.slice(0, 30)}{q.question_text.length > 30 ? '...' : ''}</option>)}
+                    </select>
+                  </div>
+                </div>
+              </div>
 
-              {/* Choices */}
+              {/* ── Pilihan Jawaban ── */}
               {hasChoices && (
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Pilihan Jawaban</p>
+                  <p className="text-sm font-semibold text-foreground mb-1">Pilihan Jawaban</p>
+                  <p className="text-xs text-muted-foreground mb-3">Kelola opsi jawaban untuk pertanyaan pilihan tunggal/ganda.</p>
                   <ChoicesPanel questionId={question.id} allQuestions={allQuestions} />
-                </div>
-              )}
-
-              {!hasChoices && (
-                <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
-                  Tipe jawaban ini tidak menggunakan pilihan.
                 </div>
               )}
             </div>
 
             <div className="border-t px-6 py-4">
-              <Button className="w-full" onClick={() => { onEdit(question); onOpenChange(false); }}>
-                <Edit04Icon className="w-4 h-4 mr-2" />Edit Pertanyaan
+              <Button className="w-full" onClick={handleSave} disabled={saving}>
+                {saving ? "Menyimpan..." : "Simpan Perubahan"}
               </Button>
             </div>
           </>
@@ -740,14 +903,8 @@ function QuestionDrawer({ question, open, onOpenChange, onEdit, allQuestions = [
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-const PAGE_TABS: { key: PageTab; label: string }[] = [
-  { key: "dasar", label: "Pertanyaan Dasar" },
-  { key: "layanan", label: "Pertanyaan Layanan" },
-  { key: "detail", label: "Pertanyaan Detail" },
-];
-
 export default function ModelKuisionerPage() {
-  const [activeTab, setActiveTab] = useState<PageTab>("dasar");
+  const [activeTab, setActiveTab] = useState<number | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Question | null>(null);
   const [drawerTarget, setDrawerTarget] = useState<Question | null>(null);
@@ -755,22 +912,38 @@ export default function ModelKuisionerPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
 
-  const { data: allQuestions = [], isLoading } = useQuestions();
+  const { data: allQuestions = [], isLoading, error } = useQuestions();
+  const { data: allSections = [] } = useQuestionSections();
   const createQuestion = useCreateQuestion();
   const updateQuestion = useUpdateQuestion();
   const deleteQuestion = useDeleteQuestion();
   const importQuestions = useImportQuestions();
 
-  const grouped = useMemo(() => {
-    const dasar: Question[] = [], layanan: Question[] = [], detail: Question[] = [];
+  // Build section tabs from the sections API, with question counts
+  const sectionTabs = useMemo(() => {
+    const questionsBySection = new Map<number, Question[]>();
     for (const q of allQuestions) {
-      const tab = getPageTab(q.code);
-      if (tab === "dasar") dasar.push(q);
-      else if (tab === "layanan") layanan.push(q);
-      else detail.push(q);
+      const list = questionsBySection.get(q.section) || [];
+      list.push(q);
+      questionsBySection.set(q.section, list);
     }
-    return { dasar, layanan, detail };
-  }, [allQuestions]);
+    return allSections.map((s) => ({
+      id: s.id,
+      name: s.name,
+      code: s.code,
+      questions: questionsBySection.get(s.id) || [],
+    }));
+  }, [allQuestions, allSections]);
+
+  // Set active tab to first section once data is loaded
+  useEffect(() => {
+    if (activeTab === null && sectionTabs.length > 0) {
+      setActiveTab(sectionTabs[0].id);
+    }
+  }, [sectionTabs, activeTab]);
+
+  const activeSection = sectionTabs.find((s) => s.id === activeTab);
+  const activeQuestions = activeSection?.questions || [];
 
   const handleDelete = useCallback((q: Question) => { deleteQuestion.mutate(q.id); }, [deleteQuestion]);
 
@@ -778,6 +951,18 @@ export default function ModelKuisionerPage() {
     if (editTarget) await updateQuestion.mutateAsync({ id: editTarget.id, ...data });
     else await createQuestion.mutateAsync(data);
     setDialogOpen(false);
+  }
+
+  if (error) {
+    return (
+      <>
+        <PageHeader breadcrumbs={breadcrumbs} />
+        <div className="flex flex-col items-center justify-center py-24 gap-4">
+          <p className="text-destructive">Gagal memuat data pertanyaan: {error.message}</p>
+          <button className="text-sm underline text-muted-foreground" onClick={() => window.location.reload()}>Coba lagi</button>
+        </div>
+      </>
+    );
   }
 
   if (isLoading) {
@@ -812,9 +997,9 @@ export default function ModelKuisionerPage() {
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => exportQuestions(undefined, 'csv')}>Export sebagai CSV</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => exportQuestions(undefined, 'xlsx')}>Export sebagai XLSX</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => exportQuestions(undefined, 'json')}>Export sebagai JSON</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => exportQuestions(undefined, 'csv').then(() => toast.success('Export CSV berhasil')).catch((e) => toast.error(e.message))}>Export sebagai CSV</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => exportQuestions(undefined, 'xlsx').then(() => toast.success('Export XLSX berhasil')).catch((e) => toast.error(e.message))}>Export sebagai XLSX</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => exportQuestions(undefined, 'json').then(() => toast.success('Export JSON berhasil')).catch((e) => toast.error(e.message))}>Export sebagai JSON</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -824,28 +1009,28 @@ export default function ModelKuisionerPage() {
           </div>
         </div>
 
-        {/* Page tabs */}
-        <div className="flex gap-1.5">
-          {PAGE_TABS.map((tab) => (
+        {/* Section tabs */}
+        <div className="flex gap-1.5 flex-wrap">
+          {sectionTabs.map((tab) => (
             <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
               className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                activeTab === tab.key
+                activeTab === tab.id
                   ? "bg-primary text-white"
                   : "bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/80"
               }`}
             >
-              {tab.label}
-              <span className={`ml-2 rounded-full px-2 py-0.5 text-xs font-normal ${activeTab === tab.key ? "bg-white/20" : "bg-background"}`}>{grouped[tab.key].length}</span>
+              {tab.name}
+              <span className={`ml-2 rounded-full px-2 py-0.5 text-xs font-normal ${activeTab === tab.id ? "bg-white/20" : "bg-background"}`}>{tab.questions.length}</span>
             </button>
           ))}
         </div>
 
         <QuestionsTable
-          key={activeTab}
-          questions={grouped[activeTab]}
-          showMtc={activeTab === "layanan" || activeTab === "detail"}
+          key={activeTab ?? 0}
+          questions={activeQuestions}
+          showMtc={true}
           onEdit={(q) => { setEditTarget(q); setDialogOpen(true); }}
           onDelete={handleDelete}
           onView={(q) => { setDrawerTarget(q); setDrawerOpen(true); }}
@@ -867,8 +1052,13 @@ export default function ModelKuisionerPage() {
         result={importResult}
         isPending={importQuestions.isPending}
         onImport={async (file, updateExisting) => {
-          const r = await importQuestions.mutateAsync({ file, updateExisting });
-          setImportResult(r);
+          try {
+            const r = await importQuestions.mutateAsync({ file, updateExisting });
+            setImportResult(r);
+            if (r.created > 0 || r.updated > 0) toast.success(`Import berhasil: ${r.created} dibuat, ${r.updated} diperbarui`);
+          } catch (e: unknown) {
+            toast.error(e instanceof Error ? e.message : 'Import gagal');
+          }
         }}
       />
 
@@ -876,7 +1066,7 @@ export default function ModelKuisionerPage() {
         question={drawerTarget}
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
-        onEdit={(q) => { setEditTarget(q); setDialogOpen(true); }}
+        onSave={async (id, data) => { await updateQuestion.mutateAsync({ id, ...data }); }}
         allQuestions={allQuestions}
       />
     </>

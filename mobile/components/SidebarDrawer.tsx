@@ -8,7 +8,7 @@ import {
   Pressable,
   Animated,
 } from 'react-native';
-import { Cancel01Icon, Home01Icon, FileEditIcon, Settings01Icon, UserIcon } from 'hugeicons-react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 
 interface SidebarDrawerProps {
   visible: boolean;
@@ -27,10 +27,10 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
   }, [visible]);
 
   const menuItems = [
-    { icon: Home01Icon, label: 'Home', onPress: () => console.log('Home') },
-    { icon: FileEditIcon, label: 'Survey', onPress: () => console.log('Survey') },
-    { icon: Settings01Icon, label: 'Settings', onPress: () => console.log('Settings') },
-    { icon: UserIcon, label: 'Profile', onPress: () => console.log('Profile') },
+    { iconName: 'home' as const, label: 'Home', onPress: () => console.log('Home') },
+    { iconName: 'description' as const, label: 'Survey', onPress: () => console.log('Survey') },
+    { iconName: 'settings' as const, label: 'Settings', onPress: () => console.log('Settings') },
+    { iconName: 'person' as const, label: 'Profile', onPress: () => console.log('Profile') },
   ];
 
   return (
@@ -46,7 +46,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
             <View style={styles.header}>
               <Text style={styles.title}>Menu</Text>
               <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                <Cancel01Icon size={24} color="#000" />
+                <MaterialIcons name="close" size={24} color="#000" />
               </TouchableOpacity>
             </View>
 
@@ -60,7 +60,7 @@ export default function SidebarDrawer({ visible, onClose }: SidebarDrawerProps) 
                     onClose();
                   }}
                 >
-                  <item.icon size={24} color="#374151" />
+                  <MaterialIcons name={item.iconName} size={24} color="#374151" />
                   <Text style={styles.menuLabel}>{item.label}</Text>
                 </TouchableOpacity>
               ))}

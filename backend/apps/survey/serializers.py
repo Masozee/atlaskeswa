@@ -43,7 +43,8 @@ class QuestionChoiceSerializer(serializers.ModelSerializer):
         model = QuestionChoice
         fields = [
             'id', 'question', 'value', 'label', 'order', 'mtc_code', 'mtc_code_display',
-            'keterangan', 'next_question_code', 'has_other_input', 'other_input_label'
+            'keterangan', 'next_question_code', 'has_other_input', 'other_input_label',
+            'cabang_mtc', 'kode_desde_ltc'
         ]
         read_only_fields = ['id']
 
@@ -55,7 +56,8 @@ class QuestionChoiceCreateUpdateSerializer(serializers.ModelSerializer):
         model = QuestionChoice
         fields = [
             'id', 'question', 'value', 'label', 'order', 'mtc_code',
-            'keterangan', 'next_question_code', 'has_other_input', 'other_input_label'
+            'keterangan', 'next_question_code', 'has_other_input', 'other_input_label',
+            'cabang_mtc', 'kode_desde_ltc'
         ]
         read_only_fields = ['id']
 
@@ -66,13 +68,16 @@ class QuestionSerializer(serializers.ModelSerializer):
     choices = QuestionChoiceSerializer(many=True, read_only=True)
     answer_type_display = serializers.CharField(source='get_answer_type_display', read_only=True)
     mtc_code_display = serializers.CharField(source='mtc_code.code', read_only=True)
+    section_name = serializers.CharField(source='section.name', read_only=True)
+    section_code = serializers.CharField(source='section.code', read_only=True)
 
     class Meta:
         model = Question
         fields = [
-            'id', 'section', 'code', 'question_text', 'answer_type', 'answer_type_display',
+            'id', 'section', 'section_name', 'section_code', 'code', 'question_text',
+            'answer_type', 'answer_type_display',
             'is_required', 'order', 'mtc_code', 'mtc_code_display',
-            'desde_ltc_description', 'keterangan', 'validation_rules',
+            'desde_ltc_description', 'introduction_text', 'keterangan', 'validation_rules',
             'show_condition', 'skip_logic', 'choices'
         ]
         read_only_fields = ['id']
@@ -86,7 +91,7 @@ class QuestionCreateUpdateSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'section', 'code', 'question_text', 'answer_type',
             'is_required', 'order', 'mtc_code', 'desde_ltc_description',
-            'keterangan', 'validation_rules', 'show_condition', 'skip_logic'
+            'introduction_text', 'keterangan', 'validation_rules', 'show_condition', 'skip_logic'
         ]
         read_only_fields = ['id']
 
@@ -102,6 +107,18 @@ class QuestionSectionSerializer(serializers.ModelSerializer):
             'id', 'code', 'name', 'description', 'order',
             'introduction_text', 'show_condition', 'questions'
         ]
+
+
+class QuestionSectionCreateUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for creating/updating question sections"""
+
+    class Meta:
+        model = QuestionSection
+        fields = [
+            'id', 'template', 'code', 'name', 'description', 'order',
+            'introduction_text', 'show_condition'
+        ]
+        read_only_fields = ['id']
 
 
 class SurveyTemplateListSerializer(serializers.ModelSerializer):
@@ -156,7 +173,7 @@ class QuestionAnswerSerializer(serializers.ModelSerializer):
             'selected_choices', 'selected_choice_values', 'other_text',
             'geographic_unit', 'geographic_unit_name', 'coverage_level',
             'file', 'gps_latitude', 'gps_longitude', 'table_data',
-            'derived_mtc', 'created_at', 'updated_at'
+            'context_key', 'derived_mtc', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 
@@ -280,6 +297,16 @@ class DynamicSurveyResponseCreateSerializer(serializers.ModelSerializer):
 
     def _create_answers(self, response, answers_data):
         """Create QuestionAnswer objects from answers dict using bulk operations"""
+        # Separate __other_text keys from regular answers
+        other_texts = {}
+        clean_answers = {}
+        for key, val in answers_data.items():
+            if key.endswith('__other_text'):
+                other_texts[key.replace('__other_text', '')] = val
+            else:
+                clean_answers[key] = val
+        answers_data = clean_answers
+
         template = response.template
         questions = Question.objects.filter(section__template=template)
         question_map = {q.code: q for q in questions}
@@ -298,12 +325,18 @@ class DynamicSurveyResponseCreateSerializer(serializers.ModelSerializer):
         answers_to_create = []
         choice_assignments = []  # (answer_index, question, answer_value) for M2M
 
-        for question_code, answer_value in answers_data.items():
+        for raw_code, answer_value in answers_data.items():
+            # Parse MTC context prefix: "R2|RQA" → context_key="R2", code="RQA"
+            if '|' in raw_code:
+                context_key, question_code = raw_code.split('|', 1)
+            else:
+                context_key, question_code = '', raw_code
+
             question = question_map.get(question_code)
             if not question:
                 continue
 
-            answer_kwargs = {'response': response, 'question': question}
+            answer_kwargs = {'response': response, 'question': question, 'context_key': context_key}
 
             # Set the appropriate field based on answer type
             if question.answer_type in ['TEXT', 'TEXTAREA', 'PHONE', 'EMAIL', 'URL']:
@@ -336,6 +369,10 @@ class DynamicSurveyResponseCreateSerializer(serializers.ModelSerializer):
                 if isinstance(answer_value, dict):
                     answer_kwargs['gps_latitude'] = answer_value.get('latitude')
                     answer_kwargs['gps_longitude'] = answer_value.get('longitude')
+
+            # Set other_text if provided (keyed by plain question code)
+            if question_code in other_texts:
+                answer_kwargs['other_text'] = other_texts[question_code]
 
             answer_obj = QuestionAnswer(**answer_kwargs)
             answers_to_create.append(answer_obj)

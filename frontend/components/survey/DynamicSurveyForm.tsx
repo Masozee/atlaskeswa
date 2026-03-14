@@ -6,8 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { DynamicQuestion } from './DynamicQuestion';
-import type { SurveyTemplate, SurveyAnswers, QuestionSection, Question } from '@/lib/types/survey-template';
-import { buildQuestionsMap, getActiveSections, getActiveQuestionsForSection, getFlowBasedQuestions, calculateProgress } from '@/lib/utils/question-logic';
+import type { SurveyTemplate, SurveyAnswers } from '@/lib/types/survey-template';
+import { buildQuestionsMap, getActiveSections, getFlowBasedQuestions, calculateProgress } from '@/lib/utils/question-logic';
 import { useCreateSurveyResponse, useSaveProgress } from '@/hooks/use-survey-responses';
 import { toast } from 'sonner';
 
@@ -40,9 +40,27 @@ export function DynamicSurveyForm({
 }: DynamicSurveyFormProps) {
   const router = useRouter();
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
-  const [answers, setAnswers] = useState<SurveyAnswers>(initialAnswers);
+  const [answers, setAnswers] = useState<SurveyAnswers>(() => {
+    // Strip __other_text keys from initialAnswers
+    const clean: SurveyAnswers = {};
+    for (const [k, v] of Object.entries(initialAnswers)) {
+      if (!k.endsWith('__other_text')) clean[k] = v;
+    }
+    return clean;
+  });
+  const [otherTexts, setOtherTexts] = useState<Record<string, string>>(() => {
+    const texts: Record<string, string> = {};
+    for (const [k, v] of Object.entries(initialAnswers)) {
+      if (k.endsWith('__other_text') && typeof v === 'string') {
+        texts[k.replace('__other_text', '')] = v;
+      }
+    }
+    return texts;
+  });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [currentMtcContext, setCurrentMtcContext] = useState<string>('');
+  const [currentMtcLabel, setCurrentMtcLabel] = useState<string>('');
 
   const createSurvey = useCreateSurveyResponse();
   const saveProgress = surveyResponseId ? useSaveProgress(surveyResponseId) : null;
@@ -53,11 +71,24 @@ export function DynamicSurveyForm({
     return buildQuestionsMap(template.sections);
   }, [template.sections]);
 
+  // Resolved answers: for flow logic, map "R2|RQA" → "RQA" so conditions still work
+  const resolvedAnswers = useMemo<SurveyAnswers>(() => {
+    if (!currentMtcContext) return answers;
+    const resolved: SurveyAnswers = { ...answers };
+    const prefix = `${currentMtcContext}|`;
+    for (const [key, val] of Object.entries(answers)) {
+      if (key.startsWith(prefix)) {
+        resolved[key.slice(prefix.length)] = val;
+      }
+    }
+    return resolved;
+  }, [answers, currentMtcContext]);
+
   // Get active sections based on current answers
   const activeSections = useMemo(() => {
     if (!template.sections) return [];
-    return getActiveSections(template.sections, answers, questionsMap);
-  }, [template.sections, answers, questionsMap]);
+    return getActiveSections(template.sections, resolvedAnswers, questionsMap);
+  }, [template.sections, resolvedAnswers, questionsMap]);
 
   // Get current section
   const currentSection = activeSections[currentSectionIndex];
@@ -65,35 +96,47 @@ export function DynamicSurveyForm({
   // Get active questions for current section (uses flow-based branching if available)
   const activeQuestions = useMemo(() => {
     if (!currentSection) return [];
-    return getFlowBasedQuestions(currentSection, answers, questionsMap);
-  }, [currentSection, answers, questionsMap]);
+    return getFlowBasedQuestions(currentSection, resolvedAnswers, questionsMap, template.sections);
+  }, [currentSection, resolvedAnswers, questionsMap, template.sections]);
 
   // Calculate progress
   const progress = useMemo(() => {
     if (!template.sections) return 0;
-    return calculateProgress(template.sections, answers, questionsMap);
-  }, [template.sections, answers, questionsMap]);
+    return calculateProgress(template.sections, resolvedAnswers, questionsMap);
+  }, [template.sections, resolvedAnswers, questionsMap]);
 
   // Build text for speech synthesis (current section content)
   const speechText = useMemo(() => {
     if (!currentSection) return '';
 
+    const toSc = (t: string) => t ? t.charAt(0).toUpperCase() + t.slice(1).toLowerCase() : '';
+
     const sectionName = currentSection.name || currentSection.title || 'Bagian Survei';
     const sectionDesc = currentSection.description || '';
 
-    let text = `Bagian ${currentSectionIndex + 1}: ${sectionName}.`;
+    let text = `Bagian ${currentSectionIndex + 1}: ${toSc(sectionName)}.`;
     if (sectionDesc) {
-      text += ` ${sectionDesc}.`;
+      text += ` ${toSc(sectionDesc)}.`;
+    }
+
+    // Section-level teks pengantar
+    if (currentSection.introduction_text) {
+      text += ` ${toSc(currentSection.introduction_text)}`;
     }
 
     // Add questions
     activeQuestions.forEach((question, index) => {
-      const questionText = question.question_text || question.text || '';
-      const helpText = question.help_text || '';
+      const questionText = toSc(question.question_text || question.text || '');
+      const helpText = question.keterangan || question.help_text || '';
+
+      // Per-question teks pengantar
+      if (question.introduction_text) {
+        text += ` ${toSc(question.introduction_text)}`;
+      }
 
       text += ` Pertanyaan ${index + 1}: ${questionText}`;
       if (helpText) {
-        text += ` ${helpText}`;
+        text += ` ${toSc(helpText)}`;
       }
 
       // Add choices if available
@@ -115,18 +158,74 @@ export function DynamicSurveyForm({
     }
   }, [speechText, onSpeechTextChange]);
 
+  // Build answers with other_text keys merged in
+  const buildAnswersPayload = () => {
+    const payload = { ...answers };
+    for (const [code, text] of Object.entries(otherTexts)) {
+      if (text) payload[`${code}__other_text`] = text;
+    }
+    return payload;
+  };
+
+  // Detect if a question code is a "detail" question (ends with uppercase letter, no trailing digit)
+  const isDetailQuestion = (code: string) => /[A-Z]$/.test(code);
+
   // Handle answer change
   const handleAnswerChange = (questionCode: string, value: any) => {
-    setAnswers((prev) => ({
-      ...prev,
-      [questionCode]: value,
-    }));
+    // For detail questions, prefix storage key with current MTC context
+    const storageKey = isDetailQuestion(questionCode) && currentMtcContext
+      ? `${currentMtcContext}|${questionCode}`
+      : questionCode;
+
+    // Detect MTC context change from a choice with cabang_mtc
+    const allQuestions = template.sections?.flatMap(s => s.questions || []) || [];
+    const q = allQuestions.find(q => q.code === questionCode);
+    const selectedChoice = q?.choices?.find((c: any) => c.value === value);
+
+    if (selectedChoice?.cabang_mtc && selectedChoice.cabang_mtc !== currentMtcContext) {
+      // Clear previously stored detail answers for the old context before switching
+      setAnswers((prev) => {
+        const cleaned = { ...prev };
+        if (currentMtcContext) {
+          const oldPrefix = `${currentMtcContext}|`;
+          for (const k of Object.keys(cleaned)) {
+            if (k.startsWith(oldPrefix)) delete cleaned[k];
+          }
+        }
+        cleaned[storageKey] = value;
+        return cleaned;
+      });
+      setCurrentMtcContext(selectedChoice.cabang_mtc);
+      setCurrentMtcLabel(selectedChoice.label);
+    } else {
+      setAnswers((prev) => ({ ...prev, [storageKey]: value }));
+      // If a main question (non-detail) is re-answered and has no cabang_mtc, clear context
+      if (!isDetailQuestion(questionCode) && !selectedChoice?.cabang_mtc) {
+        setCurrentMtcContext('');
+        setCurrentMtcLabel('');
+      }
+    }
+
+    // Clear other_text if user deselects the "other" choice
+    if (otherTexts[questionCode]) {
+      if (q?.choices) {
+        const otherChoice = q.choices.find((c: any) => c.has_other_input);
+        if (otherChoice) {
+          const isOtherSelected = Array.isArray(value)
+            ? value.includes(otherChoice.value)
+            : value === otherChoice.value;
+          if (!isOtherSelected) {
+            setOtherTexts((prev) => { const n = { ...prev }; delete n[questionCode]; return n; });
+          }
+        }
+      }
+    }
 
     // Clear error for this question
-    if (errors[questionCode]) {
+    if (errors[storageKey]) {
       setErrors((prev) => {
         const newErrors = { ...prev };
-        delete newErrors[questionCode];
+        delete newErrors[storageKey];
         return newErrors;
       });
     }
@@ -138,11 +237,14 @@ export function DynamicSurveyForm({
 
     activeQuestions.forEach((question) => {
       const questionType = question.answer_type || question.question_type;
-      const answer = answers[question.code];
+      const storageKey = isDetailQuestion(question.code) && currentMtcContext
+        ? `${currentMtcContext}|${question.code}`
+        : question.code;
+      const answer = answers[storageKey];
 
       if (question.is_required) {
         if (answer === null || answer === undefined || answer === '' || (Array.isArray(answer) && answer.length === 0)) {
-          newErrors[question.code] = 'Pertanyaan ini wajib diisi';
+          newErrors[storageKey] = 'Pertanyaan ini wajib diisi';
         }
       }
 
@@ -156,13 +258,13 @@ export function DynamicSurveyForm({
           koordinat?: { latitude: number | null; longitude: number | null };
         };
         if (!locationData.koordinat?.latitude || !locationData.koordinat?.longitude) {
-          newErrors[question.code] = 'Koordinat harus diisi. Klik tombol "Dapatkan Lokasi" untuk mengisi koordinat.';
+          newErrors[storageKey] = 'Koordinat harus diisi. Klik tombol "Dapatkan Lokasi" untuk mengisi koordinat.';
         }
         if (!locationData.kecamatan) {
-          newErrors[question.code] = 'Kecamatan harus dipilih';
+          newErrors[storageKey] = 'Kecamatan harus dipilih';
         }
         if (!locationData.desa) {
-          newErrors[question.code] = 'Desa/Kelurahan harus diisi';
+          newErrors[storageKey] = 'Desa/Kelurahan harus diisi';
         }
       }
     });
@@ -203,7 +305,7 @@ export function DynamicSurveyForm({
           survey_date: surveyDate,
           survey_period_start: surveyPeriodStart,
           survey_period_end: surveyPeriodEnd,
-          answers,
+          answers: buildAnswersPayload(),
         });
 
         toast.success('Survey berhasil disimpan sebagai draft');
@@ -211,7 +313,7 @@ export function DynamicSurveyForm({
         // Redirect to edit mode
         router.push(`/dashboard/survey/responses/${result.id}/edit`);
       } else if (saveProgress) {
-        await saveProgress.mutateAsync({ answers });
+        await saveProgress.mutateAsync({ answers: buildAnswersPayload() });
         toast.success('Perubahan berhasil disimpan');
       }
     } catch (error: any) {
@@ -224,7 +326,7 @@ export function DynamicSurveyForm({
   // Submit survey
   const handleSubmit = async () => {
     // Validate all sections
-    const allValid = activeSections.every((section, index) => {
+    const allValid = activeSections.every((_section, index) => {
       setCurrentSectionIndex(index);
       return validateSection();
     });
@@ -242,7 +344,7 @@ export function DynamicSurveyForm({
         survey_date: surveyDate,
         survey_period_start: surveyPeriodStart,
         survey_period_end: surveyPeriodEnd,
-        answers,
+        answers: buildAnswersPayload(),
       });
 
         toast.success('Survey berhasil disimpan dan siap untuk disubmit');
@@ -267,21 +369,24 @@ export function DynamicSurveyForm({
     );
   }
 
+  const toSentenceCase = (text: string) =>
+    text ? text.charAt(0).toUpperCase() + text.slice(1).toLowerCase() : '';
+
   // Use backend field names with fallback to aliases
-  const sectionTitle = currentSection.name || currentSection.title || 'Bagian Survei';
-  const sectionDescription = currentSection.description;
+  const sectionTitle = toSentenceCase(currentSection.name || currentSection.title || 'Bagian Survei');
+  const sectionDescription = currentSection.description
+    ? toSentenceCase(currentSection.description)
+    : undefined;
 
   return (
-    <div className="flex flex-1 flex-col gap-6">
+    <div className="flex flex-1 flex-col gap-5">
       {/* Progress bar */}
       <div className="flex items-center justify-between gap-4">
         <div className="flex-1">
           <div className="flex items-center justify-between mb-2">
-            <div>
-              <p className="text-sm text-muted-foreground">
-                Bagian {currentSectionIndex + 1} dari {activeSections.length}
-              </p>
-            </div>
+            <p className="text-sm text-muted-foreground">
+              Bagian {currentSectionIndex + 1} dari {activeSections.length}
+            </p>
             <div className="text-sm font-medium">{progress}% selesai</div>
           </div>
           <Progress value={progress} className="h-2" />
@@ -296,17 +401,42 @@ export function DynamicSurveyForm({
         )}
       </div>
 
+      {/* MTC context banner — shown when filling detail questions under a specific MTC */}
+      {currentMtcContext && activeQuestions.some(q => isDetailQuestion(q.code)) && (
+        <div className="flex items-center gap-2 bg-primary/10 border border-primary/30 rounded-lg px-4 py-2 text-sm">
+          <span className="text-muted-foreground">Sedang mengisi detail untuk:</span>
+          <span className="font-semibold text-primary">{currentMtcContext}</span>
+          {currentMtcLabel && <span className="text-muted-foreground">— {toSentenceCase(currentMtcLabel)}</span>}
+        </div>
+      )}
+
+      {/* Introduction text — contextual note shown before the questions */}
+      {currentSection.introduction_text && (
+        <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-4">
+          <p className="text-sm font-medium text-yellow-900 whitespace-pre-line">
+            {toSentenceCase(currentSection.introduction_text)}
+          </p>
+        </div>
+      )}
+
       {/* Questions */}
       <div className="space-y-8">
-        {activeQuestions.map((question) => (
-          <DynamicQuestion
-            key={question.code}
-            question={question}
-            value={answers[question.code]}
-            onChange={(value) => handleAnswerChange(question.code, value)}
-            error={errors[question.code]}
-          />
-        ))}
+        {activeQuestions.map((question) => {
+          const storageKey = isDetailQuestion(question.code) && currentMtcContext
+            ? `${currentMtcContext}|${question.code}`
+            : question.code;
+          return (
+            <DynamicQuestion
+              key={question.code}
+              question={question}
+              value={answers[storageKey]}
+              onChange={(value) => handleAnswerChange(question.code, value)}
+              onOtherTextChange={(text) => setOtherTexts((prev) => ({ ...prev, [question.code]: text }))}
+              otherText={otherTexts[question.code]}
+              error={errors[storageKey]}
+            />
+          );
+        })}
       </div>
 
       {/* Navigation buttons */}

@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, Noto_Sans } from "next/font/google";
 import "./globals.css";
 import { QueryProvider } from "@/providers/query-provider";
 import { ThemeProvider } from "@/providers/theme-provider";
+import { Toaster } from "sonner";
 
 const notoSans = Noto_Sans({
   variable: '--font-sans',
@@ -42,6 +43,7 @@ export default function RootLayout({
         <ThemeProvider defaultTheme="system" storageKey="yakkum-ui-theme">
           <QueryProvider>
             {children}
+            <Toaster richColors position="top-right" />
           </QueryProvider>
         </ThemeProvider>
       </body>

@@ -32,7 +32,25 @@ export function ClickableLabel({ htmlFor, children, description, className, requ
   };
 
   return (
-    <div className="flex items-center gap-2 group">
+    <div className="flex items-start gap-2 group">
+      <button
+        type="button"
+        onClick={handleClick}
+        aria-label="Baca pertanyaan"
+        className={cn(
+          "mt-0.5 flex-shrink-0 flex items-center justify-center h-6 w-6 rounded-full border transition-colors",
+          isSpeaking
+            ? "border-primary bg-primary/10 text-primary"
+            : "border-border text-muted-foreground hover:border-primary hover:text-primary hover:bg-primary/5"
+        )}
+      >
+        <VolumeHighIcon
+          className={cn(
+            "h-3.5 w-3.5 flex-shrink-0",
+            isSpeaking && "animate-pulse"
+          )}
+        />
+      </button>
       <Label
         htmlFor={htmlFor}
         className={cn(
@@ -41,12 +59,6 @@ export function ClickableLabel({ htmlFor, children, description, className, requ
         )}
         onClick={handleClick}
       >
-        <VolumeHighIcon
-          className={cn(
-            "h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0",
-            isSpeaking && "opacity-100 text-primary animate-pulse"
-          )}
-        />
         {children}
         {required && <span className="text-destructive">*</span>}
       </Label>

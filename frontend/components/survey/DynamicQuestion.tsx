@@ -20,20 +20,47 @@ import { ClickableLabel } from './clickable-label';
 import { LocationInput } from './LocationInput';
 import { PROVINSI, KABUPATEN, PROVINSI_ID, KABUPATEN_ID, type LocationData } from '@/lib/constants/kebumen-location';
 import { useKebumenKecamatan } from '@/hooks/use-geographic-units';
-import { Location01Icon, Loading03Icon } from 'hugeicons-react';
+import { Location01Icon, Loading03Icon, VolumeHighIcon } from 'hugeicons-react';
+import { useSpeechSynthesis } from '@/hooks/use-speech-synthesis';
 
 interface DynamicQuestionProps {
   question: Question;
   value: any;
   onChange: (value: any) => void;
+  onOtherTextChange?: (text: string) => void;
+  otherText?: string;
   error?: string;
 }
 
-export function DynamicQuestion({ question, value, onChange, error }: DynamicQuestionProps) {
+const toSentenceCase = (text: string) => {
+  if (!text) return '';
+  return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
+};
+
+function AnswerSoundButton({ text }: { text: string }) {
+  const { speak, isSpeaking } = useSpeechSynthesis();
+  return (
+    <button
+      type="button"
+      onClick={(e) => { e.preventDefault(); speak(text); }}
+      aria-label={`Dengarkan: ${text}`}
+      className={cn(
+        'flex-shrink-0 flex items-center justify-center h-5 w-5 rounded-full border transition-colors',
+        isSpeaking
+          ? 'border-primary bg-primary/10 text-primary'
+          : 'border-border text-muted-foreground hover:border-primary hover:text-primary hover:bg-primary/5'
+      )}
+    >
+      <VolumeHighIcon className="h-3 w-3" />
+    </button>
+  );
+}
+
+export function DynamicQuestion({ question, value, onChange, onOtherTextChange, otherText, error }: DynamicQuestionProps) {
   // Use backend field names with fallback to aliases
   const questionType = question.answer_type || question.question_type;
   const helpText = question.keterangan || question.help_text;
-  const questionText = question.question_text || question.text;
+  const questionText = toSentenceCase(question.question_text || question.text || '');
   const options = question.choices || question.options;
 
   // Auto-set fixed values for GEO_PROVINSI and GEO_KABUPATEN (using database IDs)
@@ -94,10 +121,12 @@ export function DynamicQuestion({ question, value, onChange, error }: DynamicQue
             <div className="flex items-center space-x-3 py-1">
               <RadioGroupItem value="true" id={`${question.code}-yes`} />
               <Label htmlFor={`${question.code}-yes`} className="font-normal cursor-pointer">Ya</Label>
+              <AnswerSoundButton text="Ya" />
             </div>
             <div className="flex items-center space-x-3 py-1">
               <RadioGroupItem value="false" id={`${question.code}-no`} />
               <Label htmlFor={`${question.code}-no`} className="font-normal cursor-pointer">Tidak</Label>
+              <AnswerSoundButton text="Tidak" />
             </div>
           </RadioGroup>
         );
@@ -118,11 +147,24 @@ export function DynamicQuestion({ question, value, onChange, error }: DynamicQue
         return (
           <RadioGroup value={value || ''} onValueChange={onChange} className="space-y-2">
             {options?.map((option: QuestionOption) => (
-              <div key={option.value} className="flex items-center space-x-3 py-1">
-                <RadioGroupItem value={option.value} id={`${question.code}-${option.value}`} />
-                <Label htmlFor={`${question.code}-${option.value}`} className="font-normal cursor-pointer">
-                  {option.label}
-                </Label>
+              <div key={option.value}>
+                <div className="flex items-center space-x-3 py-1">
+                  <RadioGroupItem value={option.value} id={`${question.code}-${option.value}`} />
+                  <Label htmlFor={`${question.code}-${option.value}`} className="font-normal cursor-pointer">
+                    {toSentenceCase(option.label)}
+                  </Label>
+                  <AnswerSoundButton text={option.label} />
+                </div>
+                {option.has_other_input && value === option.value && (
+                  <div className="ml-7 mt-1">
+                    <Input
+                      value={otherText || ''}
+                      onChange={(e) => onOtherTextChange?.(e.target.value)}
+                      placeholder={option.other_input_label || 'Sebutkan'}
+                      className="max-w-md"
+                    />
+                  </div>
+                )}
               </div>
             ))}
           </RadioGroup>
@@ -133,21 +175,34 @@ export function DynamicQuestion({ question, value, onChange, error }: DynamicQue
         return (
           <div className="space-y-2">
             {options?.map((option: QuestionOption) => (
-              <div key={option.value} className="flex items-center space-x-3 py-1">
-                <Checkbox
-                  id={`${question.code}-${option.value}`}
-                  checked={currentValues.includes(option.value)}
-                  onCheckedChange={(checked) => {
-                    if (checked) {
-                      onChange([...currentValues, option.value]);
-                    } else {
-                      onChange(currentValues.filter((v: string) => v !== option.value));
-                    }
-                  }}
-                />
-                <Label htmlFor={`${question.code}-${option.value}`} className="font-normal cursor-pointer">
-                  {option.label}
-                </Label>
+              <div key={option.value}>
+                <div className="flex items-center space-x-3 py-1">
+                  <Checkbox
+                    id={`${question.code}-${option.value}`}
+                    checked={currentValues.includes(option.value)}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        onChange([...currentValues, option.value]);
+                      } else {
+                        onChange(currentValues.filter((v: string) => v !== option.value));
+                      }
+                    }}
+                  />
+                  <Label htmlFor={`${question.code}-${option.value}`} className="font-normal cursor-pointer">
+                    {toSentenceCase(option.label)}
+                  </Label>
+                  <AnswerSoundButton text={option.label} />
+                </div>
+                {option.has_other_input && currentValues.includes(option.value) && (
+                  <div className="ml-7 mt-1">
+                    <Input
+                      value={otherText || ''}
+                      onChange={(e) => onOtherTextChange?.(e.target.value)}
+                      placeholder={option.other_input_label || 'Sebutkan'}
+                      className="max-w-md"
+                    />
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -169,6 +224,7 @@ export function DynamicQuestion({ question, value, onChange, error }: DynamicQue
                 <Label htmlFor={`${question.code}-${level.value}`} className="font-normal cursor-pointer">
                   {level.label}
                 </Label>
+                <AnswerSoundButton text={level.label} />
               </div>
             ))}
           </RadioGroup>
@@ -177,6 +233,9 @@ export function DynamicQuestion({ question, value, onChange, error }: DynamicQue
       case 'STAFF_TABLE':
       case 'DIAGNOSIS_TABLE':
         return <TableInput question={question} value={value} onChange={onChange} error={error} />;
+
+      case 'REPEATING_TABLE':
+        return <RepeatingTableInput question={question} value={value} onChange={onChange} error={error} />;
 
       case 'FILE':
         return (
@@ -291,6 +350,13 @@ export function DynamicQuestion({ question, value, onChange, error }: DynamicQue
 
   return (
     <div className="space-y-3 pb-6 border-b border-border/50 last:border-b-0 last:pb-0">
+      {question.introduction_text && (
+        <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-4 -mb-1">
+          <p className="text-sm font-medium text-yellow-900 whitespace-pre-line">
+            {toSentenceCase(question.introduction_text)}
+          </p>
+        </div>
+      )}
       <ClickableLabel
         htmlFor={question.code}
         description={helpText}
@@ -416,6 +482,103 @@ function TableInput({ question, value, onChange, error }: TableInputProps) {
         </tbody>
       </table>
       {error && <p className="text-sm text-destructive mt-2">{error}</p>}
+    </div>
+  );
+}
+
+/**
+ * RepeatingTableInput — dynamic rows table (e.g. DQB intervention programs)
+ * Columns are defined in question.table_config.columns.
+ * Users can add/remove rows freely.
+ */
+interface RepeatingTableInputProps {
+  question: Question;
+  value: Array<Record<string, string>> | null;
+  onChange: (value: Array<Record<string, string>>) => void;
+  error?: string;
+}
+
+function RepeatingTableInput({ question, value, onChange, error }: RepeatingTableInputProps) {
+  const config = question.table_config;
+
+  if (!config?.columns?.length) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Konfigurasi kolom tabel tidak ditemukan. Tambahkan <code>table_config</code> pada pertanyaan ini.
+      </p>
+    );
+  }
+
+  const rows: Array<Record<string, string>> = Array.isArray(value) ? value : [{}];
+
+  const handleCellChange = (rowIndex: number, colCode: string, cellValue: string) => {
+    const next = rows.map((r, i) => (i === rowIndex ? { ...r, [colCode]: cellValue } : r));
+    onChange(next);
+  };
+
+  const handleAddRow = () => onChange([...rows, {}]);
+
+  const handleRemoveRow = (rowIndex: number) => {
+    if (rows.length <= 1) return;
+    onChange(rows.filter((_, i) => i !== rowIndex));
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse border text-sm">
+          <thead>
+            <tr>
+              <th className="border p-2 bg-muted text-left font-medium w-10">No</th>
+              {config.columns.map((col) => (
+                <th key={col.code} className="border p-2 bg-muted text-left font-medium">
+                  {col.label}
+                </th>
+              ))}
+              <th className="border p-2 bg-muted w-10" />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, rowIndex) => (
+              <tr key={rowIndex}>
+                <td className="border p-2 text-center text-muted-foreground">{rowIndex + 1}</td>
+                {config.columns.map((col) => (
+                  <td key={col.code} className="border p-1">
+                    <Input
+                      type={col.type === 'number' ? 'number' : 'text'}
+                      value={row[col.code] || ''}
+                      onChange={(e) => handleCellChange(rowIndex, col.code, e.target.value)}
+                      className="h-8 border-0 focus-visible:ring-1"
+                      placeholder={col.label}
+                    />
+                  </td>
+                ))}
+                <td className="border p-1 text-center">
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveRow(rowIndex)}
+                    disabled={rows.length <= 1}
+                    className="text-destructive hover:text-destructive/80 disabled:opacity-30 text-lg leading-none px-1"
+                    aria-label="Hapus baris"
+                  >
+                    ×
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <button
+        type="button"
+        onClick={handleAddRow}
+        className="text-sm text-primary hover:underline flex items-center gap-1"
+      >
+        + Tambah baris
+      </button>
+
+      {error && <p className="text-sm text-destructive">{error}</p>}
     </div>
   );
 }

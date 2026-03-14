@@ -12,7 +12,6 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import Svg, { Path, Circle } from 'react-native-svg';
 import { apiClient, ENV_CONFIGURED_URL } from '../services/api';
 import { database } from '../services/database';
 
@@ -20,43 +19,12 @@ interface LoginScreenProps {
   onLoginSuccess: () => void;
 }
 
-// App Logo Icon
-const AppLogoIcon = () => (
-  <View style={{ width: 72, height: 72, borderRadius: 18, backgroundColor: '#00979D', alignItems: 'center', justifyContent: 'center' }}>
-    <Svg width={36} height={36} viewBox="0 0 24 24" fill="none">
-      <Path d="M9 12L11 14L15 10" stroke="white" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-      <Circle cx={12} cy={12} r={9} stroke="white" strokeWidth={2} />
-    </Svg>
-  </View>
-);
-
-// Google Logo Component
-const GoogleLogo = ({ size = 20 }: { size?: number }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24">
-    <Path
-      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-      fill="#4285F4"
-    />
-    <Path
-      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-      fill="#34A853"
-    />
-    <Path
-      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-      fill="#FBBC05"
-    />
-    <Path
-      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-      fill="#EA4335"
-    />
-  </Svg>
-);
-
 export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [showServerConfig, setShowServerConfig] = useState(false);
   const [serverUrl, setServerUrl] = useState('');
   const [isSavedInDb, setIsSavedInDb] = useState(false);
@@ -132,10 +100,6 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     }
   };
 
-  const handleGoogleLogin = () => {
-    Alert.alert('Coming Soon', 'Google OAuth will be implemented soon');
-  };
-
   const canSaveServerUrl = !isSavedInDb || serverUrl.trim().replace(/\/+$/, '') !== apiClient.getBaseURL();
 
   return (
@@ -149,8 +113,9 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       >
         {/* Logo */}
         <View style={styles.logoContainer}>
-          <AppLogoIcon />
-          <Text style={styles.logoText}>YAKKUM Survey</Text>
+          <Image source={require('../assets/logo.png')} style={styles.logoImage} resizeMode="contain" />
+          <Text style={styles.logoText}>OMMHA</Text>
+          <Text style={styles.logoSubtitle}>Pemetaan Layanan Kesehatan Jiwa Indonesia berbasis DESDE-LTC</Text>
         </View>
 
         {/* Welcome Text */}
@@ -233,17 +198,24 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
           {/* Password Input */}
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Password</Text>
-            <View style={styles.inputContainer}>
+            <View style={[styles.inputContainer, styles.passwordContainer]}>
               <TextInput
                 style={styles.input}
                 placeholder="Masukkan password"
                 placeholderTextColor="#9ca3af"
                 value={password}
                 onChangeText={setPassword}
-                secureTextEntry
+                secureTextEntry={!showPassword}
                 autoComplete="password"
                 editable={!isLoading}
               />
+              <TouchableOpacity
+                onPress={() => setShowPassword(!showPassword)}
+                style={styles.eyeButton}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Text style={styles.eyeButtonText}>{showPassword ? 'Hide' : 'Show'}</Text>
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -263,22 +235,6 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
             ) : (
               <Text style={styles.loginButtonText}>Masuk</Text>
             )}
-          </TouchableOpacity>
-
-          {/* Divider */}
-          <View style={styles.dividerContainer}>
-            <View style={styles.divider} />
-            <Text style={styles.dividerText}>ATAU</Text>
-            <View style={styles.divider} />
-          </View>
-
-          {/* Google Login Button */}
-          <TouchableOpacity
-            style={styles.googleButton}
-            onPress={handleGoogleLogin}
-          >
-            <GoogleLogo size={20} />
-            <Text style={styles.googleButtonText}>Masuk dengan Google</Text>
           </TouchableOpacity>
 
           {/* Sign Up Link */}
@@ -310,11 +266,22 @@ const styles = StyleSheet.create({
     marginBottom: 32,
     gap: 12,
   },
+  logoImage: {
+    width: 72,
+    height: 72,
+  },
   logoText: {
     fontSize: 22,
     fontWeight: '700',
     color: '#1a1a1a',
     letterSpacing: -0.4,
+  },
+  logoSubtitle: {
+    fontSize: 12,
+    color: '#6b7280',
+    textAlign: 'center',
+    lineHeight: 18,
+    paddingHorizontal: 20,
   },
   headerContainer: {
     alignItems: 'center',
@@ -361,11 +328,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
+  passwordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   input: {
     flex: 1,
     fontSize: 14,
     color: '#374151',
     padding: 0,
+  },
+  eyeButton: {
+    marginLeft: 8,
+    paddingVertical: 2,
+    paddingHorizontal: 4,
+  },
+  eyeButtonText: {
+    fontSize: 13,
+    color: '#03979D',
+    fontWeight: '500',
   },
   forgotPassword: {
     alignSelf: 'flex-end',
@@ -373,11 +354,11 @@ const styles = StyleSheet.create({
   },
   forgotPasswordText: {
     fontSize: 12,
-    color: '#00979D',
+    color: '#03979D',
     fontWeight: '500',
   },
   loginButton: {
-    backgroundColor: '#07579e',
+    backgroundColor: '#03979D',
     paddingVertical: 15,
     borderRadius: 12,
     alignItems: 'center',
@@ -391,39 +372,6 @@ const styles = StyleSheet.create({
   loginButtonDisabled: {
     opacity: 0.6,
   },
-  dividerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  divider: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#e5e7eb',
-  },
-  dividerText: {
-    marginHorizontal: 14,
-    fontSize: 12,
-    color: '#9ca3af',
-    fontWeight: '500',
-  },
-  googleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    paddingVertical: 14,
-    borderRadius: 12,
-    gap: 10,
-    marginBottom: 20,
-  },
-  googleButtonText: {
-    fontSize: 14,
-    color: '#374151',
-    fontWeight: '500',
-  },
   signupContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -435,7 +383,7 @@ const styles = StyleSheet.create({
   },
   signupLink: {
     fontSize: 13,
-    color: '#00979D',
+    color: '#03979D',
     fontWeight: '600',
   },
   // Server config styles
@@ -477,7 +425,7 @@ const styles = StyleSheet.create({
     padding: 0,
   },
   serverSaveButton: {
-    backgroundColor: '#07579e',
+    backgroundColor: '#03979D',
     borderRadius: 8,
     paddingHorizontal: 14,
     justifyContent: 'center',

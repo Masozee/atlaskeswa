@@ -7,7 +7,7 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from 'react-native';
-import { ArrowLeft01Icon, Edit02Icon } from 'hugeicons-react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import TopHeader from '../components/TopHeader';
 import { apiClient } from '../services/api';
 import type { SurveyResponseItem } from '../lib/types';
@@ -109,7 +109,7 @@ export default function SurveyDetailScreen({ surveyId, onBack, onEdit }: SurveyD
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#07579e" />
+        <ActivityIndicator size="large" color="#03979D" />
         <Text style={styles.loadingText}>Memuat survei...</Text>
       </View>
     );
@@ -134,12 +134,12 @@ export default function SurveyDetailScreen({ surveyId, onBack, onEdit }: SurveyD
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <TouchableOpacity onPress={onBack} style={styles.backIcon}>
-              <ArrowLeft01Icon size={20} color="#1a1a1a" strokeWidth={2} />
+              <MaterialIcons name="arrow-back" size={20} color="#1a1a1a" />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Detail Survei</Text>
           </View>
           <TouchableOpacity onPress={() => onEdit(surveyId)} style={styles.editButton}>
-            <Edit02Icon size={16} color="#ffffff" strokeWidth={2} />
+            <MaterialIcons name="edit" size={16} color="#ffffff" />
             <Text style={styles.editButtonText}>Edit</Text>
           </TouchableOpacity>
         </View>
@@ -227,13 +227,13 @@ const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
   loadingText: { marginTop: 12, fontSize: 12, color: '#6b7280' },
   errorText: { fontSize: 13, color: '#dc2626', marginBottom: 12 },
-  backButton: { backgroundColor: '#07579e', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 },
+  backButton: { backgroundColor: '#03979D', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 },
   backButtonText: { color: '#fff', fontSize: 13, fontWeight: '600' },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 12 },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   backIcon: { width: 36, height: 36, backgroundColor: '#ffffff', borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 16, fontWeight: '600', color: '#1a1a1a' },
-  editButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#07579e', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, gap: 6 },
+  editButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#03979D', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, gap: 6 },
   editButtonText: { fontSize: 13, fontWeight: '600', color: '#ffffff' },
   content: { flex: 1, paddingHorizontal: 20, paddingTop: 4 },
   statusBadge: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, marginBottom: 8 },
@@ -248,7 +248,7 @@ const styles = StyleSheet.create({
   answersSection: { marginBottom: 12 },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: '#1a1a1a', marginBottom: 4 },
   answerRow: { paddingVertical: 10 },
-  answerCode: { fontSize: 10, fontWeight: '700', color: '#07579e', marginBottom: 2, letterSpacing: 0.5 },
+  answerCode: { fontSize: 10, fontWeight: '700', color: '#03979D', marginBottom: 2, letterSpacing: 0.5 },
   answerQuestion: { fontSize: 12, color: '#6b7280', marginBottom: 4 },
   answerValue: { fontSize: 13, fontWeight: '600', color: '#1a1a1a' },
   notesCard: { backgroundColor: '#ffffff', borderRadius: 12, padding: 14, marginBottom: 12 },

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
-import { Home01Icon, FileEditIcon, Settings01Icon, UserIcon } from 'hugeicons-react-native';
+import { MaterialIcons } from '@expo/vector-icons';
+import { useTheme, useFontScale } from '../contexts/SettingsContext';
 
 type MenuItem = 'home' | 'survey' | 'settings' | 'profile';
 
@@ -10,12 +11,15 @@ interface BottomNavigationProps {
 
 export default function BottomNavigation({ onNavigate }: BottomNavigationProps) {
   const [activeTab, setActiveTab] = useState<MenuItem>('home');
+  const theme = useTheme();
+  const fs = useFontScale();
+  const c = theme.colors;
 
   const menuItems = [
-    { id: 'home' as MenuItem, icon: Home01Icon, label: 'Home' },
-    { id: 'survey' as MenuItem, icon: FileEditIcon, label: 'Survey' },
-    { id: 'settings' as MenuItem, icon: Settings01Icon, label: 'Settings' },
-    { id: 'profile' as MenuItem, icon: UserIcon, label: 'Profile' },
+    { id: 'home' as MenuItem, iconName: 'home' as const, label: 'Home' },
+    { id: 'survey' as MenuItem, iconName: 'description' as const, label: 'Survey' },
+    { id: 'settings' as MenuItem, iconName: 'settings' as const, label: 'Settings' },
+    { id: 'profile' as MenuItem, iconName: 'person' as const, label: 'Profile' },
   ];
 
   const handlePress = (item: MenuItem) => {
@@ -24,11 +28,10 @@ export default function BottomNavigation({ onNavigate }: BottomNavigationProps) 
   };
 
   return (
-    <View style={styles.wrapper}>
-      <View style={styles.container}>
+    <View style={[styles.wrapper, { backgroundColor: c.surface, borderTopColor: c.border }]}>
+      <View style={[styles.container, { backgroundColor: c.surface }]}>
         {menuItems.map((item) => {
           const isActive = activeTab === item.id;
-          const IconComponent = item.icon;
           return (
             <TouchableOpacity
               key={item.id}
@@ -38,14 +41,15 @@ export default function BottomNavigation({ onNavigate }: BottomNavigationProps) 
               ]}
               onPress={() => handlePress(item.id)}
             >
-              <IconComponent
+              <MaterialIcons
+                name={item.iconName}
                 size={24}
-                color={isActive ? '#ffffff' : 'rgba(0, 0, 0, 0.7)'}
-                strokeWidth={2}
+                color={isActive ? '#ffffff' : c.iconDefault}
               />
               <Text
                 style={[
                   styles.menuLabel,
+                  { color: c.iconDefault, fontSize: fs(10) },
                   isActive && styles.menuLabelActive,
                 ]}
               >
@@ -61,13 +65,10 @@ export default function BottomNavigation({ onNavigate }: BottomNavigationProps) 
 
 const styles = StyleSheet.create({
   wrapper: {
-    backgroundColor: '#ffffff',
     borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
   },
   container: {
     height: 70,
-    backgroundColor: '#ffffff',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
@@ -84,11 +85,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   menuItemActive: {
-    backgroundColor: '#07579e',
+    backgroundColor: '#03979D',
   },
   menuLabel: {
-    fontSize: 10,
-    color: 'rgba(0, 0, 0, 0.7)',
     marginTop: 4,
     fontWeight: '500',
   },

@@ -579,6 +579,21 @@ export function useServiceTypes() {
 // Questionnaire Hooks
 // ============================================
 
+export interface QuestionSectionItem {
+  id: number;
+  code: string;
+  name: string;
+  order: number;
+  template: number;
+}
+
+export function useQuestionSections() {
+  return useQuery({
+    queryKey: ['question-sections'],
+    queryFn: () => apiClient.get<QuestionSectionItem[]>('/surveys/questions/sections/'),
+  });
+}
+
 export function useQuestions() {
   return useQuery({
     queryKey: queryKeys.questions.list(),
@@ -668,10 +683,10 @@ export function useBulkDeleteQuestion() {
 export async function exportQuestions(ids?: number[], format: 'csv' | 'xlsx' | 'json' = 'csv') {
   const searchParams = new URLSearchParams({ file_format: format });
   if (ids && ids.length > 0) searchParams.set('ids', ids.join(','));
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.atlaskeswa.id';
-  const url = `${baseUrl}/v1/surveys/questions/export/?${searchParams}`;
-  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
-  const response = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  const token = apiClient.getAccessToken();
+  const response = await apiClient.fetchRaw(`/surveys/questions/export/?${searchParams}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(`Export failed (${response.status}): ${errorText}`);
@@ -681,7 +696,9 @@ export async function exportQuestions(ids?: number[], format: 'csv' | 'xlsx' | '
   const a = document.createElement('a');
   a.href = objectUrl;
   a.download = `questions.${format}`;
+  document.body.appendChild(a);
   a.click();
+  document.body.removeChild(a);
   URL.revokeObjectURL(objectUrl);
 }
 
@@ -689,13 +706,11 @@ export function useImportQuestions() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ file, updateExisting = false }: { file: File; updateExisting?: boolean }): Promise<{ created: number; updated: number; errors: { row: number; error: string }[] }> => {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.atlaskeswa.id';
-      const url = `${baseUrl}/v1/surveys/questions/import/`;
-      const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+      const token = apiClient.getAccessToken();
       const formData = new FormData();
       formData.append('file', file);
       formData.append('update_existing', updateExisting ? 'true' : 'false');
-      const response = await fetch(url, {
+      const response = await apiClient.fetchRaw('/surveys/questions/import/', {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: formData,

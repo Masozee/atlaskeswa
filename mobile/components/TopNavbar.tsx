@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
-import { Menu01Icon } from 'hugeicons-react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 
 interface TopNavbarProps {
   onMenuPress: () => void;
@@ -10,7 +10,7 @@ export default function TopNavbar({ onMenuPress }: TopNavbarProps) {
   return (
     <View style={styles.container}>
       <TouchableOpacity onPress={onMenuPress} style={styles.menuButton}>
-        <Menu01Icon size={24} color="#000" />
+        <MaterialIcons name="menu" size={24} color="#000" />
       </TouchableOpacity>
     </View>
   );

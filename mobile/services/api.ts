@@ -9,7 +9,7 @@ import { API_BASE_URL as ENV_API_BASE_URL } from '@env';
 // API Configuration
 // Configure the API_BASE_URL in the .env file
 // For local development, use your computer's local IP address (not localhost)
-const API_BASE_URL = ENV_API_BASE_URL || 'http://192.168.1.150:8000/v1';
+const API_BASE_URL = ENV_API_BASE_URL || 'http://192.168.0.101:8000/v1';
 
 // Export the env-configured URL so App.tsx can determine if .env was explicitly set
 export const ENV_CONFIGURED_URL = ENV_API_BASE_URL || '';
