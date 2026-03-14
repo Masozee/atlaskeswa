@@ -262,11 +262,23 @@ export function getFlowBasedQuestions(
       for (const q of otherSection.questions || []) {
         const answer = allResponses[q.code];
         if (answer === null || answer === undefined || answer === '') continue;
-        // Check choice-level next_question_code
-        const selectedChoice = q.choices?.find((c) => c.value === answer);
-        if (selectedChoice?.next_question_code && sectionCodes.has(selectedChoice.next_question_code)) {
-          startCode = selectedChoice.next_question_code;
-          break outer;
+        // Check choice-level next_question_code — handles SINGLE and MULTIPLE_CHOICE
+        const selectedValues = Array.isArray(answer) ? answer : [String(answer)];
+        const matchingChoices = (q.choices || []).filter(
+          (c) =>
+            selectedValues.includes(c.value) &&
+            c.next_question_code &&
+            sectionCodes.has(c.next_question_code)
+        );
+        if (matchingChoices.length > 0) {
+          const entryCandidate = matchingChoices
+            .map((c) => codeMap.get(c.next_question_code!))
+            .filter((q): q is Question => q !== undefined)
+            .sort((a, b) => a.order - b.order)[0];
+          if (entryCandidate) {
+            startCode = entryCandidate.code;
+            break outer;
+          }
         }
         // Check question-level skip_logic
         if (q.skip_logic) {
