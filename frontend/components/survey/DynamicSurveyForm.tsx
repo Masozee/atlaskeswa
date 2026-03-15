@@ -94,17 +94,40 @@ export function DynamicSurveyForm({
   // Get current section
   const currentSection = activeSections[currentSectionIndex];
 
-  // Get active questions for current section (uses flow-based branching if available)
+  // Get active questions for current section (uses flow-based branching if available).
+  // Passing `answers` as rawAnswers enables inline cross-section follow (FASKSES→DETAIL loops).
   const activeQuestions = useMemo(() => {
     if (!currentSection) return [];
-    return getFlowBasedQuestions(currentSection, resolvedAnswers, questionsMap, template.sections);
-  }, [currentSection, resolvedAnswers, questionsMap, template.sections]);
+    return getFlowBasedQuestions(currentSection, resolvedAnswers, questionsMap, template.sections, answers);
+  }, [currentSection, resolvedAnswers, questionsMap, template.sections, answers]);
+
+  // Per-question MTC context: walk activeQuestions in order, tracking which cabang_mtc context
+  // each question belongs to. Non-detail questions always get '' (no prefix). Detail questions get
+  // the context set by the most recent FASKSES question whose answer had a cabang_mtc.
+  // This correctly handles multiple inline DETAIL loops (one per classification answer).
+  const questionContexts = useMemo<string[]>(() => {
+    const allQDefs = template.sections?.flatMap(s => s.questions || []) ?? [];
+    let ctxTracker = '';
+    return activeQuestions.map((question) => {
+      const isDetail = /[A-Z]$/.test(question.code);
+      if (!isDetail) {
+        const rawAns = answers[question.code];
+        if (rawAns !== null && rawAns !== undefined && rawAns !== '') {
+          const qDef = allQDefs.find(q => q.code === question.code);
+          const choice = (qDef?.choices as any[])?.find((c: any) => c.value === rawAns);
+          ctxTracker = choice?.cabang_mtc ?? '';
+        }
+        return '';
+      }
+      return ctxTracker;
+    });
+  }, [activeQuestions, answers, template.sections]);
 
   // Calculate progress
   const progress = useMemo(() => {
     if (!template.sections) return 0;
-    return calculateProgress(template.sections, resolvedAnswers, questionsMap);
-  }, [template.sections, resolvedAnswers, questionsMap]);
+    return calculateProgress(template.sections, resolvedAnswers, questionsMap, answers);
+  }, [template.sections, resolvedAnswers, questionsMap, answers]);
 
   // Build text for speech synthesis (current section content)
   const speechText = useMemo(() => {
@@ -172,10 +195,13 @@ export function DynamicSurveyForm({
   const isDetailQuestion = (code: string) => /[A-Z]$/.test(code);
 
   // Handle answer change
-  const handleAnswerChange = (questionCode: string, value: any) => {
-    // For detail questions, prefix storage key with current MTC context
-    const storageKey = isDetailQuestion(questionCode) && currentMtcContext
-      ? `${currentMtcContext}|${questionCode}`
+  // ctxOverride: the MTC context for this specific question instance (from questionContexts).
+  // Falls back to currentMtcContext when not provided (e.g., speech/other callers).
+  const handleAnswerChange = (questionCode: string, value: any, ctxOverride?: string) => {
+    const ctx = ctxOverride !== undefined ? ctxOverride : currentMtcContext;
+    // For detail questions, prefix storage key with MTC context
+    const storageKey = isDetailQuestion(questionCode) && ctx
+      ? `${ctx}|${questionCode}`
       : questionCode;
 
     // Detect MTC context change from a choice with cabang_mtc
@@ -183,28 +209,18 @@ export function DynamicSurveyForm({
     const q = allQuestions.find(q => q.code === questionCode);
     const selectedChoice = q?.choices?.find((c: any) => c.value === value);
 
+    // Store the answer — always accumulate, never clear previous context answers
+    // (each context uses a different prefixed key, so they don't collide)
+    setAnswers((prev) => ({ ...prev, [storageKey]: value }));
+
     if (selectedChoice?.cabang_mtc && selectedChoice.cabang_mtc !== currentMtcContext) {
-      // Clear previously stored detail answers for the old context before switching
-      setAnswers((prev) => {
-        const cleaned = { ...prev };
-        if (currentMtcContext) {
-          const oldPrefix = `${currentMtcContext}|`;
-          for (const k of Object.keys(cleaned)) {
-            if (k.startsWith(oldPrefix)) delete cleaned[k];
-          }
-        }
-        cleaned[storageKey] = value;
-        return cleaned;
-      });
+      // Advance MTC context to the newly selected subtype
       setCurrentMtcContext(selectedChoice.cabang_mtc);
       setCurrentMtcLabel(selectedChoice.label);
-    } else {
-      setAnswers((prev) => ({ ...prev, [storageKey]: value }));
-      // If a main question (non-detail) is re-answered and has no cabang_mtc, clear context
-      if (!isDetailQuestion(questionCode) && !selectedChoice?.cabang_mtc) {
-        setCurrentMtcContext('');
-        setCurrentMtcLabel('');
-      }
+    } else if (!isDetailQuestion(questionCode) && !selectedChoice?.cabang_mtc) {
+      // Non-detail question without a cabang_mtc — clear context
+      setCurrentMtcContext('');
+      setCurrentMtcLabel('');
     }
 
     // Clear other_text if user deselects the "other" choice
@@ -236,10 +252,11 @@ export function DynamicSurveyForm({
   const validateSection = (): boolean => {
     const newErrors: Record<string, string> = {};
 
-    activeQuestions.forEach((question) => {
+    activeQuestions.forEach((question, idx) => {
       const questionType = question.answer_type || question.question_type;
-      const storageKey = isDetailQuestion(question.code) && currentMtcContext
-        ? `${currentMtcContext}|${question.code}`
+      const ctx = questionContexts[idx] ?? '';
+      const storageKey = isDetailQuestion(question.code) && ctx
+        ? `${ctx}|${question.code}`
         : question.code;
       const answer = answers[storageKey];
 
@@ -424,7 +441,7 @@ export function DynamicSurveyForm({
       </div>
 
       {/* MTC context banner — shown when filling detail questions under a specific MTC */}
-      {currentMtcContext && activeQuestions.some(q => isDetailQuestion(q.code)) && (
+      {currentMtcContext && (
         <div className="flex items-center gap-2 bg-primary/10 border border-primary/30 rounded-lg px-4 py-2 text-sm">
           <span className="text-muted-foreground">Sedang mengisi detail untuk:</span>
           <span className="font-semibold text-primary">{currentMtcContext}</span>
@@ -443,16 +460,17 @@ export function DynamicSurveyForm({
 
       {/* Questions */}
       <div className="space-y-8">
-        {activeQuestions.map((question) => {
-          const storageKey = isDetailQuestion(question.code) && currentMtcContext
-            ? `${currentMtcContext}|${question.code}`
+        {activeQuestions.map((question, idx) => {
+          const ctx = questionContexts[idx] ?? '';
+          const storageKey = isDetailQuestion(question.code) && ctx
+            ? `${ctx}|${question.code}`
             : question.code;
           return (
             <DynamicQuestion
-              key={question.code}
+              key={`${ctx}-${question.code}-${idx}`}
               question={question}
               value={answers[storageKey]}
-              onChange={(value) => handleAnswerChange(question.code, value)}
+              onChange={(value) => handleAnswerChange(question.code, value, ctx)}
               onOtherTextChange={(text) => setOtherTexts((prev) => ({ ...prev, [question.code]: text }))}
               otherText={otherTexts[question.code]}
               error={errors[storageKey]}

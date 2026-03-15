@@ -45,6 +45,7 @@ import {
 } from 'hugeicons-react';
 import type { Question, QuestionOption, QuestionSection, QuestionType } from '@/lib/types/survey-template';
 import { SurveyMindmap } from '@/components/survey/SurveyMindmap';
+import { SurveyFlowTimeline } from '@/components/survey/SurveyFlowTimeline';
 
 const ANSWER_TYPE_OPTIONS: { value: QuestionType; label: string }[] = [
   { value: 'TEXT', label: 'Teks' },
@@ -70,6 +71,7 @@ const ANSWER_TYPE_OPTIONS: { value: QuestionType; label: string }[] = [
   { value: 'STAFF_TABLE', label: 'Tabel Data Staf' },
   { value: 'DIAGNOSIS_TABLE', label: 'Tabel Diagnosis' },
   { value: 'REPEATING_TABLE', label: 'Tabel Dinamis (baris berulang)' },
+  { value: 'INTERVENTION_MATRIX', label: 'Matriks Intervensi (baris pilih + kolom detail)' },
 ];
 
 const OPERATOR_OPTIONS = [
@@ -617,6 +619,7 @@ export default function TemplateDetailPage({
 
   const [deleteChoiceId, setDeleteChoiceId] = useState<number | null>(null);
   const [deleteAlertOpen, setDeleteAlertOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<'mindmap' | 'flow'>('mindmap');
 
   const allQuestionCodes = useMemo(() => {
     if (!template?.sections) return [];
@@ -794,15 +797,43 @@ export default function TemplateDetailPage({
     <>
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <SurveyMindmap
-        template={template}
-        onEditQuestion={handleEditQuestion}
-        onEditChoice={handleEditChoice}
-        onAddChoice={handleAddChoice}
-        onEditSection={handleEditSection}
-        onAddQuestion={handleAddQuestion}
-        onDeleteChoice={handleDeleteChoice}
-      />
+      {/* View toggle */}
+      <div className="flex items-center gap-1 px-4 pt-3 pb-0 border-b bg-background">
+        <button
+          onClick={() => setViewMode('mindmap')}
+          className={`px-3 py-1.5 text-sm font-medium rounded-t-md border-b-2 transition-colors ${
+            viewMode === 'mindmap'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          Peta Pertanyaan
+        </button>
+        <button
+          onClick={() => setViewMode('flow')}
+          className={`px-3 py-1.5 text-sm font-medium rounded-t-md border-b-2 transition-colors ${
+            viewMode === 'flow'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          Alur Pertanyaan
+        </button>
+      </div>
+
+      {viewMode === 'mindmap' ? (
+        <SurveyMindmap
+          template={template}
+          onEditQuestion={handleEditQuestion}
+          onEditChoice={handleEditChoice}
+          onAddChoice={handleAddChoice}
+          onEditSection={handleEditSection}
+          onAddQuestion={handleAddQuestion}
+          onDeleteChoice={handleDeleteChoice}
+        />
+      ) : (
+        <SurveyFlowTimeline template={template} />
+      )}
 
       {/* Dialogs */}
       <EditQuestionDialog

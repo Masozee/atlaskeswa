@@ -20,33 +20,12 @@ import {
   PieChart,
   Pie,
   Cell,
-  AreaChart,
-  Area,
   LabelList,
 } from 'recharts';
 
 // Chart colors based on primary teal #00979D
 const COLORS = ['#00979D', '#4DB6AC', '#FFBF47', '#FF8A65', '#9575CD', '#81C784'];
 
-// Dummy data for Kebumen kecamatan distribution
-const KEBUMEN_KECAMATAN_DATA = [
-  { name: 'Kebumen', services: 8 },
-  { name: 'Gombong', services: 6 },
-  { name: 'Kutowinangun', services: 5 },
-  { name: 'Karanganyar', services: 4 },
-  { name: 'Prembun', services: 4 },
-  { name: 'Pejagoan', services: 3 },
-  { name: 'Sruweng', services: 3 },
-  { name: 'Petanahan', services: 3 },
-  { name: 'Klirong', services: 2 },
-  { name: 'Buluspesantren', services: 2 },
-  { name: 'Ambal', services: 2 },
-  { name: 'Alian', services: 2 },
-  { name: 'Sempor', services: 1 },
-  { name: 'Rowokele', services: 1 },
-  { name: 'Kuwarasan', services: 1 },
-  { name: 'Adimulyo', services: 1 },
-];
 
 const breadcrumbs = [
   { label: "Dasbor" },
@@ -125,13 +104,9 @@ export default function DashboardPage() {
 
   const activityTrendData = stats?.activity_trends.slice(-14).map((item) => ({
     date: new Date(item.day).toLocaleDateString('id-ID', { month: 'short', day: 'numeric' }),
-    activities: item.count,
+    logins: item.logins,
+    submissions: item.submissions,
   }));
-
-  // Calculate y-axis domain for better visualization
-  const activityValues = activityTrendData?.map(item => item.activities) || [];
-  const maxActivity = Math.max(...activityValues, 10); // Minimum of 10
-  const yAxisMax = Math.ceil(maxActivity * 1.2); // Add 20% padding
 
   return (
     <>
@@ -182,59 +157,48 @@ export default function DashboardPage() {
               <CardDescription>Aktivitas pengguna selama 14 hari terakhir</CardDescription>
             </CardHeader>
             <CardContent className="pl-2 pb-2">
-              <ResponsiveContainer width="100%" height={300}>
-                <AreaChart data={activityTrendData} margin={{ top: 10, right: 10, left: 0, bottom: 5 }}>
-                  <defs>
-                    <linearGradient id="colorActivities" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.4}/>
-                      <stop offset="50%" stopColor="hsl(var(--primary))" stopOpacity={0.15}/>
-                      <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.02}/>
-                    </linearGradient>
-                  </defs>
+              <div className="flex items-center gap-4 px-4 mb-3">
+                <div className="flex items-center gap-1.5">
+                  <div className="h-3 w-3 rounded-sm" style={{ backgroundColor: '#00979D' }} />
+                  <span className="text-xs text-muted-foreground">Login</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="h-3 w-3 rounded-sm" style={{ backgroundColor: '#FFBF47' }} />
+                  <span className="text-xs text-muted-foreground">Pengajuan Survei</span>
+                </div>
+              </div>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={activityTrendData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }} barGap={2}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted/50" vertical={false} />
                   <XAxis
                     dataKey="date"
-                    className="text-xs"
                     tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
                     axisLine={false}
                     tickLine={false}
                   />
                   <YAxis
-                    className="text-xs"
                     tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
-                    domain={[0, yAxisMax]}
-                    allowDataOverflow={false}
                     axisLine={false}
                     tickLine={false}
+                    allowDecimals={false}
                   />
                   <Tooltip
                     contentStyle={{
                       backgroundColor: 'hsl(var(--background))',
                       border: '1px solid hsl(var(--border))',
-                      borderRadius: '12px',
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                      borderRadius: '10px',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
                     }}
-                    labelStyle={{ color: 'hsl(var(--foreground))', fontWeight: 600 }}
+                    labelStyle={{ color: 'hsl(var(--foreground))', fontWeight: 600, marginBottom: 4 }}
+                    formatter={(value, name) => [
+                      value,
+                      name === 'logins' ? 'Login' : 'Pengajuan Survei',
+                    ]}
                   />
-                  <Area
-                    type="monotone"
-                    dataKey="activities"
-                    stroke="hsl(var(--primary))"
-                    strokeWidth={2.5}
-                    fill="url(#colorActivities)"
-                    dot={false}
-                    activeDot={{
-                      r: 6,
-                      fill: 'hsl(var(--primary))',
-                      stroke: 'hsl(var(--background))',
-                      strokeWidth: 2
-                    }}
-                  />
-                </AreaChart>
+                  <Bar dataKey="logins" fill="#00979D" radius={[4, 4, 0, 0]} maxBarSize={24} />
+                  <Bar dataKey="submissions" fill="#FFBF47" radius={[4, 4, 0, 0]} maxBarSize={24} />
+                </BarChart>
               </ResponsiveContainer>
-              <p className="text-xs text-muted-foreground mt-4 px-4">
-                Pantau aktivitas sistem termasuk login, pengajuan data, dan proses verifikasi di semua peran pengguna selama dua minggu terakhir
-              </p>
             </CardContent>
           </Card>
 
@@ -321,7 +285,7 @@ export default function DashboardPage() {
                 <div className="text-xs text-muted-foreground">Sebaran layanan kesehatan jiwa<br />berdasarkan kecamatan di Kabupaten Kebumen</div>
               </div>
               <ResponsiveContainer width="100%" height={430}>
-                <BarChart data={KEBUMEN_KECAMATAN_DATA.slice(0, 10)} margin={{ top: 20, right: 10, left: 0, bottom: 5 }}>
+                <BarChart data={stats?.geographic_distribution.slice(0, 10).map(d => ({ name: d.city, services: d.count }))} margin={{ top: 20, right: 10, left: 0, bottom: 5 }}>
                   <defs>
                     <linearGradient id="colorServices" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#00979D" stopOpacity={1}/>

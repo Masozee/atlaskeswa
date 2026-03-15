@@ -82,13 +82,17 @@ def dashboard_stats(request):
         critical=Count('id', filter=Q(severity='CRITICAL', is_resolved=False)),
     )
 
-    # Activity trends (last 30 days) - using TruncDate instead of deprecated .extra()
-    thirty_days_ago = timezone.now() - timedelta(days=30)
+    # Activity trends (last 14 days) broken down by login and survey submissions
+    fourteen_days_ago = timezone.now() - timedelta(days=14)
     daily_activities = ActivityLog.objects.filter(
-        timestamp__gte=thirty_days_ago
+        timestamp__gte=fourteen_days_ago
     ).annotate(
         day=TruncDate('timestamp')
-    ).values('day').annotate(count=Count('id')).order_by('day')
+    ).values('day').annotate(
+        count=Count('id'),
+        logins=Count('id', filter=Q(action=ActivityLog.Action.LOGIN)),
+        submissions=Count('id', filter=Q(action=ActivityLog.Action.SURVEY_SUBMIT)),
+    ).order_by('day')
 
     # Latest 5 surveys with details (combine old + dynamic, sorted by created_at)
     old_surveys = [

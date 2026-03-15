@@ -107,11 +107,21 @@ export function getActiveQuestionsForSection(
     .sort((a, b) => a.order - b.order);
 }
 
+/**
+ * Get flow-based active questions for a section.
+ *
+ * When rawAnswers is provided, cross-section next_question_code links
+ * are followed inline — DETAIL questions are embedded within FASKSES,
+ * one loop per MTC context (cabang_mtc).
+ */
 export function getFlowBasedQuestions(
   section: QuestionSection,
   allResponses: SurveyAnswers,
   questionsMap?: Map<number, Question>,
-  allSections?: QuestionSection[]
+  allSections?: QuestionSection[],
+  rawAnswers?: SurveyAnswers,
+  _visitedSectionIds?: Set<number>,
+  _forcedStartCode?: string,
 ): Question[] {
   if (!section.questions || section.questions.length === 0) return [];
 
@@ -132,24 +142,18 @@ export function getFlowBasedQuestions(
 
   if (visibleQuestions.length === 0) return [];
 
-  // Always use flow-based progressive reveal:
-  // show questions one at a time, each revealed only after the previous is answered.
-  // If branching (skip_logic / next_question_code) is present it is followed;
-  // otherwise questions are revealed in order.
-
   const codeMap = new Map<string, Question>();
   visibleQuestions.forEach((q) => codeMap.set(q.code, q));
 
-  // Determine entry point from cross-section navigation
-  let startCode: string | undefined;
-  if (allSections) {
+  // Determine entry point
+  let startCode: string | undefined = _forcedStartCode;
+  if (!startCode && allSections) {
     const sectionCodes = new Set(visibleQuestions.map((q) => q.code));
     outer: for (const otherSection of allSections) {
       if (otherSection.id === section.id) continue;
       for (const q of otherSection.questions || []) {
         const answer = allResponses[q.code];
         if (answer === null || answer === undefined || answer === '') continue;
-        // Check choice-level next_question_code — handles SINGLE and MULTIPLE_CHOICE
         const selectedValues = Array.isArray(answer) ? answer : [String(answer)];
         const matchingChoices = (q.choices || []).filter(
           (c) =>
@@ -193,11 +197,12 @@ export function getFlowBasedQuestions(
     if (!isAnswered) break;
 
     let nextCode: string | undefined;
+    let triggeringChoice: NonNullable<typeof current.choices>[0] | undefined;
 
     if (current.choices && current.choices.length > 0) {
-      const selectedChoice = current.choices.find((c) => c.value === answer);
-      if (selectedChoice?.next_question_code) {
-        nextCode = selectedChoice.next_question_code;
+      triggeringChoice = current.choices.find((c) => c.value === answer);
+      if (triggeringChoice?.next_question_code) {
+        nextCode = triggeringChoice.next_question_code;
       }
     }
 
@@ -214,9 +219,61 @@ export function getFlowBasedQuestions(
       break;
     }
 
-    current = codeMap.get(nextCode);
-    if (!current) {
-      // Target question not in this section — fall back to next by order
+    const nextInSection = codeMap.get(nextCode);
+    if (nextInSection) {
+      current = nextInSection;
+    } else {
+      // Cross-section exit — try inline follow
+      if (allSections && rawAnswers) {
+        const otherSection = allSections.find(
+          (s) => s.id !== section.id && (s.questions || []).some((q) => q.code === nextCode)
+        );
+        if (otherSection) {
+          const sectionVisited = _visitedSectionIds ?? new Set<number>();
+          if (!sectionVisited.has(otherSection.id)) {
+            const newSectionVisited = new Set(sectionVisited);
+            newSectionVisited.add(section.id);
+
+            const cabangMtc = triggeringChoice?.cabang_mtc ?? '';
+            const ctxAnswers: SurveyAnswers = { ...allResponses };
+            if (cabangMtc) {
+              const prefix = `${cabangMtc}|`;
+              for (const [k, v] of Object.entries(rawAnswers)) {
+                if (k.startsWith(prefix)) {
+                  ctxAnswers[k.slice(prefix.length)] = v;
+                }
+              }
+            }
+
+            const crossQuestions = getFlowBasedQuestions(
+              otherSection,
+              ctxAnswers,
+              questionsMap,
+              allSections,
+              rawAnswers,
+              newSectionVisited,
+              nextCode,
+            );
+
+            result.push(...crossQuestions);
+
+            const lastInCurrentSection = [...result].reverse().find((q) => codeMap.has(q.code));
+            if (lastInCurrentSection) {
+              const idx = visibleQuestions.indexOf(lastInCurrentSection);
+              if (idx >= 0 && idx < visibleQuestions.length - 1) {
+                current = visibleQuestions[idx + 1];
+              } else {
+                break;
+              }
+            } else {
+              break;
+            }
+            continue;
+          }
+        }
+      }
+
+      // Fall back to next by order
       const lastQ = result[result.length - 1];
       const currentIdx = visibleQuestions.indexOf(lastQ);
       if (currentIdx < visibleQuestions.length - 1) {
@@ -233,7 +290,8 @@ export function getFlowBasedQuestions(
 export function calculateProgress(
   sections: QuestionSection[],
   answers: SurveyAnswers,
-  questionsMap: Map<number, Question>
+  questionsMap: Map<number, Question>,
+  rawAnswers?: SurveyAnswers,
 ): number {
   const activeSections = getActiveSections(sections, answers, questionsMap);
 
@@ -241,7 +299,7 @@ export function calculateProgress(
   let answeredRequired = 0;
 
   activeSections.forEach((section) => {
-    const activeQuestions = getFlowBasedQuestions(section, answers, questionsMap, sections);
+    const activeQuestions = getFlowBasedQuestions(section, answers, questionsMap, sections, rawAnswers);
     activeQuestions.forEach((question) => {
       if (question.is_required) {
         totalRequired++;

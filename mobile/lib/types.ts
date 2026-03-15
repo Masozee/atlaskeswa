@@ -27,6 +27,7 @@ export type QuestionType =
   | 'STAFF_TABLE'
   | 'DIAGNOSIS_TABLE'
   | 'REPEATING_TABLE'
+  | 'INTERVENTION_MATRIX'
   | 'LOCATION';
 
 export type SurveyStatus = 'DRAFT' | 'SUBMITTED' | 'VERIFIED' | 'REJECTED';
@@ -46,13 +47,20 @@ export interface QuestionOption {
   kode_desde_ltc?: string;
 }
 
+export interface TableRow {
+  code: string;
+  label: string;
+}
+
 export interface TableColumn {
   code: string;
   label: string;
-  type: 'number' | 'text';
+  type: 'number' | 'text' | 'multiple_choice' | 'single_choice' | 'time';
+  options?: Array<{ value: string; label: string }>;
 }
 
 export interface TableConfig {
+  rows?: TableRow[];
   columns: TableColumn[];
 }
 

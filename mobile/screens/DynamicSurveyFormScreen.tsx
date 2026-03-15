@@ -275,17 +275,39 @@ export default function DynamicSurveyFormScreen({
 
   const currentSection = activeSections[currentSectionIndex];
 
-  // Get active questions for current section using flow-based skip logic
+  // Get active questions for current section using flow-based skip logic.
+  // Passing `answers` as rawAnswers enables inline cross-section follow (FASKSES→DETAIL loops).
   const activeQuestions = useMemo(() => {
     if (!currentSection) return [];
-    return getFlowBasedQuestions(currentSection, resolvedAnswers, questionsMap, template?.sections);
-  }, [currentSection, resolvedAnswers, questionsMap, template?.sections]);
+    return getFlowBasedQuestions(currentSection, resolvedAnswers, questionsMap, template?.sections, answers);
+  }, [currentSection, resolvedAnswers, questionsMap, template?.sections, answers]);
+
+  // Per-question MTC context: parallel array to activeQuestions with the correct MTC context per
+  // question. Non-detail questions get '' (no prefix). Detail questions get the context from the
+  // most recent FASKSES question whose answer had a cabang_mtc. Handles multiple DETAIL loops.
+  const questionContexts = useMemo<string[]>(() => {
+    const allQDefs = template?.sections?.flatMap(s => s.questions || []) ?? [];
+    let ctxTracker = '';
+    return activeQuestions.map((question) => {
+      const isDetail = /[A-Z]$/.test(question.code);
+      if (!isDetail) {
+        const rawAns = answers[question.code];
+        if (rawAns !== null && rawAns !== undefined && rawAns !== '') {
+          const qDef = allQDefs.find(q => q.code === question.code);
+          const choice = (qDef?.choices as any[])?.find((c: any) => c.value === rawAns);
+          ctxTracker = choice?.cabang_mtc ?? '';
+        }
+        return '';
+      }
+      return ctxTracker;
+    });
+  }, [activeQuestions, answers, template?.sections]);
 
   // Calculate progress
   const progress = useMemo(() => {
     if (!template?.sections) return 0;
-    return calculateProgress(template.sections, resolvedAnswers, questionsMap);
-  }, [template?.sections, resolvedAnswers, questionsMap]);
+    return calculateProgress(template.sections, resolvedAnswers, questionsMap, answers);
+  }, [template?.sections, resolvedAnswers, questionsMap, answers]);
 
   // Auto-play TTS for the first question when section changes
   useEffect(() => {
@@ -299,9 +321,12 @@ export default function DynamicSurveyFormScreen({
     }
   }, [currentSectionIndex, setupComplete]);
 
-  const handleAnswerChange = (questionCode: string, value: any) => {
-    const storageKey = isDetailQuestion(questionCode) && currentMtcContext
-      ? `${currentMtcContext}|${questionCode}`
+  // ctxOverride: the per-question MTC context (from questionContexts). Falls back to
+  // currentMtcContext when not provided. Answers always accumulate — no context clearing.
+  const handleAnswerChange = (questionCode: string, value: any, ctxOverride?: string) => {
+    const ctx = ctxOverride !== undefined ? ctxOverride : currentMtcContext;
+    const storageKey = isDetailQuestion(questionCode) && ctx
+      ? `${ctx}|${questionCode}`
       : questionCode;
 
     // Detect MTC context change from a choice with cabang_mtc
@@ -309,26 +334,15 @@ export default function DynamicSurveyFormScreen({
     const q = allQuestions.find(q => q.code === questionCode);
     const selectedChoice = q?.choices?.find((c: QuestionOption) => c.value === value);
 
+    // Always accumulate — each context uses a different prefixed key, no collisions
+    setAnswers((prev) => ({ ...prev, [storageKey]: value }));
+
     if (selectedChoice?.cabang_mtc && selectedChoice.cabang_mtc !== currentMtcContext) {
-      setAnswers((prev) => {
-        const cleaned = { ...prev };
-        if (currentMtcContext) {
-          const oldPrefix = `${currentMtcContext}|`;
-          for (const k of Object.keys(cleaned)) {
-            if (k.startsWith(oldPrefix)) delete cleaned[k];
-          }
-        }
-        cleaned[storageKey] = value;
-        return cleaned;
-      });
       setCurrentMtcContext(selectedChoice.cabang_mtc);
       setCurrentMtcLabel(selectedChoice.label);
-    } else {
-      setAnswers((prev) => ({ ...prev, [storageKey]: value }));
-      if (!isDetailQuestion(questionCode) && !selectedChoice?.cabang_mtc) {
-        setCurrentMtcContext('');
-        setCurrentMtcLabel('');
-      }
+    } else if (!isDetailQuestion(questionCode) && !selectedChoice?.cabang_mtc) {
+      setCurrentMtcContext('');
+      setCurrentMtcLabel('');
     }
 
     if (errors[storageKey]) {
@@ -343,9 +357,10 @@ export default function DynamicSurveyFormScreen({
   const validateSection = (): boolean => {
     const newErrors: Record<string, string> = {};
 
-    activeQuestions.forEach((question) => {
-      const storageKey = isDetailQuestion(question.code) && currentMtcContext
-        ? `${currentMtcContext}|${question.code}`
+    activeQuestions.forEach((question, idx) => {
+      const ctx = questionContexts[idx] ?? '';
+      const storageKey = isDetailQuestion(question.code) && ctx
+        ? `${ctx}|${question.code}`
         : question.code;
       const answer = answers[storageKey];
       if (question.is_required) {
@@ -473,7 +488,7 @@ export default function DynamicSurveyFormScreen({
     }
   };
 
-  const captureGPS = async (questionCode: string) => {
+  const captureGPS = async (questionCode: string, ctx: string = '') => {
     setCapturingLocation(true);
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -495,7 +510,7 @@ export default function DynamicSurveyFormScreen({
           longitude: location.coords.longitude,
           accuracy: location.coords.accuracy || null,
         },
-      });
+      }, ctx);
 
       Alert.alert('Berhasil', 'Lokasi berhasil ditangkap');
     } catch (err) {
@@ -521,17 +536,18 @@ export default function DynamicSurveyFormScreen({
     });
   };
 
-  // Render a single question
-  const renderQuestion = (question: Question) => {
+  // Render a single question. idx is the position in activeQuestions for context lookup.
+  const renderQuestion = (question: Question, idx: number) => {
     const questionType = question.answer_type;
-    const storageKey = isDetailQuestion(question.code) && currentMtcContext
-      ? `${currentMtcContext}|${question.code}`
+    const ctx = questionContexts[idx] ?? '';
+    const storageKey = isDetailQuestion(question.code) && ctx
+      ? `${ctx}|${question.code}`
       : question.code;
     const value = answers[storageKey];
     const error = errors[storageKey];
 
     return (
-      <View key={question.code} style={[styles.questionContainer, { backgroundColor: c.background }]}>
+      <View key={`${ctx}-${question.code}-${idx}`} style={[styles.questionContainer, { backgroundColor: c.background }]}>
         {question.introduction_text ? (
           <View style={styles.introBox}>
             <Text style={styles.introText}>{toSentenceCase(question.introduction_text)}</Text>
@@ -558,14 +574,14 @@ export default function DynamicSurveyFormScreen({
           )}
         </View>
 
-        {renderQuestionInput(question, questionType, value)}
+        {renderQuestionInput(question, questionType, value, ctx)}
 
         {error ? <Text style={[styles.errorText, { fontSize: fs(12) }]}>{error}</Text> : null}
       </View>
     );
   };
 
-  const renderQuestionInput = (question: Question, type: string, value: any) => {
+  const renderQuestionInput = (question: Question, type: string, value: any, ctx: string = '') => {
     switch (type) {
       case 'TEXT':
       case 'PHONE':
@@ -575,7 +591,7 @@ export default function DynamicSurveyFormScreen({
           <TextInput
             style={styles.inputBox}
             value={value || ''}
-            onChangeText={(text) => handleAnswerChange(question.code, text)}
+            onChangeText={(text) => handleAnswerChange(question.code, text, ctx)}
             placeholder={
               type === 'PHONE' ? 'Nomor telepon...' :
               type === 'EMAIL' ? 'Email...' :
@@ -598,7 +614,7 @@ export default function DynamicSurveyFormScreen({
           <TextInput
             style={[styles.inputBox, styles.textArea]}
             value={value || ''}
-            onChangeText={(text) => handleAnswerChange(question.code, text)}
+            onChangeText={(text) => handleAnswerChange(question.code, text, ctx)}
             placeholder="Ketik jawaban..."
             placeholderTextColor="#9ca3af"
             multiline
@@ -615,7 +631,7 @@ export default function DynamicSurveyFormScreen({
             value={value !== null && value !== undefined ? String(value) : ''}
             onChangeText={(text) => {
               const num = type === 'INTEGER' ? parseInt(text) || '' : parseFloat(text) || '';
-              handleAnswerChange(question.code, num === '' ? '' : num);
+              handleAnswerChange(question.code, num === '' ? '' : num, ctx);
             }}
             placeholder="0"
             placeholderTextColor="#9ca3af"
@@ -629,7 +645,7 @@ export default function DynamicSurveyFormScreen({
             <TextInput
               style={styles.input}
               value={value || ''}
-              onChangeText={(text) => handleAnswerChange(question.code, text)}
+              onChangeText={(text) => handleAnswerChange(question.code, text, ctx)}
               placeholder="YYYY-MM-DD"
               placeholderTextColor="#9ca3af"
             />
@@ -642,7 +658,7 @@ export default function DynamicSurveyFormScreen({
           <TextInput
             style={styles.inputBox}
             value={value || ''}
-            onChangeText={(text) => handleAnswerChange(question.code, text)}
+            onChangeText={(text) => handleAnswerChange(question.code, text, ctx)}
             placeholder="HH:MM"
             placeholderTextColor="#9ca3af"
           />
@@ -653,7 +669,7 @@ export default function DynamicSurveyFormScreen({
           <View style={styles.booleanRow}>
             <TouchableOpacity
               style={[styles.booleanOption, value === true && styles.booleanSelected]}
-              onPress={() => handleAnswerChange(question.code, true)}
+              onPress={() => handleAnswerChange(question.code, true, ctx)}
             >
               <Text style={[styles.booleanText, value === true && styles.booleanTextSelected]}>Ya</Text>
               <TouchableOpacity
@@ -666,7 +682,7 @@ export default function DynamicSurveyFormScreen({
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.booleanOption, value === false && styles.booleanSelected]}
-              onPress={() => handleAnswerChange(question.code, false)}
+              onPress={() => handleAnswerChange(question.code, false, ctx)}
             >
               <Text style={[styles.booleanText, value === false && styles.booleanTextSelected]}>Tidak</Text>
               <TouchableOpacity
@@ -681,10 +697,10 @@ export default function DynamicSurveyFormScreen({
         );
 
       case 'SINGLE_CHOICE':
-        return renderSingleChoice(question, value);
+        return renderSingleChoice(question, value, ctx);
 
       case 'MULTIPLE_CHOICE':
-        return renderMultipleChoice(question, value);
+        return renderMultipleChoice(question, value, ctx);
 
       case 'GEO_PROVINSI':
         return (
@@ -701,43 +717,46 @@ export default function DynamicSurveyFormScreen({
         );
 
       case 'GEO_KECAMATAN':
-        return renderKecamatanPicker(question, value);
+        return renderKecamatanPicker(question, value, ctx);
 
       case 'GEO_DESA':
         return (
           <TextInput
             style={styles.inputBox}
             value={value || ''}
-            onChangeText={(text) => handleAnswerChange(question.code, text)}
+            onChangeText={(text) => handleAnswerChange(question.code, text, ctx)}
             placeholder="Nama desa/kelurahan..."
             placeholderTextColor="#9ca3af"
           />
         );
 
       case 'LOCATION':
-        return renderLocationInput(question, value);
+        return renderLocationInput(question, value, ctx);
 
       case 'GPS':
-        return renderGPSInput(question, value);
+        return renderGPSInput(question, value, ctx);
 
       case 'COVERAGE_LEVEL':
-        return renderCoverageLevel(question, value);
+        return renderCoverageLevel(question, value, ctx);
 
       case 'STAFF_TABLE':
-        return renderStaffTable(question, value);
+        return renderStaffTable(question, value, ctx);
 
       case 'DIAGNOSIS_TABLE':
-        return renderDiagnosisTable(question, value);
+        return renderDiagnosisTable(question, value, ctx);
 
       case 'REPEATING_TABLE':
-        return renderRepeatingTable(question, value);
+        return renderRepeatingTable(question, value, ctx);
+
+      case 'INTERVENTION_MATRIX':
+        return renderInterventionMatrix(question, value, ctx);
 
       default:
         return (
           <TextInput
             style={styles.inputBox}
             value={value || ''}
-            onChangeText={(text) => handleAnswerChange(question.code, text)}
+            onChangeText={(text) => handleAnswerChange(question.code, text, ctx)}
             placeholder="Ketik jawaban..."
             placeholderTextColor="#9ca3af"
           />
@@ -745,7 +764,7 @@ export default function DynamicSurveyFormScreen({
     }
   };
 
-  const renderSingleChoice = (question: Question, value: any) => {
+  const renderSingleChoice = (question: Question, value: any, ctx: string = '') => {
     const choices = question.choices || [];
     return (
       <View style={styles.choicesContainer}>
@@ -755,7 +774,7 @@ export default function DynamicSurveyFormScreen({
           <View key={choice.value}>
             <TouchableOpacity
               style={[styles.choiceOption, value === choice.value && styles.choiceSelected]}
-              onPress={() => handleAnswerChange(question.code, choice.value)}
+              onPress={() => handleAnswerChange(question.code, choice.value, ctx)}
             >
               <View style={[styles.radio, value === choice.value && styles.radioSelected]}>
                 {value === choice.value && <View style={styles.radioInner} />}
@@ -787,7 +806,7 @@ export default function DynamicSurveyFormScreen({
     );
   };
 
-  const renderMultipleChoice = (question: Question, value: any) => {
+  const renderMultipleChoice = (question: Question, value: any, ctx: string = '') => {
     const choices = question.choices || [];
     const selectedValues: string[] = Array.isArray(value) ? value : [];
 
@@ -795,7 +814,7 @@ export default function DynamicSurveyFormScreen({
       const newValues = selectedValues.includes(choiceValue)
         ? selectedValues.filter((v) => v !== choiceValue)
         : [...selectedValues, choiceValue];
-      handleAnswerChange(question.code, newValues);
+      handleAnswerChange(question.code, newValues, ctx);
     };
 
     return (
@@ -839,7 +858,7 @@ export default function DynamicSurveyFormScreen({
     );
   };
 
-  const renderKecamatanPicker = (question: Question, value: any) => {
+  const renderKecamatanPicker = (question: Question, value: any, ctx: string = '') => {
     const selectedName = kecamatanList.find((k) => k.id === value)?.name;
 
     if (showKecamatanPicker === question.code) {
@@ -857,7 +876,7 @@ export default function DynamicSurveyFormScreen({
                 key={kec.id}
                 style={[styles.pickerItem, value === kec.id && styles.pickerItemSelected]}
                 onPress={() => {
-                  handleAnswerChange(question.code, kec.id);
+                  handleAnswerChange(question.code, kec.id, ctx);
                   setShowKecamatanPicker(null);
                 }}
               >
@@ -884,7 +903,7 @@ export default function DynamicSurveyFormScreen({
     );
   };
 
-  const renderLocationInput = (question: Question, value: any) => {
+  const renderLocationInput = (question: Question, value: any, ctx: string = '') => {
     const loc = value || {};
     const koordinat = loc.koordinat || {};
 
@@ -923,7 +942,7 @@ export default function DynamicSurveyFormScreen({
                     key={kec.id}
                     style={[styles.pickerItem, loc.kecamatan === kec.id && styles.pickerItemSelected]}
                     onPress={() => {
-                      handleAnswerChange(question.code, { ...loc, kecamatan: kec.id, kecamatan_name: kec.name });
+                      handleAnswerChange(question.code, { ...loc, kecamatan: kec.id, kecamatan_name: kec.name }, ctx);
                       setShowKecamatanPicker(null);
                     }}
                   >
@@ -953,7 +972,7 @@ export default function DynamicSurveyFormScreen({
           <TextInput
             style={styles.inputBox}
             value={loc.desa || ''}
-            onChangeText={(text) => handleAnswerChange(question.code, { ...loc, desa: text })}
+            onChangeText={(text) => handleAnswerChange(question.code, { ...loc, desa: text }, ctx)}
             placeholder="Nama desa/kelurahan..."
             placeholderTextColor="#9ca3af"
           />
@@ -964,7 +983,7 @@ export default function DynamicSurveyFormScreen({
           <Text style={styles.locationFieldLabel}>Koordinat GPS *</Text>
           <TouchableOpacity
             style={styles.locationButton}
-            onPress={() => captureGPS(question.code)}
+            onPress={() => captureGPS(question.code, ctx)}
             disabled={capturingLocation}
           >
             <MaterialIcons name="place" size={20} color="#03979D" />
@@ -987,7 +1006,7 @@ export default function DynamicSurveyFormScreen({
     );
   };
 
-  const renderGPSInput = (question: Question, value: any) => {
+  const renderGPSInput = (question: Question, value: any, ctx: string = '') => {
     const coords = value || {};
     return (
       <View>
@@ -1006,7 +1025,7 @@ export default function DynamicSurveyFormScreen({
                 latitude: location.coords.latitude,
                 longitude: location.coords.longitude,
                 accuracy: location.coords.accuracy,
-              });
+              }, ctx);
             } catch {
               Alert.alert('Error', 'Gagal menangkap lokasi');
             } finally {
@@ -1031,7 +1050,7 @@ export default function DynamicSurveyFormScreen({
     );
   };
 
-  const renderCoverageLevel = (question: Question, value: any) => {
+  const renderCoverageLevel = (question: Question, value: any, ctx: string = '') => {
     const levels = [
       { value: 'DESA', label: 'Desa/Kelurahan' },
       { value: 'KECAMATAN', label: 'Kecamatan' },
@@ -1047,7 +1066,7 @@ export default function DynamicSurveyFormScreen({
             <TouchableOpacity
               key={level.value}
               style={[styles.choiceOption, value === level.value && styles.choiceSelected]}
-              onPress={() => handleAnswerChange(question.code, level.value)}
+              onPress={() => handleAnswerChange(question.code, level.value, ctx)}
             >
               <View style={[styles.radio, value === level.value && styles.radioSelected]}>
                 {value === level.value && <View style={styles.radioInner} />}
@@ -1087,14 +1106,14 @@ export default function DynamicSurveyFormScreen({
     { code: 'other', label: 'Lainnya' },
   ];
 
-  const renderTable = (question: Question, value: any, rows: { code: string; label: string }[]) => {
+  const renderTable = (question: Question, value: any, rows: { code: string; label: string }[], ctx: string = '') => {
     const tableData = value || {};
 
     const updateCell = (rowCode: string, colCode: string, cellValue: string) => {
       const newData = { ...tableData };
       if (!newData[rowCode]) newData[rowCode] = {};
       newData[rowCode][colCode] = parseInt(cellValue) || 0;
-      handleAnswerChange(question.code, newData);
+      handleAnswerChange(question.code, newData, ctx);
     };
 
     return (
@@ -1143,10 +1162,10 @@ export default function DynamicSurveyFormScreen({
     );
   };
 
-  const renderStaffTable = (question: Question, value: any) => renderTable(question, value, STAFF_ROWS);
-  const renderDiagnosisTable = (question: Question, value: any) => renderTable(question, value, DIAGNOSIS_ROWS);
+  const renderStaffTable = (question: Question, value: any, ctx: string = '') => renderTable(question, value, STAFF_ROWS, ctx);
+  const renderDiagnosisTable = (question: Question, value: any, ctx: string = '') => renderTable(question, value, DIAGNOSIS_ROWS, ctx);
 
-  const renderRepeatingTable = (question: Question, value: any) => {
+  const renderRepeatingTable = (question: Question, value: any, ctx: string = '') => {
     const config = question.table_config;
     if (!config?.columns?.length) {
       return (
@@ -1160,14 +1179,14 @@ export default function DynamicSurveyFormScreen({
 
     const updateCell = (rowIndex: number, colCode: string, cellValue: string) => {
       const next = rows.map((r, i) => (i === rowIndex ? { ...r, [colCode]: cellValue } : r));
-      handleAnswerChange(question.code, next);
+      handleAnswerChange(question.code, next, ctx);
     };
 
-    const addRow = () => handleAnswerChange(question.code, [...rows, {}]);
+    const addRow = () => handleAnswerChange(question.code, [...rows, {}], ctx);
 
     const removeRow = (rowIndex: number) => {
       if (rows.length <= 1) return;
-      handleAnswerChange(question.code, rows.filter((_, i) => i !== rowIndex));
+      handleAnswerChange(question.code, rows.filter((_, i) => i !== rowIndex), ctx);
     };
 
     return (
@@ -1215,6 +1234,148 @@ export default function DynamicSurveyFormScreen({
           <Text style={{ color: c.primary, fontSize: 13 * fs }}>+ Tambah baris</Text>
         </TouchableOpacity>
       </View>
+    );
+  };
+
+  const renderInterventionMatrix = (question: Question, value: any, ctx: string = '') => {
+    const config = question.table_config;
+    if (!config?.rows?.length || !config?.columns?.length) {
+      return (
+        <Text style={{ color: '#9ca3af', fontSize: 13 * fs }}>
+          Konfigurasi matriks tidak ditemukan.
+        </Text>
+      );
+    }
+
+    const currentValue: Record<string, any> = value || {};
+
+    const handleSelect = (rowCode: string, checked: boolean) => {
+      const next = { ...currentValue };
+      if (checked) {
+        next[rowCode] = { ...next[rowCode], selected: true };
+      } else {
+        delete next[rowCode];
+      }
+      handleAnswerChange(question.code, next, ctx);
+    };
+
+    const handleCellChange = (rowCode: string, colCode: string, cellValue: any) => {
+      const next = {
+        ...currentValue,
+        [rowCode]: { ...currentValue[rowCode], [colCode]: cellValue },
+      };
+      handleAnswerChange(question.code, next, ctx);
+    };
+
+    return (
+      <ScrollView horizontal showsHorizontalScrollIndicator style={{ marginTop: 4 }}>
+        <View>
+          {/* Header */}
+          <View style={[styles.tableRow, { backgroundColor: '#f3f4f6' }]}>
+            <View style={[styles.tableCell, { width: 140 }]}>
+              <Text style={styles.tableHeaderText}>Intervensi</Text>
+            </View>
+            <View style={[styles.tableCell, { width: 40 }]}>
+              <Text style={styles.tableHeaderText}>✓</Text>
+            </View>
+            {config.columns.map((col: any) => (
+              <View key={col.code} style={[styles.tableCell, { width: 100 }]}>
+                <Text style={[styles.tableHeaderText, { fontSize: 10 * fs }]}>{col.label}</Text>
+              </View>
+            ))}
+          </View>
+          {/* Rows */}
+          {config.rows.map((row: any) => {
+            const rowData = currentValue[row.code];
+            const isSelected = !!rowData?.selected;
+            return (
+              <View key={row.code} style={[styles.tableRow, !isSelected && { opacity: 0.5 }]}>
+                <View style={[styles.tableCell, { width: 140 }]}>
+                  <Text style={styles.tableCellLabel}>{row.label}</Text>
+                </View>
+                <View style={[styles.tableCell, { width: 40, alignItems: 'center' }]}>
+                  <TouchableOpacity
+                    onPress={() => handleSelect(row.code, !isSelected)}
+                    style={{
+                      width: 20 * fs,
+                      height: 20 * fs,
+                      borderWidth: 2,
+                      borderColor: isSelected ? c.primary : '#9ca3af',
+                      borderRadius: 4,
+                      backgroundColor: isSelected ? c.primary : 'white',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    {isSelected && <Text style={{ color: 'white', fontSize: 12 * fs, fontWeight: 'bold' }}>✓</Text>}
+                  </TouchableOpacity>
+                </View>
+                {config.columns.map((col: any) => (
+                  <View key={col.code} style={[styles.tableCell, { width: 100, padding: 2 }]}>
+                    {isSelected ? (
+                      col.type === 'number' ? (
+                        <TextInput
+                          style={[styles.tableCellInput, { fontSize: 12 * fs }]}
+                          value={String(rowData?.[col.code] ?? '')}
+                          onChangeText={(t) => handleCellChange(row.code, col.code, t)}
+                          keyboardType="number-pad"
+                          placeholder="0"
+                          placeholderTextColor="#d1d5db"
+                        />
+                      ) : col.type === 'multiple_choice' ? (
+                        <View style={{ gap: 2 }}>
+                          {(col.options ?? []).map((opt: any) => {
+                            const selected: string[] = Array.isArray(rowData?.[col.code]) ? rowData[col.code] : [];
+                            const checked = selected.includes(opt.value);
+                            return (
+                              <TouchableOpacity
+                                key={opt.value}
+                                onPress={() => {
+                                  const next = checked
+                                    ? selected.filter((v: string) => v !== opt.value)
+                                    : [...selected, opt.value];
+                                  handleCellChange(row.code, col.code, next);
+                                }}
+                                style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                              >
+                                <View
+                                  style={{
+                                    width: 14 * fs,
+                                    height: 14 * fs,
+                                    borderWidth: 1.5,
+                                    borderColor: checked ? c.primary : '#9ca3af',
+                                    borderRadius: 3,
+                                    backgroundColor: checked ? c.primary : 'white',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                  }}
+                                >
+                                  {checked && <Text style={{ color: 'white', fontSize: 9 * fs }}>✓</Text>}
+                                </View>
+                                <Text style={{ fontSize: 10 * fs, color: '#374151' }}>{opt.label}</Text>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                      ) : (
+                        <TextInput
+                          style={[styles.tableCellInput, { fontSize: 12 * fs }]}
+                          value={String(rowData?.[col.code] ?? '')}
+                          onChangeText={(t) => handleCellChange(row.code, col.code, t)}
+                          placeholder="—"
+                          placeholderTextColor="#d1d5db"
+                        />
+                      )
+                    ) : (
+                      <View style={{ height: 28, borderRadius: 4, backgroundColor: '#f3f4f6' }} />
+                    )}
+                  </View>
+                ))}
+              </View>
+            );
+          })}
+        </View>
+      </ScrollView>
     );
   };
 
@@ -1456,7 +1617,7 @@ export default function DynamicSurveyFormScreen({
           )}
 
           {/* Questions */}
-          {activeQuestions.map(renderQuestion)}
+          {activeQuestions.map((q, idx) => renderQuestion(q, idx))}
 
           {/* Navigation Buttons */}
           <View style={styles.buttonsRow}>

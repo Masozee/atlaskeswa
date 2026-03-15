@@ -181,6 +181,7 @@ class Question(models.Model):
         STAFF_TABLE = 'STAFF_TABLE', 'Tabel Data Staf'
         DIAGNOSIS_TABLE = 'DIAGNOSIS_TABLE', 'Tabel Diagnosis'
         REPEATING_TABLE = 'REPEATING_TABLE', 'Tabel Dinamis (baris berulang)'
+        INTERVENTION_MATRIX = 'INTERVENTION_MATRIX', 'Matriks Intervensi (baris pilih + kolom detail)'
 
     section = models.ForeignKey(
         QuestionSection,

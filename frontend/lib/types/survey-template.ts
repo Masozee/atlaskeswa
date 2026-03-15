@@ -28,6 +28,7 @@ export type QuestionType =
   | 'STAFF_TABLE'
   | 'DIAGNOSIS_TABLE'
   | 'REPEATING_TABLE'
+  | 'INTERVENTION_MATRIX'
   | 'LOCATION';  // Custom location input with fixed Provinsi/Kabupaten, dropdown Kecamatan, text Desa, auto-GPS
 
 // Backend SurveyTemplate.TEMPLATE_TYPES choices
@@ -61,7 +62,8 @@ export interface QuestionOption {
 export interface TableColumn {
   code: string;
   label: string;
-  type: 'number' | 'text';
+  type: 'number' | 'text' | 'multiple_choice' | 'single_choice' | 'time';
+  options?: Array<{ value: string; label: string }>;
 }
 
 export interface TableRow {

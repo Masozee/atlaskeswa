@@ -38,17 +38,10 @@ export function shouldShowQuestion(question: Question, allResponses: SurveyAnswe
     return true;
   }
 
-  // Find parent question code from questions list
-  // Since we only have parent_question ID, we need to find the actual question
-  // In practice, this will be handled by the parent component passing the full question tree
-
-  // For now, check if parent question code exists in responses
   if (!question.show_if_value) {
     return true;
   }
 
-  // We need to get parent question's code
-  // This will be enhanced when we have the full question tree
   return true;
 }
 
@@ -56,15 +49,9 @@ export function shouldShowQuestion(question: Question, allResponses: SurveyAnswe
  * Determine if a section should be shown based on conditional logic
  */
 export function shouldShowSection(section: QuestionSection, allResponses: SurveyAnswers): boolean {
-  // If section has no conditional logic, always show it
   if (!section.show_if_question || !section.show_if_value) {
     return true;
   }
-
-  // Find the trigger question's code
-  // We need to match the question ID to get its code from responses
-  // This will need access to the questions map
-
   return true;
 }
 
@@ -207,6 +194,11 @@ export function buildQuestionsMap(sections: QuestionSection[]): Map<number, Ques
  * Uses skip_logic and next_question_code to determine which questions
  * are reachable based on current answers, following branching paths.
  *
+ * When rawAnswers is provided, cross-section next_question_code links
+ * are followed inline — DETAIL questions are embedded within FASKSES,
+ * one loop per MTC context (cabang_mtc), allowing the full
+ * FASKSES → DETAIL → FASKSES → DETAIL → … repeating pattern.
+ *
  * Flow logic:
  * 1. Start with the first question (by order)
  * 2. Show the question
@@ -214,13 +206,20 @@ export function buildQuestionsMap(sections: QuestionSection[]): Map<number, Ques
  *    a. Selected choice's next_question_code (highest priority)
  *    b. Question's skip_logic[0].goto (fallback)
  *    c. Next question by order (default)
- * 4. Continue until we hit an unanswered question or reach the end
+ * 4. If next question is in another section AND rawAnswers is given:
+ *    - Resolve that context's prefixed answers
+ *    - Inline the other section's flow right here
+ *    - Return to current section after
+ * 5. Continue until we hit an unanswered question or reach the end
  */
 export function getFlowBasedQuestions(
   section: QuestionSection,
   allResponses: SurveyAnswers,
   questionsMap?: Map<number, Question>,
-  allSections?: QuestionSection[]
+  allSections?: QuestionSection[],
+  rawAnswers?: SurveyAnswers,          // full answers including "context|code" prefixed keys
+  _visitedSectionIds?: Set<number>,   // prevents infinite cross-section recursion
+  _forcedStartCode?: string,           // override entry point (used by recursive cross-section call)
 ): Question[] {
   if (!section.questions || section.questions.length === 0) return [];
 
@@ -242,20 +241,15 @@ export function getFlowBasedQuestions(
 
   if (visibleQuestions.length === 0) return [];
 
-  // Always use flow-based progressive reveal:
-  // show questions one at a time, each revealed only after the previous is answered.
-  // If branching (skip_logic / next_question_code) is present it is followed;
-  // otherwise questions are revealed in order.
-
   // Build code-to-question map for this section
   const codeMap = new Map<string, Question>();
   visibleQuestions.forEach((q) => codeMap.set(q.code, q));
 
-  // Determine entry point from cross-section navigation:
-  // if a question in another section was answered and its selected choice's
-  // next_question_code points into this section, start from that question.
-  let startCode: string | undefined;
-  if (allSections) {
+  // Determine entry point:
+  // _forcedStartCode takes priority (used when recursing into a cross-section),
+  // otherwise scan other sections for cross-section pointers into this section.
+  let startCode: string | undefined = _forcedStartCode;
+  if (!startCode && allSections) {
     const sectionCodes = new Set(visibleQuestions.map((q) => q.code));
     outer: for (const otherSection of allSections) {
       if (otherSection.id === section.id) continue;
@@ -311,12 +305,13 @@ export function getFlowBasedQuestions(
     }
 
     let nextCode: string | undefined;
+    let triggeringChoice: NonNullable<typeof current.choices>[0] | undefined;
 
     // 1. Check choice-level branching (selected choice's next_question_code)
     if (current.choices && current.choices.length > 0) {
-      const selectedChoice = current.choices.find((c) => c.value === answer);
-      if (selectedChoice?.next_question_code) {
-        nextCode = selectedChoice.next_question_code;
+      triggeringChoice = current.choices.find((c) => c.value === answer);
+      if (triggeringChoice?.next_question_code) {
+        nextCode = triggeringChoice.next_question_code;
       }
     }
 
@@ -335,10 +330,69 @@ export function getFlowBasedQuestions(
       break;
     }
 
-    // Follow the branch
-    current = codeMap.get(nextCode);
-    if (!current) {
-      // Target question not in this section — fall back to next by order
+    // 4. Follow the branch — in-section or cross-section
+    const nextInSection = codeMap.get(nextCode);
+    if (nextInSection) {
+      current = nextInSection;
+    } else {
+      // Target is in another section — try inline cross-section follow
+      if (allSections && rawAnswers) {
+        const otherSection = allSections.find(
+          (s) => s.id !== section.id && (s.questions || []).some((q) => q.code === nextCode)
+        );
+        if (otherSection) {
+          const sectionVisited = _visitedSectionIds ?? new Set<number>();
+          if (!sectionVisited.has(otherSection.id)) {
+            const newSectionVisited = new Set(sectionVisited);
+            newSectionVisited.add(section.id); // prevent current section being re-entered from cross
+
+            // Build context-resolved answers for the cross section.
+            // Map "RQA" → rawAnswers["cabangMtc|RQA"] so DETAIL questions
+            // show as answered only when THIS context's data exists.
+            const cabangMtc = triggeringChoice?.cabang_mtc ?? '';
+            const ctxAnswers: SurveyAnswers = { ...allResponses };
+            if (cabangMtc) {
+              const prefix = `${cabangMtc}|`;
+              for (const [k, v] of Object.entries(rawAnswers)) {
+                if (k.startsWith(prefix)) {
+                  ctxAnswers[k.slice(prefix.length)] = v;
+                }
+              }
+            }
+
+            // Recurse into the other section starting at nextCode
+            const crossQuestions = getFlowBasedQuestions(
+              otherSection,
+              ctxAnswers,
+              questionsMap,
+              allSections,
+              rawAnswers,
+              newSectionVisited,
+              nextCode,
+            );
+
+            // Append cross-section questions WITHOUT marking them in `visited`.
+            // This allows the same DETAIL codes to appear again for the next context.
+            result.push(...crossQuestions);
+
+            // Continue current section from the question AFTER the one that branched
+            const lastInCurrentSection = [...result].reverse().find((q) => codeMap.has(q.code));
+            if (lastInCurrentSection) {
+              const idx = visibleQuestions.indexOf(lastInCurrentSection);
+              if (idx >= 0 && idx < visibleQuestions.length - 1) {
+                current = visibleQuestions[idx + 1];
+              } else {
+                break;
+              }
+            } else {
+              break;
+            }
+            continue;
+          }
+        }
+      }
+
+      // No cross-section follow available — fall back to next by order
       const lastQ = result[result.length - 1];
       const currentIdx = visibleQuestions.indexOf(lastQ);
       if (currentIdx < visibleQuestions.length - 1) {
@@ -359,7 +413,8 @@ export function getFlowBasedQuestions(
 export function calculateProgress(
   sections: QuestionSection[],
   answers: SurveyAnswers,
-  questionsMap: Map<number, Question>
+  questionsMap: Map<number, Question>,
+  rawAnswers?: SurveyAnswers,
 ): number {
   const activeSections = getActiveSections(sections, answers, questionsMap);
 
@@ -368,7 +423,7 @@ export function calculateProgress(
 
   activeSections.forEach((section) => {
     // Use flow-based questions for sections with branching
-    const activeQuestions = getFlowBasedQuestions(section, answers, questionsMap, sections);
+    const activeQuestions = getFlowBasedQuestions(section, answers, questionsMap, sections, rawAnswers);
 
     activeQuestions.forEach((question) => {
       if (question.is_required) {

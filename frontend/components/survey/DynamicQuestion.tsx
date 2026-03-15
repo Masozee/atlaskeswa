@@ -237,6 +237,9 @@ export function DynamicQuestion({ question, value, onChange, onOtherTextChange, 
       case 'REPEATING_TABLE':
         return <RepeatingTableInput question={question} value={value} onChange={onChange} error={error} />;
 
+      case 'INTERVENTION_MATRIX':
+        return <InterventionMatrixInput question={question} value={value} onChange={onChange} error={error} />;
+
       case 'FILE':
         return (
           <div className="space-y-2">
@@ -579,6 +582,160 @@ function RepeatingTableInput({ question, value, onChange, error }: RepeatingTabl
         + Tambah baris
       </button>
 
+      {error && <p className="text-sm text-destructive">{error}</p>}
+    </div>
+  );
+}
+
+/**
+ * InterventionMatrixInput — rows with checkbox selection + per-row column detail inputs.
+ * table_config.rows defines intervention types; table_config.columns defines the 9 sub-questions.
+ * Value: Record<rowCode, { selected: true, [colCode]: any } | undefined>
+ */
+interface InterventionMatrixInputProps {
+  question: Question;
+  value: Record<string, any> | null;
+  onChange: (value: Record<string, any>) => void;
+  error?: string;
+}
+
+function renderMatrixCell(
+  col: { code: string; label: string; type: string; options?: Array<{ value: string; label: string }> },
+  cellValue: any,
+  onCellChange: (v: any) => void,
+) {
+  switch (col.type) {
+    case 'number':
+      return (
+        <Input
+          type="number"
+          value={cellValue ?? ''}
+          onChange={(e) => onCellChange(e.target.value)}
+          className="h-8 border-0 focus-visible:ring-1 min-w-[70px]"
+          placeholder="0"
+        />
+      );
+    case 'multiple_choice':
+      return (
+        <div className="flex flex-col gap-0.5 px-1 py-0.5">
+          {(col.options ?? []).map((opt) => {
+            const selected: string[] = Array.isArray(cellValue) ? cellValue : [];
+            return (
+              <label key={opt.value} className="flex items-center gap-1 text-xs cursor-pointer">
+                <Checkbox
+                  checked={selected.includes(opt.value)}
+                  onCheckedChange={(checked) => {
+                    if (checked) onCellChange([...selected, opt.value]);
+                    else onCellChange(selected.filter((v) => v !== opt.value));
+                  }}
+                />
+                <span>{opt.label}</span>
+              </label>
+            );
+          })}
+        </div>
+      );
+    case 'single_choice':
+      return (
+        <Select value={cellValue ?? ''} onValueChange={onCellChange}>
+          <SelectTrigger className="h-8 border-0 text-xs min-w-[90px]">
+            <SelectValue placeholder="—" />
+          </SelectTrigger>
+          <SelectContent>
+            {(col.options ?? []).map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      );
+    default: // text, time
+      return (
+        <Input
+          type="text"
+          value={cellValue ?? ''}
+          onChange={(e) => onCellChange(e.target.value)}
+          className="h-8 border-0 focus-visible:ring-1 min-w-[80px]"
+          placeholder="—"
+        />
+      );
+  }
+}
+
+function InterventionMatrixInput({ question, value, onChange, error }: InterventionMatrixInputProps) {
+  const config = question.table_config;
+
+  if (!config?.rows?.length || !config?.columns?.length) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Konfigurasi matriks tidak ditemukan. Tambahkan <code>table_config</code> pada pertanyaan ini.
+      </p>
+    );
+  }
+
+  const currentValue: Record<string, any> = value ?? {};
+
+  const handleSelect = (rowCode: string, checked: boolean) => {
+    const next = { ...currentValue };
+    if (checked) {
+      next[rowCode] = { ...next[rowCode], selected: true };
+    } else {
+      delete next[rowCode];
+    }
+    onChange(next);
+  };
+
+  const handleCellChange = (rowCode: string, colCode: string, cellValue: any) => {
+    onChange({
+      ...currentValue,
+      [rowCode]: { ...currentValue[rowCode], [colCode]: cellValue },
+    });
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse border text-sm">
+          <thead>
+            <tr>
+              <th className="border p-2 bg-muted text-left font-medium min-w-[160px]">Jenis Intervensi</th>
+              <th className="border p-2 bg-muted text-center font-medium w-12">✓</th>
+              {config.columns.map((col) => (
+                <th key={col.code} className="border p-2 bg-muted text-center font-medium min-w-[90px] text-xs">
+                  {col.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {config.rows.map((row) => {
+              const rowData = currentValue[row.code];
+              const isSelected = !!rowData?.selected;
+              return (
+                <tr key={row.code} className={isSelected ? '' : 'bg-muted/20'}>
+                  <td className="border p-2 font-medium text-sm">{row.label}</td>
+                  <td className="border p-2 text-center">
+                    <Checkbox
+                      checked={isSelected}
+                      onCheckedChange={(checked) => handleSelect(row.code, !!checked)}
+                    />
+                  </td>
+                  {config.columns.map((col) => (
+                    <td key={col.code} className="border p-0.5">
+                      {isSelected ? (
+                        renderMatrixCell(col, rowData?.[col.code], (v) => handleCellChange(row.code, col.code, v))
+                      ) : (
+                        <div className="h-8 rounded bg-muted/40" />
+                      )}
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
     </div>
   );

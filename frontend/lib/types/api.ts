@@ -369,7 +369,7 @@ export interface DashboardStats {
     unresolved_errors: number;
     critical_errors: number;
   };
-  activity_trends: Array<{ day: string; count: number }>;
+  activity_trends: Array<{ day: string; count: number; logins: number; submissions: number }>;
 }
 
 // Logs

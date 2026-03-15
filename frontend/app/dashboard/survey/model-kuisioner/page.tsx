@@ -107,6 +107,7 @@ const ANSWER_TYPES = [
   { value: "STAFF_TABLE", label: "Tabel Staff" },
   { value: "DIAGNOSIS_TABLE", label: "Tabel Diagnosis" },
   { value: "REPEATING_TABLE", label: "Tabel Dinamis (baris berulang)" },
+  { value: "INTERVENTION_MATRIX", label: "Matriks Intervensi (baris pilih + kolom detail)" },
   { value: "GPS", label: "GPS" },
   { value: "FILE", label: "File Upload" },
 ];
@@ -392,7 +393,7 @@ function QuestionDialog({ open, onOpenChange, editTarget, onSubmit, isPending, a
         <div className="flex gap-1 border-b -mt-1">
           {[
             { key: "detail" as DialogTab, label: "Detail Pertanyaan" },
-            { key: "pilihan" as DialogTab, label: "Pilihan Jawaban", disabled: !editTarget },
+            { key: "pilihan" as DialogTab, label: "Pilihan Jawaban", disabled: !editTarget || !["SINGLE_CHOICE", "MULTIPLE_CHOICE"].includes(form.answer_type) },
           ].map((tab) => (
             <button
               key={tab.key}
@@ -436,7 +437,7 @@ function QuestionDialog({ open, onOpenChange, editTarget, onSubmit, isPending, a
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label htmlFor="q-type">Tipe Jawaban *</Label>
-                <select id="q-type" value={form.answer_type} onChange={(e) => setForm((f) => ({ ...f, answer_type: e.target.value }))} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring bg-background">
+                <select id="q-type" value={form.answer_type} onChange={(e) => { setForm((f) => ({ ...f, answer_type: e.target.value })); if (!["SINGLE_CHOICE", "MULTIPLE_CHOICE"].includes(e.target.value)) setActiveTab("detail"); }} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring bg-background">
                   {ANSWER_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
                 </select>
               </div>
