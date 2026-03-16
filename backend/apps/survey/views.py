@@ -969,7 +969,7 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
                     answer.table_data = answer_value
             elif question.answer_type == 'COVERAGE_LEVEL':
                 answer.coverage_level = answer_value
-            elif question.answer_type in ['STAFF_TABLE', 'DIAGNOSIS_TABLE']:
+            elif question.answer_type in ['STAFF_TABLE', 'DIAGNOSIS_TABLE', 'REPEATING_TABLE', 'INTERVENTION_MATRIX']:
                 answer.table_data = answer_value
             elif question.answer_type == 'GPS':
                 if isinstance(answer_value, dict):

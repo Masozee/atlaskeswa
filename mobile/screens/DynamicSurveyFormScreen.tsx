@@ -418,7 +418,11 @@ export default function DynamicSurveyFormScreen({
       for (let i = 0; i < activeSections.length; i++) {
         const sectionQuestions = getFlowBasedQuestions(activeSections[i], answers, questionsMap, template?.sections);
         sectionQuestions.forEach((question) => {
-          const answer = answers[question.code];
+          // Check plain answer first, then any context-prefixed variant (e.g. "R2|RQA")
+          const plainAnswer = answers[question.code];
+          const answer = plainAnswer !== undefined
+            ? plainAnswer
+            : Object.entries(answers).find(([k]) => k.endsWith(`|${question.code}`))?.[1];
           if (question.is_required) {
             if (answer === null || answer === undefined || answer === '' || (Array.isArray(answer) && answer.length === 0)) {
               allErrors[question.code] = 'Pertanyaan ini wajib diisi';
