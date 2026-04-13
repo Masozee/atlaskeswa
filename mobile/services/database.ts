@@ -2,16 +2,19 @@ import { Platform } from 'react-native';
 import * as SQLite from 'expo-sqlite';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const DB_NAME = 'yakkum.db';
-const DB_VERSION = 1;
+const DB_NAME = 'yakkum_v2.db';
 
 class Database {
   private db: SQLite.SQLiteDatabase | null = null;
+  private ready = false;
+
+  isInitialized(): boolean {
+    return this.ready;
+  }
 
   async init(): Promise<void> {
     if (this.db) return;
 
-    // Skip database initialization on web platform
     if (Platform.OS === 'web') {
       console.warn('SQLite not supported on web platform');
       return;
@@ -19,6 +22,7 @@ class Database {
 
     this.db = await SQLite.openDatabaseAsync(DB_NAME);
     await this.createTables();
+    this.ready = true;
   }
 
   private async createTables(): Promise<void> {
@@ -37,65 +41,45 @@ class Database {
       );
     `);
 
-    // Surveys table
+    // Survey templates cache
+    await this.db.execAsync(`
+      CREATE TABLE IF NOT EXISTS survey_templates (
+        id INTEGER PRIMARY KEY,
+        data TEXT NOT NULL,
+        cached_at INTEGER
+      );
+    `);
+
+    // Geographic units cache
+    await this.db.execAsync(`
+      CREATE TABLE IF NOT EXISTS geographic_units (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        level TEXT,
+        parent INTEGER,
+        data TEXT
+      );
+    `);
+
+    // Surveys table — dynamic form with answers_json
     await this.db.execAsync(`
       CREATE TABLE IF NOT EXISTS surveys (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         server_id INTEGER,
+        template_id INTEGER,
         service_id INTEGER,
         service_name TEXT,
         service_city TEXT,
-        service_address TEXT,
         survey_date TEXT,
         survey_period_start TEXT,
         survey_period_end TEXT,
-        latitude REAL,
-        longitude REAL,
-        location_accuracy REAL,
-        current_bed_capacity INTEGER DEFAULT 0,
-        beds_occupied INTEGER DEFAULT 0,
-        current_psychiatrist_count INTEGER DEFAULT 0,
-        current_psychologist_count INTEGER DEFAULT 0,
-        current_nurse_count INTEGER DEFAULT 0,
-        current_social_worker_count INTEGER DEFAULT 0,
-        total_patients_served INTEGER DEFAULT 0,
-        new_patients INTEGER DEFAULT 0,
-        returning_patients INTEGER DEFAULT 0,
-        patients_male INTEGER DEFAULT 0,
-        patients_female INTEGER DEFAULT 0,
-        patients_age_0_17 INTEGER DEFAULT 0,
-        patients_age_18_64 INTEGER DEFAULT 0,
-        patients_age_65_plus INTEGER DEFAULT 0,
-        bpjs_patients INTEGER DEFAULT 0,
-        private_insurance_patients INTEGER DEFAULT 0,
-        self_pay_patients INTEGER DEFAULT 0,
-        monthly_budget TEXT,
-        patient_satisfaction_score REAL,
-        average_wait_time_days REAL,
-        surveyor_notes TEXT,
-        challenges_faced TEXT,
-        improvements_needed TEXT,
-        additional_notes TEXT,
+        gps_latitude REAL,
+        gps_longitude REAL,
+        answers_json TEXT,
         verification_status TEXT DEFAULT 'DRAFT',
-        status_display TEXT,
-        surveyor_name TEXT,
         synced INTEGER DEFAULT 0,
         pending_action TEXT,
         created_at INTEGER,
         updated_at INTEGER
-      );
-    `);
-
-    // Sync queue table
-    await this.db.execAsync(`
-      CREATE TABLE IF NOT EXISTS sync_queue (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        type TEXT NOT NULL,
-        table_name TEXT NOT NULL,
-        local_id INTEGER,
-        data TEXT NOT NULL,
-        timestamp INTEGER,
-        retries INTEGER DEFAULT 0
       );
     `);
 
@@ -124,196 +108,207 @@ class Database {
         value TEXT
       );
     `);
+
+    // Survey photos (local cache)
+    await this.db.execAsync(`
+      CREATE TABLE IF NOT EXISTS survey_photos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        server_id INTEGER,
+        survey_local_id INTEGER,
+        survey_server_id INTEGER,
+        local_uri TEXT,
+        server_image_url TEXT,
+        caption TEXT,
+        synced INTEGER DEFAULT 0,
+        created_at INTEGER
+      );
+    `);
   }
 
-  // Services methods
+  // ── Services ──────────────────────────────────────────────────────────────
+
   async saveServices(services: any[]): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
 
     await this.db.execAsync('DELETE FROM services');
-
     for (const service of services) {
       await this.db.runAsync(
         `INSERT INTO services (id, name, city, address, synced, last_updated, data)
          VALUES (?, ?, ?, ?, 1, ?, ?)`,
-        [
-          service.id,
-          service.name,
-          service.city || '',
-          service.address || '',
-          Date.now(),
-          JSON.stringify(service)
-        ]
+        [service.id, service.name, service.city || '', service.address || '', Date.now(), JSON.stringify(service)]
       );
     }
   }
 
   async getServices(): Promise<any[]> {
     if (!this.db) throw new Error('Database not initialized');
-
     const result = await this.db.getAllAsync('SELECT * FROM services ORDER BY name');
     return result.map((row: any) => JSON.parse(row.data));
   }
 
-  // Surveys methods
-  async saveSurvey(survey: any, localOnly: boolean = false): Promise<number> {
+  // ── Survey templates ──────────────────────────────────────────────────────
+
+  async saveTemplate(id: number, data: any): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+    await this.db.runAsync(
+      'INSERT OR REPLACE INTO survey_templates (id, data, cached_at) VALUES (?, ?, ?)',
+      [id, JSON.stringify(data), Date.now()]
+    );
+  }
+
+  async getTemplate(id: number): Promise<any | null> {
+    if (!this.db) throw new Error('Database not initialized');
+    const row = await this.db.getFirstAsync(
+      'SELECT data FROM survey_templates WHERE id = ?',
+      [id]
+    ) as any;
+    return row ? JSON.parse(row.data) : null;
+  }
+
+  async getLatestTemplate(): Promise<any | null> {
+    if (!this.db) throw new Error('Database not initialized');
+    const row = await this.db.getFirstAsync(
+      'SELECT data FROM survey_templates ORDER BY cached_at DESC LIMIT 1'
+    ) as any;
+    return row ? JSON.parse(row.data) : null;
+  }
+
+  // ── Geographic units ──────────────────────────────────────────────────────
+
+  async saveGeographicUnits(level: string, parent: number, items: any[]): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+    await this.db.runAsync(
+      'DELETE FROM geographic_units WHERE level = ? AND parent = ?',
+      [level, parent]
+    );
+    for (const item of items) {
+      await this.db.runAsync(
+        'INSERT INTO geographic_units (level, parent, data) VALUES (?, ?, ?)',
+        [level, parent, JSON.stringify(item)]
+      );
+    }
+  }
+
+  async getGeographicUnits(level: string, parent: number): Promise<any[]> {
+    if (!this.db) throw new Error('Database not initialized');
+    const rows = await this.db.getAllAsync(
+      'SELECT data FROM geographic_units WHERE level = ? AND parent = ?',
+      [level, parent]
+    ) as any[];
+    return rows.map((r) => JSON.parse(r.data));
+  }
+
+  // ── Surveys ───────────────────────────────────────────────────────────────
+
+  async saveSurveyLocal(survey: {
+    server_id?: number | null;
+    template_id: number;
+    service_id: number;
+    service_name?: string;
+    service_city?: string;
+    survey_date: string;
+    survey_period_start?: string;
+    survey_period_end?: string;
+    gps_latitude?: number | null;
+    gps_longitude?: number | null;
+    answers_json: string;
+    verification_status?: string;
+    pending_action: 'create' | 'update';
+  }): Promise<number> {
     if (!this.db) throw new Error('Database not initialized');
 
     const now = Date.now();
     const result = await this.db.runAsync(
       `INSERT INTO surveys (
-        server_id, service_id, service_name, service_city, service_address,
+        server_id, template_id, service_id, service_name, service_city,
         survey_date, survey_period_start, survey_period_end,
-        latitude, longitude, location_accuracy,
-        current_bed_capacity, beds_occupied,
-        current_psychiatrist_count, current_psychologist_count,
-        current_nurse_count, current_social_worker_count,
-        total_patients_served, new_patients, returning_patients,
-        patients_male, patients_female,
-        patients_age_0_17, patients_age_18_64, patients_age_65_plus,
-        bpjs_patients, private_insurance_patients, self_pay_patients,
-        monthly_budget, patient_satisfaction_score, average_wait_time_days,
-        surveyor_notes, challenges_faced, improvements_needed, additional_notes,
-        verification_status, status_display, surveyor_name,
-        synced, pending_action, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        gps_latitude, gps_longitude, answers_json,
+        verification_status, synced, pending_action, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`,
       [
-        survey.server_id || null,
-        survey.service,
-        survey.service_name || '',
-        survey.service_city || '',
-        survey.service_address || '',
+        survey.server_id ?? null,
+        survey.template_id,
+        survey.service_id,
+        survey.service_name ?? '',
+        survey.service_city ?? '',
         survey.survey_date,
-        survey.survey_period_start,
-        survey.survey_period_end,
-        survey.latitude,
-        survey.longitude,
-        survey.location_accuracy,
-        survey.current_bed_capacity,
-        survey.beds_occupied,
-        survey.current_psychiatrist_count,
-        survey.current_psychologist_count,
-        survey.current_nurse_count,
-        survey.current_social_worker_count,
-        survey.total_patients_served,
-        survey.new_patients,
-        survey.returning_patients,
-        survey.patients_male,
-        survey.patients_female,
-        survey.patients_age_0_17,
-        survey.patients_age_18_64,
-        survey.patients_age_65_plus,
-        survey.bpjs_patients,
-        survey.private_insurance_patients,
-        survey.self_pay_patients,
-        survey.monthly_budget,
-        survey.patient_satisfaction_score,
-        survey.average_wait_time_days,
-        survey.surveyor_notes,
-        survey.challenges_faced,
-        survey.improvements_needed,
-        survey.additional_notes,
-        survey.verification_status || 'DRAFT',
-        survey.status_display || 'Draft',
-        survey.surveyor_name || '',
-        localOnly ? 0 : 1,
-        localOnly ? 'create' : null,
+        survey.survey_period_start ?? null,
+        survey.survey_period_end ?? null,
+        survey.gps_latitude ?? null,
+        survey.gps_longitude ?? null,
+        survey.answers_json,
+        survey.verification_status ?? 'DRAFT',
+        survey.pending_action,
         now,
-        now
+        now,
       ]
     );
-
     return result.lastInsertRowId;
   }
 
-  async updateSurvey(localId: number, survey: any, localOnly: boolean = false): Promise<void> {
+  async updateSurveyLocal(localId: number, survey: {
+    service_id?: number;
+    service_name?: string;
+    service_city?: string;
+    survey_date?: string;
+    survey_period_start?: string | null;
+    survey_period_end?: string | null;
+    gps_latitude?: number | null;
+    gps_longitude?: number | null;
+    answers_json?: string;
+    verification_status?: string;
+  }): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
 
+    const fields: string[] = [];
+    const values: any[] = [];
+
+    if (survey.service_id !== undefined) { fields.push('service_id = ?'); values.push(survey.service_id); }
+    if (survey.service_name !== undefined) { fields.push('service_name = ?'); values.push(survey.service_name); }
+    if (survey.service_city !== undefined) { fields.push('service_city = ?'); values.push(survey.service_city); }
+    if (survey.survey_date !== undefined) { fields.push('survey_date = ?'); values.push(survey.survey_date); }
+    if (survey.survey_period_start !== undefined) { fields.push('survey_period_start = ?'); values.push(survey.survey_period_start); }
+    if (survey.survey_period_end !== undefined) { fields.push('survey_period_end = ?'); values.push(survey.survey_period_end); }
+    if (survey.gps_latitude !== undefined) { fields.push('gps_latitude = ?'); values.push(survey.gps_latitude); }
+    if (survey.gps_longitude !== undefined) { fields.push('gps_longitude = ?'); values.push(survey.gps_longitude); }
+    if (survey.answers_json !== undefined) { fields.push('answers_json = ?'); values.push(survey.answers_json); }
+    if (survey.verification_status !== undefined) { fields.push('verification_status = ?'); values.push(survey.verification_status); }
+
+    if (fields.length === 0) return;
+
+    fields.push('synced = 0', 'pending_action = COALESCE(pending_action, \'update\')', 'updated_at = ?');
+    values.push(Date.now(), localId);
+
     await this.db.runAsync(
-      `UPDATE surveys SET
-        service_id = ?, service_name = ?, service_city = ?, service_address = ?,
-        survey_date = ?, survey_period_start = ?, survey_period_end = ?,
-        latitude = ?, longitude = ?, location_accuracy = ?,
-        current_bed_capacity = ?, beds_occupied = ?,
-        current_psychiatrist_count = ?, current_psychologist_count = ?,
-        current_nurse_count = ?, current_social_worker_count = ?,
-        total_patients_served = ?, new_patients = ?, returning_patients = ?,
-        patients_male = ?, patients_female = ?,
-        patients_age_0_17 = ?, patients_age_18_64 = ?, patients_age_65_plus = ?,
-        bpjs_patients = ?, private_insurance_patients = ?, self_pay_patients = ?,
-        monthly_budget = ?, patient_satisfaction_score = ?, average_wait_time_days = ?,
-        surveyor_notes = ?, challenges_faced = ?, improvements_needed = ?, additional_notes = ?,
-        verification_status = ?, status_display = ?, surveyor_name = ?,
-        synced = ?, pending_action = ?, updated_at = ?
-      WHERE id = ?`,
-      [
-        survey.service,
-        survey.service_name || '',
-        survey.service_city || '',
-        survey.service_address || '',
-        survey.survey_date,
-        survey.survey_period_start,
-        survey.survey_period_end,
-        survey.latitude,
-        survey.longitude,
-        survey.location_accuracy,
-        survey.current_bed_capacity,
-        survey.beds_occupied,
-        survey.current_psychiatrist_count,
-        survey.current_psychologist_count,
-        survey.current_nurse_count,
-        survey.current_social_worker_count,
-        survey.total_patients_served,
-        survey.new_patients,
-        survey.returning_patients,
-        survey.patients_male,
-        survey.patients_female,
-        survey.patients_age_0_17,
-        survey.patients_age_18_64,
-        survey.patients_age_65_plus,
-        survey.bpjs_patients,
-        survey.private_insurance_patients,
-        survey.self_pay_patients,
-        survey.monthly_budget,
-        survey.patient_satisfaction_score,
-        survey.average_wait_time_days,
-        survey.surveyor_notes,
-        survey.challenges_faced,
-        survey.improvements_needed,
-        survey.additional_notes,
-        survey.verification_status || 'DRAFT',
-        survey.status_display || 'Draft',
-        survey.surveyor_name || '',
-        localOnly ? 0 : 1,
-        localOnly ? 'update' : null,
-        Date.now(),
-        localId
-      ]
+      `UPDATE surveys SET ${fields.join(', ')} WHERE id = ?`,
+      values
     );
   }
 
   async getSurveys(): Promise<any[]> {
     if (!this.db) throw new Error('Database not initialized');
+    return this.db.getAllAsync('SELECT * FROM surveys ORDER BY created_at DESC');
+  }
 
-    const result = await this.db.getAllAsync(
-      'SELECT * FROM surveys ORDER BY created_at DESC'
+  async getExistingSurveyForService(serviceId: number, templateId: number): Promise<any | null> {
+    if (!this.db) throw new Error('Database not initialized');
+    // Only check for DRAFT surveys - submitted surveys shouldn't block creating new ones
+    // Order by created_at desc to get the most recent first
+    const result = await this.db.getFirstAsync(
+      "SELECT * FROM surveys WHERE service_id = ? AND template_id = ? AND verification_status = 'DRAFT' ORDER BY created_at DESC LIMIT 1",
+      [serviceId, templateId]
     );
-    return result;
+    return result || null;
   }
 
   async getSurvey(localId: number): Promise<any | null> {
     if (!this.db) throw new Error('Database not initialized');
-
-    const result = await this.db.getFirstAsync(
-      'SELECT * FROM surveys WHERE id = ?',
-      [localId]
-    );
+    const result = await this.db.getFirstAsync('SELECT * FROM surveys WHERE id = ?', [localId]);
     return result || null;
   }
 
   async getPendingSyncCount(): Promise<number> {
     if (!this.db) throw new Error('Database not initialized');
-
     const result = await this.db.getFirstAsync(
       'SELECT COUNT(*) as count FROM surveys WHERE synced = 0'
     ) as any;
@@ -322,94 +317,113 @@ class Database {
 
   async getPendingSurveys(): Promise<any[]> {
     if (!this.db) throw new Error('Database not initialized');
-
-    const result = await this.db.getAllAsync(
-      'SELECT * FROM surveys WHERE synced = 0 ORDER BY created_at'
-    );
-    return result;
+    return this.db.getAllAsync('SELECT * FROM surveys WHERE synced = 0 ORDER BY created_at');
   }
 
   async markSurveySynced(localId: number, serverId?: number): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
-
     await this.db.runAsync(
       'UPDATE surveys SET synced = 1, pending_action = NULL, server_id = ? WHERE id = ?',
-      [serverId || null, localId]
+      [serverId ?? null, localId]
     );
   }
 
-  // Dashboard cache
+  // ── Legacy compat (used by SurveyFormScreen) ─────────────────────────────
+
+  /** @deprecated Use saveSurveyLocal instead */
+  async saveSurvey(survey: any, _localOnly: boolean = false): Promise<number> {
+    return this.saveSurveyLocal({
+      server_id: survey.server_id ?? null,
+      template_id: survey.template_id ?? 0,
+      service_id: survey.service_id ?? survey.service ?? 0,
+      service_name: survey.service_name ?? '',
+      service_city: survey.service_city ?? '',
+      survey_date: survey.survey_date ?? new Date().toISOString().split('T')[0],
+      survey_period_start: survey.survey_period_start ?? '',
+      survey_period_end: survey.survey_period_end ?? '',
+      gps_latitude: survey.latitude ?? null,
+      gps_longitude: survey.longitude ?? null,
+      answers_json: JSON.stringify(survey),
+      verification_status: survey.verification_status ?? 'DRAFT',
+      pending_action: 'create',
+    });
+  }
+
+  /** @deprecated Use updateSurveyLocal instead */
+  async updateSurvey(localId: number, survey: any, _localOnly: boolean = false): Promise<void> {
+    return this.updateSurveyLocal(localId, {
+      service_id: survey.service_id ?? survey.service,
+      service_name: survey.service_name,
+      service_city: survey.service_city,
+      survey_date: survey.survey_date,
+      survey_period_start: survey.survey_period_start,
+      survey_period_end: survey.survey_period_end,
+      gps_latitude: survey.latitude ?? null,
+      gps_longitude: survey.longitude ?? null,
+      answers_json: JSON.stringify(survey),
+      verification_status: survey.verification_status,
+    });
+  }
+
+  // ── Dashboard cache ───────────────────────────────────────────────────────
+
   async saveDashboardCache(data: any): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
-
     await this.db.runAsync(
-      `INSERT OR REPLACE INTO dashboard_cache (id, data, last_updated)
-       VALUES (1, ?, ?)`,
+      'INSERT OR REPLACE INTO dashboard_cache (id, data, last_updated) VALUES (1, ?, ?)',
       [JSON.stringify(data), Date.now()]
     );
   }
 
   async getDashboardCache(): Promise<any | null> {
     if (!this.db) throw new Error('Database not initialized');
-
-    const result = await this.db.getFirstAsync(
-      'SELECT * FROM dashboard_cache WHERE id = 1'
-    ) as any;
-
+    const result = await this.db.getFirstAsync('SELECT * FROM dashboard_cache WHERE id = 1') as any;
     if (!result) return null;
-
-    // Cache valid for 5 minutes
-    const cacheAge = Date.now() - result.last_updated;
-    if (cacheAge > 5 * 60 * 1000) return null;
-
+    if (Date.now() - result.last_updated > 5 * 60 * 1000) return null;
     return JSON.parse(result.data);
   }
 
   async clearAll(): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
-
     await this.db.execAsync('DELETE FROM services');
-    // Only delete synced surveys to preserve local pending changes
     await this.db.execAsync('DELETE FROM surveys WHERE synced = 1');
     await this.db.execAsync('DELETE FROM dashboard_cache');
   }
 
-  // Sync metadata methods
+  // ── Sync metadata ─────────────────────────────────────────────────────────
+
   async updateLastSyncTime(status: 'success' | 'failed'): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
-
     await this.db.runAsync(
-      `INSERT OR REPLACE INTO sync_metadata (id, last_sync_time, last_sync_status)
-       VALUES (1, ?, ?)`,
+      'INSERT OR REPLACE INTO sync_metadata (id, last_sync_time, last_sync_status) VALUES (1, ?, ?)',
       [Date.now(), status]
     );
   }
 
-  // App settings methods - works on both native (SQLite) and web (AsyncStorage)
+  async getLastSyncTime(): Promise<{ time: number | null; status: string | null }> {
+    if (!this.db) throw new Error('Database not initialized');
+    const result = await this.db.getFirstAsync('SELECT * FROM sync_metadata WHERE id = 1') as any;
+    if (!result) return { time: null, status: null };
+    return { time: result.last_sync_time, status: result.last_sync_status };
+  }
+
+  // ── App settings ──────────────────────────────────────────────────────────
+
   async getSetting(key: string): Promise<string | null> {
-    if (!this.db) {
-      // Fallback to AsyncStorage on web
-      return AsyncStorage.getItem(`setting_${key}`);
-    }
-
+    if (!this.db) return AsyncStorage.getItem(`setting_${key}`);
     const result = await this.db.getFirstAsync(
-      'SELECT value FROM app_settings WHERE key = ?',
-      [key]
+      'SELECT value FROM app_settings WHERE key = ?', [key]
     ) as any;
-
     return result ? result.value : null;
   }
 
   async saveSetting(key: string, value: string): Promise<void> {
     if (!this.db) {
-      // Fallback to AsyncStorage on web
       await AsyncStorage.setItem(`setting_${key}`, value);
       return;
     }
-
     await this.db.runAsync(
-      'INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)',
-      [key, value]
+      'INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)', [key, value]
     );
   }
 
@@ -421,21 +435,60 @@ class Database {
     return this.saveSetting('api_base_url', url);
   }
 
-  async getLastSyncTime(): Promise<{ time: number | null; status: string | null }> {
+  // ── Survey photos ───────────────────────────────────────────────────────────
+
+  async saveSurveyPhotoLocal(photo: {
+    server_id?: number | null;
+    survey_local_id?: number | null;
+    survey_server_id?: number | null;
+    local_uri: string;
+    server_image_url?: string;
+    caption?: string;
+  }): Promise<number> {
     if (!this.db) throw new Error('Database not initialized');
+    const result = await this.db.runAsync(
+      `INSERT INTO survey_photos (server_id, survey_local_id, survey_server_id, local_uri, server_image_url, caption, synced, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, 0, ?)`,
+      [
+        photo.server_id ?? null,
+        photo.survey_local_id ?? null,
+        photo.survey_server_id ?? null,
+        photo.local_uri,
+        photo.server_image_url ?? null,
+        photo.caption ?? null,
+        Date.now(),
+      ]
+    );
+    return result.lastInsertRowId;
+  }
 
-    const result = await this.db.getFirstAsync(
-      'SELECT * FROM sync_metadata WHERE id = 1'
-    ) as any;
+  async getSurveyPhotosForLocalSurvey(localId: number): Promise<any[]> {
+    if (!this.db) throw new Error('Database not initialized');
+    return this.db.getAllAsync(
+      'SELECT * FROM survey_photos WHERE survey_local_id = ? ORDER BY created_at DESC',
+      [localId]
+    );
+  }
 
-    if (!result) {
-      return { time: null, status: null };
-    }
+  async getSurveyPhotosForServerSurvey(serverId: number): Promise<any[]> {
+    if (!this.db) throw new Error('Database not initialized');
+    return this.db.getAllAsync(
+      'SELECT * FROM survey_photos WHERE survey_server_id = ? ORDER BY created_at DESC',
+      [serverId]
+    );
+  }
 
-    return {
-      time: result.last_sync_time,
-      status: result.last_sync_status,
-    };
+  async markPhotoSynced(localId: number, serverId: number, serverImageUrl: string): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+    await this.db.runAsync(
+      'UPDATE survey_photos SET synced = 1, server_id = ?, server_image_url = ? WHERE id = ?',
+      [serverId, serverImageUrl, localId]
+    );
+  }
+
+  async deletePhoto(localId: number): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+    await this.db.runAsync('DELETE FROM survey_photos WHERE id = ?', [localId]);
   }
 }
 

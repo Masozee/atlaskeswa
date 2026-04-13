@@ -251,6 +251,52 @@ class ApiClient {
   async delete<T>(endpoint: string): Promise<T> {
     return this.request<T>(endpoint, { method: 'DELETE' });
   }
+
+  async uploadSurveyPhoto(surveyId: number, imageUri: string, caption?: string): Promise<any> {
+    const formData = new FormData();
+    // Get file extension from URI
+    const uriParts = imageUri.split('.');
+    const fileType = uriParts[uriParts.length - 1];
+
+    formData.append('image', {
+      uri: imageUri,
+      name: `photo_${Date.now()}.${fileType}`,
+      type: `image/${fileType}`,
+    } as any);
+    if (caption) {
+      formData.append('caption', caption);
+    }
+    formData.append('survey', String(surveyId));
+
+    const url = `${this.baseURL}/surveys/photos/`;
+    const headers: Record<string, string> = {
+      ...(this.accessToken ? { Authorization: `Bearer ${this.accessToken}` } : {}),
+    };
+
+    // Don't set Content-Type for multipart - browser will set it with boundary
+    delete headers['Content-Type'];
+
+    console.log('Upload request to:', url);
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    console.log('Upload response status:', response.status);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Upload error response:', errorText);
+      throw new Error(`Upload failed: ${response.status} - ${errorText}`);
+    }
+
+    const contentType = response.headers.get('content-type');
+    if (contentType?.includes('application/json')) {
+      return response.json();
+    }
+    return {};
+  }
 }
 
 // Export singleton instance
