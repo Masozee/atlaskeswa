@@ -233,6 +233,7 @@ class ServiceViewSet(StatusBasedFilterMixin, viewsets.ModelViewSet):
         'accepts_private_insurance': ['exact'],
         'is_24_7': ['exact'],
         'accepts_emergency': ['exact'],
+        'bsic__kategori_fasilitas': ['exact'],
     }
 
     search_fields = [
@@ -360,6 +361,64 @@ class ServiceViewSet(StatusBasedFilterMixin, viewsets.ModelViewSet):
 
         serializer = ServiceListSerializer(services, many=True)
         return Response(serializer.data)
+
+    @action(detail=False, methods=['post'])
+    def quick_create(self, request):
+        """Quick create a new service with minimal fields for survey purposes"""
+        from .serializers import ServiceQuickCreateSerializer
+
+        serializer = ServiceQuickCreateSerializer(data=request.data)
+        if serializer.is_valid():
+            # Create service with minimal data - use defaults for required FKs
+            service = Service.objects.create(
+                name=serializer.validated_data['name'],
+                kecamatan=serializer.validated_data.get('kecamatan', ''),
+                city=serializer.validated_data.get('city', 'Kebumen'),
+                # Required FKs - use first available or create placeholder
+                mtc_id=request.data.get('mtc') or self._get_default_mtc(),
+                bsic_id=request.data.get('bsic') or self._get_default_bsic(),
+                service_type_id=request.data.get('service_type') or self._get_default_service_type(),
+                created_by=request.user,
+                is_active=True,
+                is_verified=False,
+            )
+            log_create(request, service, f'Quick created service: {service.name}')
+            return Response(
+                ServiceDetailSerializer(service).data,
+                status=status.HTTP_201_CREATED
+            )
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def _get_default_mtc(self):
+        """Get default MTC or create one"""
+        from .models import MainTypeOfCare
+        mtc, _ = MainTypeOfCare.objects.get_or_create(
+            code='TBD',
+            defaults={'name': 'To Be Determined', 'is_active': True}
+        )
+        return mtc.id
+
+    def _get_default_bsic(self):
+        """Get default BSIC or create one"""
+        from .models import BasicStableInputsOfCare
+        bsic, _ = BasicStableInputsOfCare.objects.get_or_create(
+            code='TBD',
+            defaults={
+                'name': 'To Be Determined',
+                'kategori_fasilitas': 'KESEHATAN',
+                'is_active': True
+            }
+        )
+        return bsic.id
+
+    def _get_default_service_type(self):
+        """Get default ServiceType or create one"""
+        from .models import ServiceType
+        st, _ = ServiceType.objects.get_or_create(
+            name='To Be Determined',
+            defaults={'is_active': True}
+        )
+        return st.id
 
 
 class KategoriLayananViewSet(viewsets.ModelViewSet):

@@ -13,13 +13,13 @@ from django.utils import timezone
 from .models import (
     Survey, SurveyAttachment, SurveyAuditLog,
     GeographicUnit, SurveyTemplate, QuestionSection, Question,
-    QuestionChoice, DynamicSurveyResponse, QuestionAnswer
+    QuestionChoice, DynamicSurveyResponse, QuestionAnswer, SurveyPhoto
 )
 from .serializers import (
     SurveyListSerializer, SurveyDetailSerializer,
     SurveyCreateUpdateSerializer, SurveySubmitSerializer,
     SurveyVerifySerializer, SurveyAttachmentSerializer,
-    SurveyAuditLogSerializer,
+    SurveyAuditLogSerializer, SurveyPhotoSerializer,
     # Dynamic questionnaire serializers
     GeographicUnitSerializer,
     SurveyTemplateListSerializer, SurveyTemplateDetailSerializer,
@@ -324,20 +324,35 @@ class SurveyAuditLogViewSet(viewsets.ReadOnlyModelViewSet):
 # DYNAMIC QUESTIONNAIRE VIEWSETS
 # =============================================================================
 
-class GeographicUnitViewSet(viewsets.ReadOnlyModelViewSet):
+class GeographicUnitViewSet(viewsets.ModelViewSet):
     """
-    ViewSet for Geographic Units (read-only)
+    ViewSet for Geographic Units (full CRUD)
     Provides hierarchical administrative unit data for cascading dropdowns
     """
     queryset = GeographicUnit.objects.select_related(
         'parent__parent__parent'
-    ).filter(is_active=True)
+    )
     serializer_class = GeographicUnitSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['level', 'parent', 'is_active']
+    # Note: 'parent' is handled manually in get_queryset due to self-referential FK
+    filterset_fields = ['level', 'is_active']
     search_fields = ['name', 'code']
     ordering = ['level', 'name']
+
+    def get_serializer_class(self):
+        if self.action in ['create', 'update', 'partial_update']:
+            return GeographicUnitCreateUpdateSerializer
+        return GeographicUnitSerializer
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        # Handle parent filter explicitly since parent is a self-referential FK
+        # and DjangoFilterBackend doesn't handle it correctly
+        parent = self.request.query_params.get('parent')
+        if parent:
+            queryset = queryset.filter(parent_id=parent)
+        return queryset
 
     @action(detail=False, methods=['get'])
     def by_level(self, request):
@@ -961,7 +976,21 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
                 answer.boolean_value = answer_value
             elif question.answer_type in ['GEO_PROVINSI', 'GEO_KABUPATEN', 'GEO_KECAMATAN']:
                 if answer_value:
-                    answer.geographic_unit_id = answer_value
+                    try:
+                        answer.geographic_unit_id = int(answer_value)
+                    except (TypeError, ValueError):
+                        # Mobile sends name string — look up by name
+                        level_map = {
+                            'GEO_PROVINSI': 'PROVINSI',
+                            'GEO_KABUPATEN': 'KABUPATEN_KOTA',
+                            'GEO_KECAMATAN': 'KECAMATAN',
+                        }
+                        geo = GeographicUnit.objects.filter(
+                            name__iexact=str(answer_value),
+                            level=level_map[question.answer_type]
+                        ).first()
+                        answer.geographic_unit_id = geo.id if geo else None
+                        answer.text_value = str(answer_value)
             elif question.answer_type == 'GEO_DESA':
                 answer.text_value = str(answer_value) if answer_value else ''
             elif question.answer_type == 'GEO_FULL':
@@ -1008,3 +1037,76 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
                     answer.selected_choices.set(matched)
             elif answer_value and answer_value in question_choices:
                 answer.selected_choices.add(question_choices[answer_value])
+
+
+# =============================================================================
+# SURVEY PHOTO VIEW SET
+# =============================================================================
+
+class SurveyPhotoViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing survey photos.
+    Photos can be uploaded by verifier/admin after survey submission.
+    """
+    queryset = SurveyPhoto.objects.all()
+    serializer_class = SurveyPhotoSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['survey']
+    ordering_fields = ['uploaded_at']
+    http_method_names = ['get', 'post', 'delete', 'head', 'options']
+
+    def get_queryset(self):
+        user = self.request.user
+        queryset = SurveyPhoto.objects.select_related('uploaded_by', 'survey')
+
+        # Filter by survey if provided
+        survey_id = self.request.query_params.get('survey')
+        if survey_id:
+            queryset = queryset.filter(survey_id=survey_id)
+
+        # Admin/Verifier can see all, others only their own uploads
+        if user.role not in ['ADMIN', 'VERIFIER']:
+            queryset = queryset.filter(uploaded_by=user)
+
+        return queryset
+
+    def perform_create(self, serializer):
+        # Set uploaded_by to current user
+        serializer.save(uploaded_by=self.request.user)
+
+    def create(self, request, *args, **kwargs):
+        """Handle photo upload"""
+        # Check if user is admin/verifier or surveyor (surveyor can upload to their own surveys)
+        user = request.user
+        survey_id = request.data.get('survey')
+
+        if not survey_id:
+            return Response(
+                {'detail': 'Survey ID is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Get the survey to check ownership
+        try:
+            survey = DynamicSurveyResponse.objects.get(id=survey_id)
+        except DynamicSurveyResponse.DoesNotExist:
+            return Response(
+                {'detail': 'Survey not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Only admin/verifier or the surveyor can upload photos
+        if user.role not in ['ADMIN', 'VERIFIER'] and survey.surveyor != user:
+            return Response(
+                {'detail': 'You do not have permission to upload photos for this survey'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        return super().create(request, *args, **kwargs)
+
+    def get_permissions(self):
+        from apps.accounts.permissions import IsAdmin, IsVerifierOrAdmin
+        if self.action == 'destroy':
+            return [IsAdmin()]
+        return [IsAuthenticated()]

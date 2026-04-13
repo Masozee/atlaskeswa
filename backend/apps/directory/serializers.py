@@ -76,7 +76,7 @@ class ServiceListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Service
         fields = [
-            'id', 'name', 'city', 'province', 'mtc_code', 'mtc_name',
+            'id', 'name', 'kecamatan', 'city', 'province', 'mtc_code', 'mtc_name',
             'bsic_code', 'bsic_name', 'service_type_name', 'bed_capacity',
             'total_professional_staff', 'is_verified', 'is_active', 'created_at'
         ]
@@ -122,7 +122,7 @@ class ServiceDetailSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'description', 'mtc', 'mtc_id', 'bsic', 'bsic_id',
             'service_type', 'service_type_id', 'target_populations', 'target_population_ids',
-            'phone_number', 'email', 'website', 'address', 'city', 'province',
+            'phone_number', 'email', 'website', 'address', 'kecamatan', 'city', 'province',
             'postal_code', 'latitude', 'longitude', 'bed_capacity', 'staff_count',
             'psychiatrist_count', 'psychologist_count', 'nurse_count', 'social_worker_count',
             'total_professional_staff', 'operating_hours', 'is_24_7', 'accepts_emergency',
@@ -148,9 +148,19 @@ class ServiceCreateUpdateSerializer(serializers.ModelSerializer):
         fields = [
             'name', 'description', 'mtc', 'bsic', 'service_type',
             'target_population_ids', 'phone_number', 'email', 'website',
-            'address', 'city', 'province', 'postal_code', 'latitude', 'longitude',
+            'address', 'kecamatan', 'city', 'province', 'postal_code', 'latitude', 'longitude',
             'bed_capacity', 'staff_count', 'psychiatrist_count', 'psychologist_count',
             'nurse_count', 'social_worker_count', 'operating_hours', 'is_24_7',
             'accepts_emergency', 'accepts_bpjs', 'accepts_private_insurance',
             'funding_sources', 'is_active'
+        ]
+
+
+class ServiceQuickCreateSerializer(serializers.ModelSerializer):
+    """Minimal serializer for quick service creation from mobile app"""
+
+    class Meta:
+        model = Service
+        fields = [
+            'name', 'kecamatan', 'city',
         ]

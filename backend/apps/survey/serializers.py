@@ -2,7 +2,7 @@ from rest_framework import serializers
 from .models import (
     Survey, SurveyAttachment, SurveyAuditLog,
     GeographicUnit, SurveyTemplate, QuestionSection, Question,
-    QuestionChoice, DynamicSurveyResponse, QuestionAnswer
+    QuestionChoice, DynamicSurveyResponse, QuestionAnswer, SurveyPhoto
 )
 from apps.directory.serializers import ServiceListSerializer
 
@@ -16,13 +16,22 @@ class GeographicUnitSerializer(serializers.ModelSerializer):
 
     level_display = serializers.CharField(source='get_level_display', read_only=True)
     full_path = serializers.CharField(source='get_full_path', read_only=True)
+    parent_name = serializers.CharField(source='parent.name', read_only=True, allow_null=True)
 
     class Meta:
         model = GeographicUnit
         fields = [
             'id', 'code', 'name', 'level', 'level_display',
-            'parent', 'latitude', 'longitude', 'is_active', 'full_path'
+            'parent', 'parent_name', 'latitude', 'longitude', 'is_active', 'full_path'
         ]
+
+
+class GeographicUnitCreateUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for creating/updating geographic units"""
+
+    class Meta:
+        model = GeographicUnit
+        fields = ['code', 'name', 'level', 'parent', 'latitude', 'longitude', 'is_active']
 
 
 # =============================================================================
@@ -43,7 +52,7 @@ class QuestionChoiceSerializer(serializers.ModelSerializer):
         model = QuestionChoice
         fields = [
             'id', 'question', 'value', 'label', 'order', 'mtc_code', 'mtc_code_display',
-            'keterangan', 'next_question_code', 'has_other_input', 'other_input_label',
+            'keterangan', 'next_question_code', 'has_other_input', 'other_input_label', 'other_input_type',
             'cabang_mtc', 'kode_desde_ltc'
         ]
         read_only_fields = ['id']
@@ -56,7 +65,7 @@ class QuestionChoiceCreateUpdateSerializer(serializers.ModelSerializer):
         model = QuestionChoice
         fields = [
             'id', 'question', 'value', 'label', 'order', 'mtc_code',
-            'keterangan', 'next_question_code', 'has_other_input', 'other_input_label',
+            'keterangan', 'next_question_code', 'has_other_input', 'other_input_label', 'other_input_type',
             'cabang_mtc', 'kode_desde_ltc'
         ]
         read_only_fields = ['id']
@@ -78,7 +87,7 @@ class QuestionSerializer(serializers.ModelSerializer):
             'answer_type', 'answer_type_display',
             'is_required', 'order', 'mtc_code', 'mtc_code_display',
             'desde_ltc_description', 'introduction_text', 'keterangan', 'validation_rules',
-            'show_condition', 'skip_logic', 'choices'
+            'show_condition', 'skip_logic', 'table_config', 'choices'
         ]
         read_only_fields = ['id']
 
@@ -163,6 +172,7 @@ class QuestionAnswerSerializer(serializers.ModelSerializer):
     question_code = serializers.CharField(source='question.code', read_only=True)
     question_text = serializers.CharField(source='question.question_text', read_only=True)
     selected_choice_values = serializers.SerializerMethodField()
+    selected_choice_labels = serializers.SerializerMethodField()
     geographic_unit_name = serializers.CharField(source='geographic_unit.get_full_path', read_only=True)
 
     class Meta:
@@ -170,7 +180,7 @@ class QuestionAnswerSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'question', 'question_code', 'question_text',
             'text_value', 'number_value', 'date_value', 'time_value', 'boolean_value',
-            'selected_choices', 'selected_choice_values', 'other_text',
+            'selected_choices', 'selected_choice_values', 'selected_choice_labels', 'other_text',
             'geographic_unit', 'geographic_unit_name', 'coverage_level',
             'file', 'gps_latitude', 'gps_longitude', 'table_data',
             'context_key', 'derived_mtc', 'created_at', 'updated_at'
@@ -180,6 +190,9 @@ class QuestionAnswerSerializer(serializers.ModelSerializer):
     def get_selected_choice_values(self, obj):
         return list(obj.selected_choices.values_list('value', flat=True))
 
+    def get_selected_choice_labels(self, obj):
+        return list(obj.selected_choices.values_list('label', flat=True))
+
 
 class DynamicSurveyResponseListSerializer(serializers.ModelSerializer):
     """Lightweight serializer for response listing"""
@@ -187,13 +200,14 @@ class DynamicSurveyResponseListSerializer(serializers.ModelSerializer):
     template_name = serializers.CharField(source='template.name', read_only=True)
     service_name = serializers.CharField(source='service.name', read_only=True)
     service_city = serializers.CharField(source='service.city', read_only=True)
+    service_kecamatan = serializers.SerializerMethodField()
     surveyor_name = serializers.SerializerMethodField()
     status_display = serializers.CharField(source='get_verification_status_display', read_only=True)
 
     class Meta:
         model = DynamicSurveyResponse
         fields = [
-            'id', 'template', 'template_name', 'service', 'service_name', 'service_city',
+            'id', 'template', 'template_name', 'service', 'service_name', 'service_city', 'service_kecamatan',
             'survey_date', 'surveyor', 'surveyor_name',
             'verification_status', 'status_display',
             'deletion_requested',
@@ -202,6 +216,15 @@ class DynamicSurveyResponseListSerializer(serializers.ModelSerializer):
 
     def get_surveyor_name(self, obj):
         return obj.surveyor.get_full_name() or obj.surveyor.email
+
+    def get_service_kecamatan(self, obj):
+        # Get Q7 answer's geographic_unit for this response
+        from apps.survey.models import QuestionAnswer
+        q7_answer = obj.answers.filter(question__code='Q7').select_related('geographic_unit').first()
+        if q7_answer and q7_answer.geographic_unit:
+            return q7_answer.geographic_unit.name
+        # Fallback to service kecamatan field
+        return obj.service.kecamatan if obj.service else None
 
 
 class DynamicSurveyResponseDetailSerializer(serializers.ModelSerializer):
@@ -261,6 +284,11 @@ class DynamicSurveyResponseCreateSerializer(serializers.ModelSerializer):
     answers = serializers.DictField(child=serializers.JSONField(), required=False, write_only=True)
     survey_period_start = serializers.DateField(required=False, write_only=True)
     survey_period_end = serializers.DateField(required=False, write_only=True)
+    # Mobile app sends gps_latitude/gps_longitude
+    gps_latitude = serializers.FloatField(required=False, write_only=True)
+    gps_longitude = serializers.FloatField(required=False, write_only=True)
+    # Mobile app may send explicit verification_status (e.g., DRAFT for draft saves)
+    verification_status = serializers.CharField(required=False, write_only=True)
 
     class Meta:
         model = DynamicSurveyResponse
@@ -268,24 +296,63 @@ class DynamicSurveyResponseCreateSerializer(serializers.ModelSerializer):
             'id', 'template', 'service', 'survey_date',
             'survey_period_start', 'survey_period_end',
             'latitude', 'longitude', 'location_accuracy',
-            'surveyor_notes', 'answers', 'verification_status', 'created_at'
+            'surveyor_notes', 'answers',
+            'gps_latitude', 'gps_longitude',
+            'verification_status', 'created_at'
         ]
-        read_only_fields = ['id', 'verification_status', 'created_at']
+        read_only_fields = ['id', 'created_at']
 
     def create(self, validated_data):
         from django.utils import timezone
+        from django.db.models import Q
 
         answers_data = validated_data.pop('answers', {})
         # Remove survey period fields (they're for legacy compatibility)
         validated_data.pop('survey_period_start', None)
         validated_data.pop('survey_period_end', None)
 
-        # Set surveyor from request
-        validated_data['surveyor'] = self.context['request'].user
+        # Map mobile gps_latitude/gps_longitude to model latitude/longitude
+        gps_lat = validated_data.pop('gps_latitude', None)
+        gps_lng = validated_data.pop('gps_longitude', None)
+        if gps_lat is not None:
+            validated_data['latitude'] = gps_lat
+        if gps_lng is not None:
+            validated_data['longitude'] = gps_lng
 
-        # Automatically submit the survey when created from the form
-        validated_data['verification_status'] = DynamicSurveyResponse.Status.SUBMITTED
-        validated_data['submitted_at'] = timezone.now()
+        # Mobile app may pass explicit verification_status (DRAFT for draft saves)
+        explicit_status = validated_data.pop('verification_status', None)
+
+        service = validated_data.get('service')
+        template = validated_data.get('template')
+        surveyor = self.context['request'].user
+
+        # Prevent duplicate: check if a non-draft/non-rejected response exists for same service+template+surveyor
+        existing = DynamicSurveyResponse.objects.filter(
+            service=service,
+            template=template,
+            surveyor=surveyor,
+        ).exclude(
+            verification_status__in=[
+                DynamicSurveyResponse.Status.DRAFT,
+                DynamicSurveyResponse.Status.REJECTED,
+            ]
+        ).exists()
+
+        if existing:
+            raise serializers.ValidationError({
+                'detail': f'Survei untuk fasilitas ini sudah ada dan sedang dalam proses verifikasi.'
+            })
+
+        # Set surveyor from request
+        validated_data['surveyor'] = surveyor
+
+        # If mobile explicitly passed DRAFT status, save as draft (for offline sync backup)
+        # Otherwise auto-submit for normal survey submissions
+        if explicit_status == DynamicSurveyResponse.Status.DRAFT:
+            validated_data['verification_status'] = DynamicSurveyResponse.Status.DRAFT
+        else:
+            validated_data['verification_status'] = DynamicSurveyResponse.Status.SUBMITTED
+            validated_data['submitted_at'] = timezone.now()
 
         # Create the response
         response = DynamicSurveyResponse.objects.create(**validated_data)
@@ -363,7 +430,7 @@ class DynamicSurveyResponseCreateSerializer(serializers.ModelSerializer):
                     answer_kwargs['table_data'] = answer_value
             elif question.answer_type == 'COVERAGE_LEVEL':
                 answer_kwargs['coverage_level'] = answer_value
-            elif question.answer_type in ['STAFF_TABLE', 'DIAGNOSIS_TABLE', 'REPEATING_TABLE', 'INTERVENTION_MATRIX']:
+            elif question.answer_type in ['STAFF_TABLE', 'DIAGNOSIS_TABLE', 'REPEATING_TABLE', 'INTERVENTION_MATRIX', 'OPERATING_HOURS']:
                 answer_kwargs['table_data'] = answer_value
             elif question.answer_type == 'GPS':
                 if isinstance(answer_value, dict):
@@ -377,16 +444,19 @@ class DynamicSurveyResponseCreateSerializer(serializers.ModelSerializer):
             answer_obj = QuestionAnswer(**answer_kwargs)
             answers_to_create.append(answer_obj)
 
-            # Track choice assignments for after bulk_create
+            # Track choice assignments for after saving answers
             if question.answer_type in ['SINGLE_CHOICE', 'MULTIPLE_CHOICE']:
                 choice_assignments.append((len(answers_to_create) - 1, question, answer_value))
 
-        # Bulk create all answers at once
-        created_answers = QuestionAnswer.objects.bulk_create(answers_to_create)
+        # We can't use bulk_create for answers with M2M choices because
+        # bulk_create doesn't properly initialize objects for M2M operations.
+        # Save each answer individually, then set M2M choices.
+        for idx, answer in enumerate(answers_to_create):
+            answer.save()
 
         # Set M2M choice relationships using pre-fetched choices
         for idx, question, answer_value in choice_assignments:
-            answer = created_answers[idx]
+            answer = answers_to_create[idx]
             question_choices = all_choices.get(question.id, {})
             if isinstance(answer_value, list):
                 matched = [question_choices[v] for v in answer_value if v in question_choices]
@@ -544,4 +614,32 @@ class SurveyAuditLogSerializer(serializers.ModelSerializer):
     def get_user_name(self, obj):
         if obj.user:
             return obj.user.get_full_name() or obj.user.email
+        return None
+
+
+class SurveyPhotoSerializer(serializers.ModelSerializer):
+    """Serializer for survey photos"""
+
+    uploaded_by_name = serializers.SerializerMethodField()
+    image_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SurveyPhoto
+        fields = [
+            'id', 'survey', 'image', 'image_url', 'caption',
+            'uploaded_by', 'uploaded_by_name', 'uploaded_at'
+        ]
+        read_only_fields = ['id', 'uploaded_by', 'uploaded_at']
+
+    def get_uploaded_by_name(self, obj):
+        if obj.uploaded_by:
+            return obj.uploaded_by.get_full_name() or obj.uploaded_by.email
+        return None
+
+    def get_image_url(self, obj):
+        if obj.image:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.image.url)
+            return obj.image.url
         return None

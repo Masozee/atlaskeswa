@@ -149,6 +149,7 @@ const data = {
         { title: "Tambah Layanan Baru", url: "/dashboard/services/new", icon: AddCircleIcon },
         { title: "Kategori Layanan (BSIC)", url: "/dashboard/services/categories", icon: GridTableIcon },
         { title: "Jenis Layanan", url: "/dashboard/services/mtc", icon: Hospital01Icon },
+        { title: "Wilayah Geografis", url: "/dashboard/services/geographic-units", icon: Location01Icon },
         { title: "Populasi Sasaran", url: "/dashboard/services/target-populations", icon: Target01Icon },
         { title: "Jenis Layanan", url: "/dashboard/services/service-types", icon: Tag01Icon },
       ],

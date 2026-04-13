@@ -60,6 +60,7 @@ export default function AllServicesPage() {
   const [search, setSearch] = useState('');
   const [provinceFilter, setProvinceFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [kategoriFilter, setKategoriFilter] = useState('all');
   const [sorting, setSorting] = useState<SortingState>([]);
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
@@ -70,6 +71,7 @@ export default function AllServicesPage() {
     search,
     province: provinceFilter !== 'all' ? provinceFilter : undefined,
     is_active: statusFilter === 'all' ? undefined : statusFilter === 'active',
+    bsic__kategori_fasilitas: kategoriFilter !== 'all' ? kategoriFilter : undefined,
     ordering: '-created_at',
     page_size: 50,
   });
@@ -282,6 +284,17 @@ export default function AllServicesPage() {
                   <SelectItem value="all">All</SelectItem>
                   <SelectItem value="active">Aktif</SelectItem>
                   <SelectItem value="inactive">Tidak Aktif</SelectItem>
+                </SelectContent>
+              </Select>
+              <div className="w-px h-5 bg-border" />
+              <Select value={kategoriFilter} onValueChange={setKategoriFilter}>
+                <SelectTrigger className="w-44 border-0 rounded-l-none focus:ring-0" aria-label="Filter berdasarkan jenis perawatan">
+                  <SelectValue placeholder="Jenis Perawatan" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="KESEHATAN">Faskes</SelectItem>
+                  <SelectItem value="NON_KESEHATAN">Non Faskes</SelectItem>
                 </SelectContent>
               </Select>
             </div>
