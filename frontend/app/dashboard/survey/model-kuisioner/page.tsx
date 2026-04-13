@@ -97,6 +97,7 @@ const breadcrumbs = [
 const ANSWER_TYPES = [
   { value: "TEXT", label: "Text" },
   { value: "TEXTAREA", label: "Textarea" },
+  { value: "EMAIL", label: "Email" },
   { value: "NUMBER", label: "Number" },
   { value: "INTEGER", label: "Integer" },
   { value: "DATE", label: "Date" },
@@ -108,6 +109,7 @@ const ANSWER_TYPES = [
   { value: "DIAGNOSIS_TABLE", label: "Tabel Diagnosis" },
   { value: "REPEATING_TABLE", label: "Tabel Dinamis (baris berulang)" },
   { value: "INTERVENTION_MATRIX", label: "Matriks Intervensi (baris pilih + kolom detail)" },
+  { value: "OPERATING_HOURS", label: "Jam Operasional" },
   { value: "GPS", label: "GPS" },
   { value: "FILE", label: "File Upload" },
 ];
