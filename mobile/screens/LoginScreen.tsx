@@ -12,6 +12,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { apiClient, ENV_CONFIGURED_URL } from '../services/api';
 import { database } from '../services/database';
 
@@ -115,58 +116,8 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         <View style={styles.logoContainer}>
           <Image source={require('../assets/logo.png')} style={styles.logoImage} resizeMode="contain" />
           <Text style={styles.logoText}>OMMHA</Text>
-          <Text style={styles.logoSubtitle}>Pemetaan Layanan Kesehatan Jiwa Indonesia berbasis DESDE-LTC</Text>
+          <Text style={styles.logoSubtitle}>Klasifikasi Jenis-jenis{'\n'}Layanan Kesehatan Jiwa{'\n'}di Indonesia</Text>
         </View>
-
-        {/* Welcome Text */}
-        <View style={styles.headerContainer}>
-          <Text style={styles.title}>Selamat Datang</Text>
-          <Text style={styles.subtitle}>Masuk ke akun Anda untuk melanjutkan</Text>
-        </View>
-
-        {/* Server Configuration */}
-        <TouchableOpacity
-          style={styles.serverToggle}
-          onPress={() => setShowServerConfig(!showServerConfig)}
-        >
-          <Text style={styles.serverToggleText}>
-            {showServerConfig ? 'Hide Server Settings' : 'Server Settings'}
-          </Text>
-        </TouchableOpacity>
-
-        {showServerConfig && (
-          <View style={styles.serverConfigContainer}>
-            <Text style={styles.serverConfigLabel}>API Server URL</Text>
-            <View style={styles.serverInputRow}>
-              <View style={styles.serverInputContainer}>
-                <TextInput
-                  style={styles.serverInput}
-                  placeholder="https://api.example.com/v1"
-                  placeholderTextColor="#9ca3af"
-                  value={serverUrl}
-                  onChangeText={setServerUrl}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  keyboardType="url"
-                  editable={!isLoading}
-                />
-              </View>
-              <TouchableOpacity
-                style={[
-                  styles.serverSaveButton,
-                  !canSaveServerUrl && styles.serverSaveButtonDisabled,
-                ]}
-                onPress={handleSaveServerUrl}
-                disabled={!canSaveServerUrl || isLoading}
-              >
-                <Text style={styles.serverSaveButtonText}>Save</Text>
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.serverHint}>
-              e.g. http://localhost:8000/v1 or https://api.atlaskeswa.id/v1
-            </Text>
-          </View>
-        )}
 
         {/* Login Form */}
         <View style={styles.formContainer}>
@@ -224,27 +175,63 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
             <Text style={styles.forgotPasswordText}>Lupa Password?</Text>
           </TouchableOpacity>
 
-          {/* Login Button */}
-          <TouchableOpacity
-            style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
-            onPress={handleLogin}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.loginButtonText}>Masuk</Text>
-            )}
-          </TouchableOpacity>
-
-          {/* Sign Up Link */}
-          <View style={styles.signupContainer}>
-            <Text style={styles.signupText}>Belum punya akun? </Text>
-            <TouchableOpacity>
-              <Text style={styles.signupLink}>Daftar</Text>
+          {/* Login Button Row */}
+          <View style={styles.loginButtonRow}>
+            <TouchableOpacity
+              style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
+              onPress={handleLogin}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.loginButtonText}>Masuk</Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.serverButton}
+              onPress={() => setShowServerConfig(!showServerConfig)}
+            >
+              <MaterialIcons name="settings" size={20} color="#6b7280" />
             </TouchableOpacity>
           </View>
-        </View>
+
+          {/* Server Configuration */}
+          {showServerConfig && (
+            <View style={styles.serverConfigContainer}>
+              <Text style={styles.serverConfigLabel}>API Server URL</Text>
+              <View style={styles.serverInputRow}>
+                <View style={styles.serverInputContainer}>
+                  <TextInput
+                    style={styles.serverInput}
+                    placeholder="https://api.example.com/v1"
+                    placeholderTextColor="#9ca3af"
+                    value={serverUrl}
+                    onChangeText={setServerUrl}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    keyboardType="url"
+                    editable={!isLoading}
+                  />
+                </View>
+                <TouchableOpacity
+                  style={[
+                    styles.serverSaveButton,
+                    !canSaveServerUrl && styles.serverSaveButtonDisabled,
+                  ]}
+                  onPress={handleSaveServerUrl}
+                  disabled={!canSaveServerUrl || isLoading}
+                >
+                  <Text style={styles.serverSaveButtonText}>Save</Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.serverHint}>
+                e.g. http://localhost:8000/v1 or https://api.atlaskeswa.id/v1
+              </Text>
+            </View>
+          )}
+
+                  </View>
 
       </ScrollView>
     </KeyboardAvoidingView>
@@ -271,16 +258,17 @@ const styles = StyleSheet.create({
     height: 72,
   },
   logoText: {
-    fontSize: 22,
-    fontWeight: '700',
+    fontSize: 26,
+    fontWeight: '800',
     color: '#1a1a1a',
     letterSpacing: -0.4,
   },
   logoSubtitle: {
-    fontSize: 12,
+    fontSize: 14,
+    fontWeight: '500',
     color: '#6b7280',
     textAlign: 'center',
-    lineHeight: 18,
+    lineHeight: 20,
     paddingHorizontal: 20,
   },
   headerContainer: {
@@ -322,7 +310,7 @@ const styles = StyleSheet.create({
   },
   inputContainer: {
     backgroundColor: '#ffffff',
-    borderRadius: 12,
+    borderRadius: 6,
     borderWidth: 1,
     borderColor: '#e5e7eb',
     paddingHorizontal: 16,
@@ -360,9 +348,9 @@ const styles = StyleSheet.create({
   loginButton: {
     backgroundColor: '#03979D',
     paddingVertical: 15,
-    borderRadius: 12,
+    borderRadius: 6,
     alignItems: 'center',
-    marginBottom: 20,
+    flex: 1,
   },
   loginButtonText: {
     color: '#fff',
@@ -371,6 +359,20 @@ const styles = StyleSheet.create({
   },
   loginButtonDisabled: {
     opacity: 0.6,
+  },
+  loginButtonRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 12,
+  },
+  serverButton: {
+    width: 50,
+    paddingVertical: 15,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   signupContainer: {
     flexDirection: 'row',
@@ -387,19 +389,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   // Server config styles
-  serverToggle: {
-    alignItems: 'center',
-    marginBottom: 14,
-  },
-  serverToggleText: {
-    fontSize: 11,
-    color: '#9ca3af',
-    fontWeight: '500',
-  },
   serverConfigContainer: {
     marginBottom: 14,
     backgroundColor: '#ffffff',
-    borderRadius: 12,
+    borderRadius: 6,
     padding: 14,
   },
   serverConfigLabel: {
@@ -415,7 +408,7 @@ const styles = StyleSheet.create({
   serverInputContainer: {
     flex: 1,
     backgroundColor: '#f5f6f7',
-    borderRadius: 8,
+    borderRadius: 6,
     paddingHorizontal: 10,
     paddingVertical: 8,
   },
@@ -426,7 +419,7 @@ const styles = StyleSheet.create({
   },
   serverSaveButton: {
     backgroundColor: '#03979D',
-    borderRadius: 8,
+    borderRadius: 6,
     paddingHorizontal: 14,
     justifyContent: 'center',
   },

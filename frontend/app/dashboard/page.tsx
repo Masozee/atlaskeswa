@@ -2,13 +2,16 @@
 
 import { useDashboardStats } from '@/hooks/use-analytics';
 import { useSurveys } from '@/hooks/use-surveys';
+import { useQuery } from '@tanstack/react-query';
 import { useStore } from '@tanstack/react-store';
 import { authStore } from '@/store/auth-store';
 import { PageHeader } from "@/components/page-header"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { Calendar } from "@/components/ui/calendar"
 import { Separator } from "@/components/ui/separator"
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
+import { surveysQueryOptions } from '@/hooks/use-surveys'
 import {
   BarChart,
   Bar,
@@ -79,6 +82,16 @@ export default function DashboardPage() {
   const user = useStore(authStore, (state) => state.user);
   const [date, setDate] = useState<Date | undefined>(new Date());
 
+  const selectedDateStr = useMemo(() => {
+    if (!date) return undefined;
+    return date.toISOString().split('T')[0];
+  }, [date]);
+
+  const { data: dateSurveys, isLoading: dateLoading } = useQuery({
+    ...surveysQueryOptions({ survey_date: selectedDateStr, page_size: 10 }),
+    enabled: !!selectedDateStr,
+  });
+
   // Extract first name from user.name
   const firstName = user?.name?.split(' ')[0] || 'Pengguna';
 
@@ -142,10 +155,10 @@ export default function DashboardPage() {
             subtitle={`${stats?.users.total || 0} total pengguna`}
           />
           <StatCard
-            title="Kapasitas Tempat Tidur"
-            secondTitle="Total tempat tidur tersedia"
-            value={stats?.capacity.total_beds || 0}
-            subtitle={`${stats?.capacity.total_staff || 0} anggota staf`}
+            title="Kecamatan"
+            secondTitle="Kecamatan dengan layanan"
+            value={stats?.geographic_distribution?.length || 0}
+            subtitle={`dari ${stats?.services.total || 0} total layanan`}
           />
         </div>
 
@@ -216,24 +229,30 @@ export default function DashboardPage() {
                 className="rounded-md [--cell-size:theme(spacing.10)] text-base"
               />
               <div className="w-px bg-border" />
-              <div className="flex-1 space-y-3">
+              <div className="flex-1 min-w-0 space-y-3">
                 <div className="text-sm font-medium">
                   {date?.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
                 </div>
-                <div className="space-y-3 divide-y divide-border">
-                  <div className="pt-3 first:pt-0">
-                    <p className="text-sm font-medium">Verifikasi Survei</p>
-                    <p className="text-xs text-muted-foreground">3 survei menunggu verifikasi</p>
+                <div className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Survei</div>
+                {dateLoading ? (
+                  <p className="text-xs text-muted-foreground">Memuat...</p>
+                ) : dateSurveys?.results && dateSurveys.results.length > 0 ? (
+                  <div className="space-y-2">
+                    {dateSurveys.results.map((survey) => (
+                      <div key={survey.id} className="rounded-lg bg-muted/50 p-2 space-y-1">
+                        <p className="text-xs font-medium leading-tight truncate">{survey.service_name}</p>
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] px-1.5 py-0"
+                        >
+                          {survey.verification_status}
+                        </Badge>
+                      </div>
+                    ))}
                   </div>
-                  <div className="pt-3">
-                    <p className="text-sm font-medium">Deadline Laporan</p>
-                    <p className="text-xs text-muted-foreground">Laporan bulanan jatuh tempo</p>
-                  </div>
-                  <div className="pt-3">
-                    <p className="text-sm font-medium">Pelatihan Enumerator</p>
-                    <p className="text-xs text-muted-foreground">09:00 - 12:00 WIB</p>
-                  </div>
-                </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Tidak ada survei pada tanggal ini.</p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -279,42 +298,53 @@ export default function DashboardPage() {
           </Card>
 
           <Card className="lg:col-span-8">
-            <CardContent className="pl-2 pt-4 relative h-full">
-              <div className="absolute top-4 right-4 text-right z-10">
-                <div className="text-base font-semibold">Distribusi Geografis</div>
-                <div className="text-xs text-muted-foreground">Sebaran layanan kesehatan jiwa<br />berdasarkan kecamatan di Kabupaten Kebumen</div>
-              </div>
-              <ResponsiveContainer width="100%" height={430}>
-                <BarChart data={stats?.geographic_distribution.slice(0, 10).map(d => ({ name: d.city, services: d.count }))} margin={{ top: 20, right: 10, left: 0, bottom: 5 }}>
+            <CardHeader>
+              <CardTitle>Distribusi Geografis</CardTitle>
+              <CardDescription>Sebaran layanan kesehatan jiwa per kecamatan</CardDescription>
+            </CardHeader>
+            <CardContent className="pl-2 pb-4">
+              <ResponsiveContainer width="100%" height={380}>
+                <BarChart
+                  data={stats?.geographic_distribution.map(d => ({ name: (d as any).kecamatan ?? (d as any).city, services: d.count }))}
+                  margin={{ top: 20, right: 16, left: 0, bottom: 80 }}
+                >
                   <defs>
                     <linearGradient id="colorServices" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#00979D" stopOpacity={1}/>
                       <stop offset="100%" stopColor="#00979D" stopOpacity={0.7}/>
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted-foreground))" strokeOpacity={0.15} strokeWidth={0.5} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted-foreground))" strokeOpacity={0.15} strokeWidth={0.5} vertical={false} />
                   <XAxis
                     dataKey="name"
-                    className="text-xs"
                     tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
                     axisLine={false}
                     tickLine={false}
                     interval={0}
+                    angle={-45}
+                    textAnchor="end"
                   />
                   <YAxis
-                    className="text-xs"
                     tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
                     axisLine={false}
                     tickLine={false}
-                    orientation="left"
+                    allowDecimals={false}
                     tickMargin={8}
                   />
-                  <Bar dataKey="services" fill="url(#colorServices)" radius={[6, 6, 0, 0]}>
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'hsl(var(--background))',
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '8px',
+                    }}
+                    formatter={(value) => [value, 'Layanan']}
+                  />
+                  <Bar dataKey="services" fill="url(#colorServices)" radius={[4, 4, 0, 0]} maxBarSize={32}>
                     <LabelList
                       dataKey="services"
                       position="top"
                       fill="hsl(var(--foreground))"
-                      fontSize={11}
+                      fontSize={10}
                       fontWeight={600}
                     />
                   </Bar>

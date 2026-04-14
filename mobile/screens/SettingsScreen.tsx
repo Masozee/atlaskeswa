@@ -56,7 +56,7 @@ export default function SettingsScreen({ onLogout }: SettingsScreenProps) {
   const handleSaveServerUrl = async () => {
     const trimmed = serverUrl.trim().replace(/\/+$/, '');
     if (!trimmed) {
-      Alert.alert('Error', 'Please enter a valid server URL');
+      Alert.alert('Error', 'Masukkan URL server yang valid');
       return;
     }
 
@@ -65,9 +65,9 @@ export default function SettingsScreen({ onLogout }: SettingsScreenProps) {
       apiClient.setBaseURL(trimmed);
       setIsSavedInDb(true);
       setServerUrl(trimmed);
-      Alert.alert('Saved', 'Server URL updated. You may need to re-login for changes to take effect.');
+      Alert.alert('Disimpan', 'URL server diperbarui. Anda mungkin perlu login ulang agar perubahan berlaku.');
     } catch {
-      Alert.alert('Error', 'Failed to save server URL');
+      Alert.alert('Error', 'Gagal menyimpan URL server');
     }
   };
 
@@ -80,7 +80,7 @@ export default function SettingsScreen({ onLogout }: SettingsScreenProps) {
   };
 
   const formatLastSyncTime = () => {
-    if (!lastSyncTime) return 'Never synced';
+    if (!lastSyncTime) return 'Belum pernah sinkron';
 
     const now = Date.now();
     const diff = now - lastSyncTime;
@@ -88,20 +88,20 @@ export default function SettingsScreen({ onLogout }: SettingsScreenProps) {
     const hours = Math.floor(diff / 3600000);
     const days = Math.floor(diff / 86400000);
 
-    if (minutes < 1) return 'Just now';
-    if (minutes < 60) return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
-    if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
-    return `${days} day${days > 1 ? 's' : ''} ago`;
+    if (minutes < 1) return 'Baru saja';
+    if (minutes < 60) return `${minutes} menit yang lalu`;
+    if (hours < 24) return `${hours} jam yang lalu`;
+    return `${days} hari yang lalu`;
   };
 
   const handleLogout = () => {
     Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
+      'Keluar',
+      'Apakah Anda yakin ingin keluar?',
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: 'Batal', style: 'cancel' },
         {
-          text: 'Logout',
+          text: 'Keluar',
           style: 'destructive',
           onPress: async () => {
             await apiClient.logout();
@@ -120,16 +120,16 @@ export default function SettingsScreen({ onLogout }: SettingsScreenProps) {
 
       if (result.success > 0) {
         Alert.alert(
-          'Sync Complete',
-          `Successfully synced ${result.success} item(s).${result.failed > 0 ? ` ${result.failed} item(s) failed.` : ''}`
+          'Sinkronisasi Selesai',
+          `Berhasil menyinkronkan ${result.success} item(s).${result.failed > 0 ? ` ${result.failed} item gagal.` : ''}`
         );
       } else if (result.failed > 0) {
-        Alert.alert('Sync Failed', `Failed to sync ${result.failed} item(s).`);
+        Alert.alert('Sinkronisasi Gagal', `Gagal menyinkronkan ${result.failed} item(s).`);
       } else {
-        Alert.alert('Sync Complete', 'No pending items to sync.');
+        Alert.alert('Sinkronisasi Selesai', 'Tidak ada item yang perlu disinkronkan.');
       }
     } catch (err: any) {
-      Alert.alert('Sync Error', err?.message || 'Failed to sync data');
+      Alert.alert('Error Sinkronisasi', err?.message || 'Gagal menyinkronkan data');
     } finally {
       setSyncing(false);
     }
@@ -139,22 +139,16 @@ export default function SettingsScreen({ onLogout }: SettingsScreenProps) {
     <View style={[styles.container, { backgroundColor: c.background }]}>
       <TopHeader />
       <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.scrollContent}>
-        {/* Page Title */}
-        <View style={styles.pageHeader}>
-          <Text style={[styles.pageTitle, { color: c.textSecondary, fontSize: fs(22) }]}>Settings</Text>
-        </View>
-
         {/* Appearance Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: c.textSecondary, fontSize: fs(14) }]}>Appearance</Text>
-            <Text style={[styles.sectionSubtitle, { color: c.textMuted, fontSize: fs(11) }]}>Customize how the app looks</Text>
+            <Text style={[styles.sectionTitle, { color: c.textMuted }]}>Tampilan</Text>
           </View>
           <View style={[styles.card, { backgroundColor: c.surface }]}>
             <View style={styles.settingItem}>
               <View style={styles.settingText}>
-                <Text style={[styles.settingLabel, { color: c.textSecondary, fontSize: fs(13) }]}>Dark Mode</Text>
-                <Text style={[styles.settingDescription, { color: c.textMuted, fontSize: fs(11) }]}>Use dark theme</Text>
+                <Text style={[styles.settingLabel, { color: c.textSecondary, fontSize: fs(13) }]}>Mode Gelap</Text>
+                <Text style={[styles.settingDescription, { color: c.textMuted, fontSize: fs(11) }]}>Gunakan tema gelap</Text>
               </View>
               <Switch
                 value={settings.darkMode}
@@ -169,14 +163,13 @@ export default function SettingsScreen({ onLogout }: SettingsScreenProps) {
         {/* Accessibility Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: c.textSecondary, fontSize: fs(14) }]}>Accessibility</Text>
-            <Text style={[styles.sectionSubtitle, { color: c.textMuted, fontSize: fs(11) }]}>Make the app easier to use</Text>
+            <Text style={[styles.sectionTitle, { color: c.textMuted }]}>Aksesibilitas</Text>
           </View>
           <View style={[styles.card, { backgroundColor: c.surface }]}>
             <View style={styles.settingItem}>
               <View style={styles.settingText}>
-                <Text style={[styles.settingLabel, { color: c.textSecondary, fontSize: fs(13) }]}>Large Text</Text>
-                <Text style={[styles.settingDescription, { color: c.textMuted, fontSize: fs(11) }]}>Increase text size throughout the app</Text>
+                <Text style={[styles.settingLabel, { color: c.textSecondary, fontSize: fs(13) }]}>Teks Besar</Text>
+                <Text style={[styles.settingDescription, { color: c.textMuted, fontSize: fs(11) }]}>Perbesar teks di seluruh aplikasi</Text>
               </View>
               <Switch
                 value={settings.largeText}
@@ -188,8 +181,8 @@ export default function SettingsScreen({ onLogout }: SettingsScreenProps) {
             <View style={[styles.settingDivider, { backgroundColor: c.border }]} />
             <View style={styles.settingItem}>
               <View style={styles.settingText}>
-                <Text style={[styles.settingLabel, { color: c.textSecondary, fontSize: fs(13) }]}>Text-to-Speech</Text>
-                <Text style={[styles.settingDescription, { color: c.textMuted, fontSize: fs(11) }]}>Read survey questions aloud (tap the speaker icon)</Text>
+                <Text style={[styles.settingLabel, { color: c.textSecondary, fontSize: fs(13) }]}>Text-ke-Speech</Text>
+                <Text style={[styles.settingDescription, { color: c.textMuted, fontSize: fs(11) }]}>Baca pertanyaan survei dengan suara</Text>
               </View>
               <Switch
                 value={settings.ttsEnabled}
@@ -203,8 +196,8 @@ export default function SettingsScreen({ onLogout }: SettingsScreenProps) {
                 <View style={[styles.settingDivider, { backgroundColor: c.border }]} />
                 <View style={styles.settingItem}>
                   <View style={styles.settingText}>
-                    <Text style={[styles.settingLabel, { color: c.textSecondary, fontSize: fs(13) }]}>Auto-Play TTS</Text>
-                    <Text style={[styles.settingDescription, { color: c.textMuted, fontSize: fs(11) }]}>Automatically read each question aloud when it appears</Text>
+                    <Text style={[styles.settingLabel, { color: c.textSecondary, fontSize: fs(13) }]}>Putar Otomatis TTS</Text>
+                    <Text style={[styles.settingDescription, { color: c.textMuted, fontSize: fs(11) }]}>Otomatis baca setiap pertanyaan saat muncul</Text>
                   </View>
                   <Switch
                     value={settings.ttsAutoPlay}
@@ -221,14 +214,13 @@ export default function SettingsScreen({ onLogout }: SettingsScreenProps) {
         {/* Data Sync Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: c.textSecondary, fontSize: fs(14) }]}>Data Management</Text>
-            <Text style={[styles.sectionSubtitle, { color: c.textMuted, fontSize: fs(11) }]}>Sync offline data to server</Text>
+            <Text style={[styles.sectionTitle, { color: c.textMuted }]}>Manajemen Data</Text>
           </View>
 
           <View style={[styles.card, { backgroundColor: c.surface }]}>
             <View style={styles.settingItem}>
               <View style={styles.settingText}>
-                <Text style={[styles.settingLabel, { color: c.textSecondary, fontSize: fs(13) }]}>Last Sync</Text>
+                <Text style={[styles.settingLabel, { color: c.textSecondary, fontSize: fs(13) }]}>Sinkronisasi Terakhir</Text>
                 <Text style={[styles.settingDescription, { color: c.textMuted, fontSize: fs(11) }]}>{formatLastSyncTime()}</Text>
               </View>
             </View>
@@ -241,7 +233,7 @@ export default function SettingsScreen({ onLogout }: SettingsScreenProps) {
           >
             {syncing && <ActivityIndicator size="small" color="#03979D" />}
             <Text style={[styles.actionButtonText, { fontSize: fs(13) }]}>
-              {syncing ? 'Syncing...' : 'Sync Data to Server'}
+              {syncing ? 'Menyinkronkan...' : 'Sinkronkan Data ke Server'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -249,13 +241,12 @@ export default function SettingsScreen({ onLogout }: SettingsScreenProps) {
         {/* Server Configuration Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: c.textSecondary, fontSize: fs(14) }]}>Server Configuration</Text>
-            <Text style={[styles.sectionSubtitle, { color: c.textMuted, fontSize: fs(11) }]}>Set the API server URL</Text>
+            <Text style={[styles.sectionTitle, { color: c.textMuted }]}>Konfigurasi Server</Text>
           </View>
           <View style={[styles.card, { backgroundColor: c.surface }]}>
             <View style={{ marginBottom: 8 }}>
-              <Text style={[styles.settingLabel, { color: c.textSecondary, fontSize: fs(13) }]}>API Server URL</Text>
-              <Text style={[styles.settingDescription, { color: c.textMuted, fontSize: fs(11) }]}>Current: {apiClient.getBaseURL()}</Text>
+              <Text style={[styles.settingLabel, { color: c.textSecondary, fontSize: fs(13) }]}>URL Server API</Text>
+              <Text style={[styles.settingDescription, { color: c.textMuted, fontSize: fs(11) }]}>Saat ini: {apiClient.getBaseURL()}</Text>
             </View>
             <View style={styles.serverInputRow}>
               <View style={[styles.serverInputContainer, { backgroundColor: c.background }]}>
@@ -278,7 +269,7 @@ export default function SettingsScreen({ onLogout }: SettingsScreenProps) {
                 onPress={handleSaveServerUrl}
                 disabled={!canSaveServerUrl}
               >
-                <Text style={[styles.serverSaveButtonText, { fontSize: fs(12) }]}>Save</Text>
+                <Text style={[styles.serverSaveButtonText, { fontSize: fs(12) }]}>Simpan</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -287,13 +278,12 @@ export default function SettingsScreen({ onLogout }: SettingsScreenProps) {
         {/* About Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: c.textSecondary, fontSize: fs(14) }]}>About</Text>
-            <Text style={[styles.sectionSubtitle, { color: c.textMuted, fontSize: fs(11) }]}>App information</Text>
+            <Text style={[styles.sectionTitle, { color: c.textMuted }]}>Tentang</Text>
           </View>
           <View style={[styles.card, { backgroundColor: c.surface }]}>
             <View style={styles.settingItem}>
               <View style={styles.settingText}>
-                <Text style={[styles.settingLabel, { color: c.textSecondary, fontSize: fs(13) }]}>Version</Text>
+                <Text style={[styles.settingLabel, { color: c.textSecondary, fontSize: fs(13) }]}>Versi</Text>
                 <Text style={[styles.settingDescription, { color: c.textMuted, fontSize: fs(11) }]}>1.0.0</Text>
               </View>
             </View>
@@ -306,7 +296,7 @@ export default function SettingsScreen({ onLogout }: SettingsScreenProps) {
             style={[styles.logoutButton, { backgroundColor: c.surface }]}
             onPress={handleLogout}
           >
-            <Text style={[styles.logoutButtonText, { fontSize: fs(13) }]}>Logout</Text>
+            <Text style={[styles.logoutButtonText, { fontSize: fs(13) }]}>Keluar</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -340,14 +330,12 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   sectionTitle: {
+    fontSize: 14,
     fontWeight: '600',
     marginBottom: 2,
   },
-  sectionSubtitle: {
-    fontWeight: '400',
-  },
   card: {
-    borderRadius: 12,
+    borderRadius: 6,
     padding: 14,
   },
   settingItem: {
@@ -372,7 +360,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 12,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#03979D',
     paddingVertical: 12,
     gap: 6,
     marginTop: 10,
@@ -385,7 +375,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 12,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#dc2626',
     paddingVertical: 12,
     gap: 6,
   },
@@ -399,7 +391,7 @@ const styles = StyleSheet.create({
   },
   serverInputContainer: {
     flex: 1,
-    borderRadius: 8,
+    borderRadius: 6,
     paddingHorizontal: 10,
     paddingVertical: 8,
   },
@@ -407,8 +399,9 @@ const styles = StyleSheet.create({
     padding: 0,
   },
   serverSaveButton: {
-    backgroundColor: '#03979D',
-    borderRadius: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#03979D',
     paddingHorizontal: 14,
     justifyContent: 'center',
   },
@@ -416,7 +409,7 @@ const styles = StyleSheet.create({
     opacity: 0.4,
   },
   serverSaveButtonText: {
-    color: '#ffffff',
+    color: '#03979D',
     fontWeight: '600',
   },
 });

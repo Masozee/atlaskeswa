@@ -7,7 +7,7 @@ from .views import (
     GeographicUnitViewSet, SurveyTemplateViewSet,
     QuestionViewSet, QuestionChoiceViewSet,
     QuestionSectionViewSet,
-    DynamicSurveyResponseViewSet
+    DynamicSurveyResponseViewSet, SurveyPhotoViewSet
 )
 
 router = DefaultRouter()
@@ -23,6 +23,7 @@ router.register(r'choices', QuestionChoiceViewSet, basename='choice')
 router.register(r'sections', QuestionSectionViewSet, basename='section')
 router.register(r'responses', DynamicSurveyResponseViewSet, basename='response')
 router.register(r'geographic-units', GeographicUnitViewSet, basename='geographic-unit')
+router.register(r'photos', SurveyPhotoViewSet, basename='photo')
 
 urlpatterns = [
     path('', include(router.urls)),

@@ -55,6 +55,7 @@ export interface QuestionOption {
   next_question_code?: string;
   has_other_input?: boolean;
   other_input_label?: string;
+  other_input_type?: string;
   cabang_mtc?: string;
   kode_desde_ltc?: string;
 }
@@ -159,6 +160,20 @@ export interface QuestionResponse {
   answer_json?: any;
   answer_file?: string | null;
   answer_value?: any;
+  context_key?: string;
+  // dynamic-form answer fields
+  text_value?: string | null;
+  number_value?: number | null;
+  boolean_value?: boolean | null;
+  date_value?: string | null;
+  time_value?: string | null;
+  table_data?: any;
+  geographic_unit_name?: string | null;
+  coverage_level?: string | null;
+  selected_choice_values?: string[];
+  selected_choice_labels?: string[];
+  gps_latitude?: number | null;
+  gps_longitude?: number | null;
   created_at?: string;
   updated_at?: string;
 }

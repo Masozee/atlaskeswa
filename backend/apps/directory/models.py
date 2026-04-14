@@ -226,6 +226,7 @@ class Service(models.Model):
 
     # Location
     address = models.TextField(blank=True)
+    kecamatan = models.CharField(max_length=100, blank=True, db_index=True)
     city = models.CharField(max_length=100, db_index=True)
     province = models.CharField(max_length=100, db_index=True)
     postal_code = models.CharField(max_length=10, blank=True)

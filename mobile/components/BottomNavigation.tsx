@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme, useFontScale } from '../contexts/SettingsContext';
+import LucideIcon from './LucideIcon';
 
 type MenuItem = 'home' | 'survey' | 'settings' | 'profile';
 
@@ -15,49 +15,91 @@ export default function BottomNavigation({ onNavigate }: BottomNavigationProps) 
   const fs = useFontScale();
   const c = theme.colors;
 
-  const menuItems = [
-    { id: 'home' as MenuItem, iconName: 'home' as const, label: 'Home' },
-    { id: 'survey' as MenuItem, iconName: 'description' as const, label: 'Survey' },
-    { id: 'settings' as MenuItem, iconName: 'settings' as const, label: 'Settings' },
-    { id: 'profile' as MenuItem, iconName: 'person' as const, label: 'Profile' },
-  ];
-
   const handlePress = (item: MenuItem) => {
     setActiveTab(item);
     onNavigate(item);
   };
 
+  const handleNewSurvey = () => {
+    onNavigate('survey-form');
+  };
+
   return (
     <View style={[styles.wrapper, { backgroundColor: c.surface, borderTopColor: c.border }]}>
-      <View style={[styles.container, { backgroundColor: c.surface }]}>
-        {menuItems.map((item) => {
-          const isActive = activeTab === item.id;
-          return (
-            <TouchableOpacity
-              key={item.id}
-              style={[
-                styles.menuItem,
-                isActive && styles.menuItemActive,
-              ]}
-              onPress={() => handlePress(item.id)}
-            >
-              <MaterialIcons
-                name={item.iconName}
-                size={24}
-                color={isActive ? '#ffffff' : c.iconDefault}
-              />
-              <Text
-                style={[
-                  styles.menuLabel,
-                  { color: c.iconDefault, fontSize: fs(10) },
-                  isActive && styles.menuLabelActive,
-                ]}
-              >
-                {item.label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
+      <View style={styles.container}>
+        <TouchableOpacity style={styles.menuItem} onPress={() => handlePress('home')}>
+          <LucideIcon
+            name="home"
+            size={22}
+            color={activeTab === 'home' ? '#03979D' : c.iconDefault}
+          />
+          <Text
+            style={[
+              styles.menuLabel,
+              { color: c.iconDefault },
+              activeTab === 'home' && { color: '#03979D' },
+            ]}
+          >
+            Home
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.menuItem} onPress={() => handlePress('survey')}>
+          <LucideIcon
+            name="clipboard-list"
+            size={22}
+            color={activeTab === 'survey' ? '#03979D' : c.iconDefault}
+          />
+          <Text
+            style={[
+              styles.menuLabel,
+              { color: c.iconDefault },
+              activeTab === 'survey' && { color: '#03979D' },
+            ]}
+          >
+            Survey
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.menuItem} onPress={handleNewSurvey}>
+          <View style={[styles.addButton, { backgroundColor: '#03979D' }]}>
+            <LucideIcon name="plus" size={22} color="#ffffff" />
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.menuItem} onPress={() => handlePress('settings')}>
+          <LucideIcon
+            name="settings"
+            size={22}
+            color={activeTab === 'settings' ? '#03979D' : c.iconDefault}
+          />
+          <Text
+            style={[
+              styles.menuLabel,
+              { color: c.iconDefault },
+              activeTab === 'settings' && { color: '#03979D' },
+            ]}
+          >
+            Settings
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.menuItem} onPress={() => handlePress('profile')}>
+          <LucideIcon
+            name="user"
+            size={22}
+            color={activeTab === 'profile' ? '#03979D' : c.iconDefault}
+          />
+          <Text
+            style={[
+              styles.menuLabel,
+              { color: c.iconDefault },
+              activeTab === 'profile' && { color: '#03979D' },
+            ]}
+          >
+            Profile
+          </Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -68,31 +110,28 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
   },
   container: {
-    height: 70,
+    height: 64,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-around',
-    paddingVertical: 10,
+    justifyContent: 'space-evenly',
     paddingHorizontal: 16,
   },
   menuItem: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-    gap: 4,
-    borderRadius: 12,
-  },
-  menuItemActive: {
-    backgroundColor: '#03979D',
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    gap: 2,
   },
   menuLabel: {
-    marginTop: 4,
-    fontWeight: '500',
+    fontSize: 10,
+    fontWeight: '400',
   },
-  menuLabelActive: {
-    color: '#ffffff',
-    fontWeight: '600',
+  addButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

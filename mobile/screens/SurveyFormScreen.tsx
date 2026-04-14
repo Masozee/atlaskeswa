@@ -15,6 +15,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import NetInfo from '@react-native-community/netinfo';
 import TopHeader from '../components/TopHeader';
+import { useTheme, useFontScale } from '../contexts/SettingsContext';
 import { apiClient } from '../services/api';
 import { database } from '../services/database';
 
@@ -69,6 +70,10 @@ interface SurveyFormScreenProps {
 }
 
 export default function SurveyFormScreen({ surveyId, onBack, onSave }: SurveyFormScreenProps) {
+  const theme = useTheme();
+  const fs = useFontScale();
+  const c = theme.colors;
+  const isDark = theme.dark;
   const [loading, setLoading] = useState(!!surveyId);
   const [saving, setSaving] = useState(false);
   const [services, setServices] = useState<Service[]>([]);

@@ -43,6 +43,7 @@ export interface QuestionOption {
   next_question_code?: string;
   has_other_input?: boolean;
   other_input_label?: string;
+  other_input_type?: string;
   cabang_mtc?: string;
   kode_desde_ltc?: string;
 }
@@ -109,9 +110,10 @@ export interface SurveyResponseItem {
   id: number;
   template: number;
   template_name?: string;
-  service: number | { id: number; name?: string; city?: string };
+  service: number | { id: number; name?: string; city?: string; kecamatan?: string };
   service_name?: string;
   service_city?: string;
+  service_kecamatan?: string;
   survey_date: string;
   survey_period_start: string;
   survey_period_end: string;

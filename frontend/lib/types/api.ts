@@ -404,6 +404,7 @@ export interface QuestionChoice {
   next_question_code?: string;
   has_other_input: boolean;
   other_input_label?: string;
+  other_input_type?: string;
   cabang_mtc?: string;
   kode_desde_ltc?: string;
 }

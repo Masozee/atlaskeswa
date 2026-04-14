@@ -211,7 +211,7 @@ class DynamicSurveyResponseListSerializer(serializers.ModelSerializer):
             'survey_date', 'surveyor', 'surveyor_name',
             'verification_status', 'status_display',
             'deletion_requested',
-            'latitude', 'longitude', 'created_at'
+            'latitude', 'longitude', 'created_at', 'started_at', 'submitted_at'
         ]
 
     def get_surveyor_name(self, obj):
@@ -253,7 +253,7 @@ class DynamicSurveyResponseDetailSerializer(serializers.ModelSerializer):
             'deletion_reason',
             'latitude', 'longitude', 'location_accuracy',
             'derived_mtc_codes', 'answers',
-            'created_at', 'updated_at', 'submitted_at'
+            'created_at', 'updated_at', 'started_at', 'submitted_at'
         ]
         read_only_fields = ['id', 'surveyor', 'verified_by', 'verified_at',
                             'deletion_requested', 'deletion_requested_at', 'deletion_requested_by',
@@ -289,6 +289,8 @@ class DynamicSurveyResponseCreateSerializer(serializers.ModelSerializer):
     gps_longitude = serializers.FloatField(required=False, write_only=True)
     # Mobile app may send explicit verification_status (e.g., DRAFT for draft saves)
     verification_status = serializers.CharField(required=False, write_only=True)
+    # Mobile app sends started_at when beginning the survey
+    started_at = serializers.DateTimeField(required=False, write_only=True)
 
     class Meta:
         model = DynamicSurveyResponse
@@ -298,7 +300,7 @@ class DynamicSurveyResponseCreateSerializer(serializers.ModelSerializer):
             'latitude', 'longitude', 'location_accuracy',
             'surveyor_notes', 'answers',
             'gps_latitude', 'gps_longitude',
-            'verification_status', 'created_at'
+            'verification_status', 'started_at', 'created_at'
         ]
         read_only_fields = ['id', 'created_at']
 

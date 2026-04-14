@@ -223,9 +223,17 @@ export function getFlowBasedQuestions(
 ): Question[] {
   if (!section.questions || section.questions.length === 0) return [];
 
+  // When entering a detail section via a forced start code (e.g. 'RQA'),
+  // restrict to the same prefix family so RQ* questions don't bleed into SRQ*, DQ*, etc.
+  const detailGroupPrefix =
+    _forcedStartCode && /[A-Z]$/.test(_forcedStartCode)
+      ? _forcedStartCode.slice(0, -1)
+      : undefined;
+
   // First filter by show_condition
   const visibleQuestions = section.questions
     .filter((q) => {
+      if (detailGroupPrefix && !q.code.startsWith(detailGroupPrefix)) return false;
       if (q.show_condition) {
         return evaluateShowCondition(q.show_condition, allResponses);
       }
@@ -287,6 +295,17 @@ export function getFlowBasedQuestions(
     }
   }
 
+  // If ALL visible questions are already answered and no _forcedStartCode override,
+  // return empty array to prevent re-scanning entry points and restarting a completed chain.
+  // This handles the case where getFlowBasedQuestions is re-called after an answer change.
+  const allAnswered = visibleQuestions.every((q) => {
+    const ans = allResponses[q.code];
+    return ans !== null && ans !== undefined && ans !== '';
+  });
+  if (allAnswered && !_forcedStartCode) {
+    return [];
+  }
+
   // Build flow path starting from entry point (or first question)
   const result: Question[] = [];
   const visited = new Set<string>();
@@ -335,12 +354,16 @@ export function getFlowBasedQuestions(
     if (nextInSection) {
       current = nextInSection;
     } else {
-      // Target is in another section — try inline cross-section follow
+      // Target is in another section — only inline-follow sections marked as inline-only (sentinel).
+      // Proper standalone sections are navigated via section buttons, not inlined here.
       if (allSections && rawAnswers) {
         const otherSection = allSections.find(
           (s) => s.id !== section.id && (s.questions || []).some((q) => q.code === nextCode)
         );
-        if (otherSection) {
+        const targetIsSentinel =
+          otherSection?.show_condition != null &&
+          (otherSection.show_condition as any).question_code === '_inline_only_';
+        if (otherSection && targetIsSentinel) {
           const sectionVisited = _visitedSectionIds ?? new Set<number>();
           if (!sectionVisited.has(otherSection.id)) {
             const newSectionVisited = new Set(sectionVisited);

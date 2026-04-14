@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import BottomNavigation from './BottomNavigation';
 import { useTheme } from '../contexts/SettingsContext';
@@ -13,13 +13,16 @@ interface BaseLayoutProps {
 export default function BaseLayout({ children, onNavigate }: BaseLayoutProps) {
   const theme = useTheme();
   const c = theme.colors;
+  const insets = useSafeAreaInsets();
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: c.surface }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: c.background }]} edges={['top']}>
       <View style={[styles.content, { backgroundColor: c.background }]}>
         {children}
       </View>
-      <BottomNavigation onNavigate={onNavigate} />
+      <View style={{ paddingBottom: insets.bottom }}>
+        <BottomNavigation onNavigate={onNavigate} />
+      </View>
       <StatusBar style={theme.dark ? 'light' : 'dark'} />
     </SafeAreaView>
   );

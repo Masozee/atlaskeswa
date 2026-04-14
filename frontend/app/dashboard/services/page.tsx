@@ -96,13 +96,15 @@ export default function AllServicesPage() {
       },
     },
     {
-      accessorKey: "mtc_name",
+      accessorKey: "kategori_fasilitas_display",
       header: "Jenis Perawatan",
-      size: 200,
-      minSize: 200,
-      maxSize: 200,
+      size: 150,
+      minSize: 150,
+      maxSize: 150,
       cell: ({ row }) => {
-        return <div className="text-sm leading-snug break-words py-1.5 whitespace-normal">{row.getValue("mtc_name") || '-'}</div>
+        const val = row.getValue("kategori_fasilitas_display") as string;
+        const display = val === 'Fasilitas Kesehatan' ? 'Faskes' : val === 'Non Kesehatan' ? 'Non Faskes' : val || '-';
+        return <div className="text-sm leading-snug break-words py-1.5 whitespace-normal">{display}</div>
       },
     },
     {

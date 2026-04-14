@@ -70,6 +70,7 @@ class ServiceListSerializer(serializers.ModelSerializer):
     mtc_name = serializers.CharField(source='mtc.name', read_only=True)
     bsic_code = serializers.CharField(source='bsic.code', read_only=True)
     bsic_name = serializers.CharField(source='bsic.name', read_only=True)
+    kategori_fasilitas_display = serializers.CharField(source='bsic.get_kategori_fasilitas_display', read_only=True)
     service_type_name = serializers.CharField(source='service_type.name', read_only=True)
     total_professional_staff = serializers.ReadOnlyField()
 
@@ -77,7 +78,7 @@ class ServiceListSerializer(serializers.ModelSerializer):
         model = Service
         fields = [
             'id', 'name', 'kecamatan', 'city', 'province', 'mtc_code', 'mtc_name',
-            'bsic_code', 'bsic_name', 'service_type_name', 'bed_capacity',
+            'bsic_code', 'bsic_name', 'kategori_fasilitas_display', 'service_type_name', 'bed_capacity',
             'total_professional_staff', 'is_verified', 'is_active', 'created_at'
         ]
 

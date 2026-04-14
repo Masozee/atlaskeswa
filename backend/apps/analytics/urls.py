@@ -1,11 +1,12 @@
 from django.urls import path
 
 from .views import (
-    dashboard_stats, service_analytics, survey_analytics,
+    mobile_home, dashboard_stats, service_analytics, survey_analytics,
     export_services_excel, export_services_csv
 )
 
 urlpatterns = [
+    path('mobile/home/', mobile_home, name='mobile-home'),
     path('dashboard/', dashboard_stats, name='dashboard-stats'),
     path('services/', service_analytics, name='service-analytics'),
     path('surveys/', survey_analytics, name='survey-analytics'),

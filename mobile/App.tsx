@@ -4,6 +4,8 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useState, useEffect } from 'react';
 import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
+import { MaterialSymbolsRounded_400Regular } from '@expo-google-fonts/material-symbols-rounded';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SettingsProvider } from './contexts/SettingsContext';
 import LoginScreen from './screens/LoginScreen';
 import HomePage from './screens/HomePage';
@@ -16,6 +18,8 @@ import SettingsScreen from './screens/SettingsScreen';
 import BaseLayout from './components/BaseLayout';
 import { apiClient, ENV_CONFIGURED_URL } from './services/api';
 import { database } from './services/database';
+import { syncQueue } from './services/syncQueue';
+import NetInfo from '@react-native-community/netinfo';
 
 type Screen = 'home' | 'survey-list' | 'survey-detail' | 'survey-form' | 'profile' | 'settings';
 
@@ -30,6 +34,8 @@ export default function App() {
     Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
+    MaterialSymbolsRounded_400Regular,
+    ...MaterialIcons.font,
   });
 
   useEffect(() => {
@@ -54,23 +60,34 @@ export default function App() {
     bootstrap();
   }, []);
 
+  // Trigger sync whenever the device comes back online
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      if (state.isConnected && state.isInternetReachable) {
+        syncQueue.processQueue().catch((err) =>
+          console.warn('[SyncQueue] processQueue error:', err)
+        );
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
   const checkAuth = async () => {
-    // Determine API URL: .env takes priority over SQLite-saved URL
+    // Determine API URL: SQLite-saved URL takes priority over .env
+    // .env is only used as fallback when no URL has been saved yet
     try {
-      if (ENV_CONFIGURED_URL) {
-        // .env has an explicit URL — always use it and sync to SQLite
+      const savedUrl = await database.getApiBaseUrl();
+      if (savedUrl) {
+        // Saved URL exists — always use it (user explicitly set it)
+        apiClient.setBaseURL(savedUrl);
+        console.log('[API URL] Using SQLite-saved URL:', savedUrl);
+      } else if (ENV_CONFIGURED_URL) {
+        // No saved URL — use .env as initial default
         apiClient.setBaseURL(ENV_CONFIGURED_URL);
         await database.saveApiBaseUrl(ENV_CONFIGURED_URL);
-        console.log('[API URL] Using .env URL:', ENV_CONFIGURED_URL);
+        console.log('[API URL] Using .env URL (initial default):', ENV_CONFIGURED_URL);
       } else {
-        // No .env URL — fall back to SQLite-saved URL (production scenario)
-        const savedUrl = await database.getApiBaseUrl();
-        if (savedUrl) {
-          apiClient.setBaseURL(savedUrl);
-          console.log('[API URL] Using SQLite-saved URL:', savedUrl);
-        } else {
-          console.log('[API URL] Using default URL:', apiClient.getBaseURL());
-        }
+        console.log('[API URL] Using default URL:', apiClient.getBaseURL());
       }
     } catch {
       // Use default URL if loading fails
@@ -142,6 +159,8 @@ export default function App() {
     } else if (screen === 'survey') {
       setCurrentScreen('survey-list');
       setSelectedSurveyId(undefined);
+    } else if (screen === 'survey-form') {
+      navigateToSurveyForm();
     } else if (screen === 'profile') {
       setCurrentScreen('profile');
       setSelectedSurveyId(undefined);
@@ -175,14 +194,14 @@ export default function App() {
       <View style={styles.splashContainer}>
         <Image source={require('./assets/logo.png')} style={styles.splashLogo} resizeMode="contain" />
         <Text style={styles.splashText}>OMMHA</Text>
-        <Text style={styles.splashSubtitle}>Pemetaan Layanan Kesehatan Jiwa{'\n'}Indonesia berbasis DESDE-LTC</Text>
+        <Text style={styles.splashSubtitle}>Klasifikasi Jenis-jenis{'\n'}Layanan Kesehatan Jiwa{'\n'}di Indonesia</Text>
       </View>
     );
   }
 
   // Set default font family globally
   if (Text.defaultProps == null) Text.defaultProps = {};
-  Text.defaultProps.style = { fontFamily: 'Inter_400Regular' };
+  Text.defaultProps.style = { fontFamily: 'System' };
 
   const renderScreen = () => {
     switch (currentScreen) {

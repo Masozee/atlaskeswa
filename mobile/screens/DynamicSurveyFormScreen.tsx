@@ -105,7 +105,7 @@ export default function DynamicSurveyFormScreen({
   const [answers, setAnswers] = useState<SurveyAnswers>({});
   const [otherTexts, setOtherTexts] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
+  const [currentSectionId, setCurrentSectionId] = useState<number | null>(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [currentMtcContext, setCurrentMtcContext] = useState<string>('');
   const [currentMtcLabel, setCurrentMtcLabel] = useState<string>('');
@@ -161,7 +161,7 @@ export default function DynamicSurveyFormScreen({
   const [resumeFromQuestion, setResumeFromQuestion] = useState<number | null>(null);
 
   // Navigation history for proper back navigation through non-linear flows
-  const [navHistory, setNavHistory] = useState<Array<{ sectionIndex: number; questionIndex: number }>>([]);
+  const [navHistory, setNavHistory] = useState<Array<{ sectionId: number | null; questionIndex: number }>>([]);
 
   // Setup phase (before questionnaire)
   const [setupComplete, setSetupComplete] = useState(false);
@@ -171,6 +171,9 @@ export default function DynamicSurveyFormScreen({
 
   // Local SQLite row id for this survey (set after first local save)
   const [localSurveyId, setLocalSurveyId] = useState<number | null>(null);
+
+  // Survey duration tracking - started_at captured when surveyor begins questions
+  const [startedAt, setStartedAt] = useState<string | null>(null);
 
   // Track whether we're resuming from an edit so we don't reset question index on first section change
   const isResumingFromEdit = useRef(false);
@@ -186,7 +189,7 @@ export default function DynamicSurveyFormScreen({
       setCurrentQuestionIndex(0);
     }
     isResumingFromEdit.current = false;
-  }, [currentSectionIndex]);
+  }, [currentSectionId]);
 
   // Handle Android hardware back button
   useEffect(() => {
@@ -205,15 +208,17 @@ export default function DynamicSurveyFormScreen({
           const prevPos = navHistory[navHistory.length - 1];
           setNavHistory((prev) => prev.slice(0, -1));
           setShowIntroScreen(false);
-          setCurrentSectionIndex(prevPos.sectionIndex);
+          setCurrentSectionId(prevPos.sectionId);
           setCurrentQuestionIndex(prevPos.questionIndex);
         } else if (currentSectionIndex > 0) {
-          const newSectionIndex = currentSectionIndex - 1;
-          const prevSection = activeSections[newSectionIndex];
-          const prevSectionQuestions = getFlowBasedQuestions(prevSection, answers, questionsMap, template?.sections, answers);
+          const prevSectionId = activeSections[currentSectionIndex - 1]?.id;
+          const prevSection = activeSections[currentSectionIndex - 1];
+          const prevSectionQuestions = getFlowBasedQuestions(prevSection!, answers, questionsMap, template?.sections, answers);
           setShowIntroScreen(false);
-          setCurrentSectionIndex(newSectionIndex);
-          setCurrentQuestionIndex(Math.max(0, prevSectionQuestions.length - 1));
+          if (prevSectionId != null) {
+            setCurrentSectionId(prevSectionId);
+            setCurrentQuestionIndex(Math.max(0, prevSectionQuestions.length - 1));
+          }
         } else {
           setShowIntroScreen(false);
           setSetupComplete(false);
@@ -229,7 +234,7 @@ export default function DynamicSurveyFormScreen({
         if (navHistory.length > 0) {
           const prevPos = navHistory[navHistory.length - 1];
           setNavHistory((prev) => prev.slice(0, -1));
-          setCurrentSectionIndex(prevPos.sectionIndex);
+          setCurrentSectionId(prevPos.sectionId);
           setCurrentQuestionIndex(prevPos.questionIndex);
         } else {
           setSetupComplete(false);
@@ -242,7 +247,7 @@ export default function DynamicSurveyFormScreen({
     });
 
     return () => backHandler.remove();
-  }, [showServicePicker, showKecamatanPicker, setupComplete, currentSectionIndex, showIntroScreen]);
+  }, [showServicePicker, showKecamatanPicker, setupComplete, currentSectionId, showIntroScreen]);
 
   const loadData = async () => {
     const netState = await NetInfo.fetch();
@@ -357,9 +362,9 @@ export default function DynamicSurveyFormScreen({
 
                 let val: any;
                 if (ans.selected_choice_values && ans.selected_choice_values.length > 0) {
-                  val = ans.selected_choice_values.length === 1
-                    ? ans.selected_choice_values[0]
-                    : ans.selected_choice_values;
+                  // Always store as array — MULTIPLE_CHOICE needs an array for multi-select.
+                  // SINGLE_CHOICE will be normalized to a scalar after the template loads below.
+                  val = ans.selected_choice_values;
                 } else if (ans.boolean_value !== null && ans.boolean_value !== undefined) {
                   val = ans.boolean_value;
                 } else if (ans.number_value !== null && ans.number_value !== undefined) {
@@ -391,6 +396,10 @@ export default function DynamicSurveyFormScreen({
               const svcCity = typeof svc === 'object' ? svc.city : (resp.service_city || '');
               savedService = { id: svcId, name: svcName, city: svcCity };
               setSelectedService(savedService);
+            }
+            // Capture started_at from server response for resumed surveys
+            if (resp.started_at) {
+              setStartedAt(resp.started_at);
             }
           } catch (err) {
             console.warn('Failed to load remote response, trying local:', err);
@@ -442,6 +451,25 @@ export default function DynamicSurveyFormScreen({
         if (Object.keys(geoDefaults).length > 0) {
           setAnswers((prev) => ({ ...geoDefaults, ...prev }));
         }
+
+        // Normalize choice answers: SINGLE_CHOICE must be a scalar string (not an array),
+        // MULTIPLE_CHOICE must stay as an array. We stored everything as array above so
+        // that MULTIPLE_CHOICE always gets an array; now convert SINGLE_CHOICE back.
+        if (responseId && Object.keys(loadedAnswers).length > 0) {
+          const allQuestions = tpl.sections?.flatMap((s) => s.questions || []) ?? [];
+          for (const q of allQuestions) {
+            const key = q.code;
+            if (loadedAnswers[key] !== undefined && Array.isArray(loadedAnswers[key])) {
+              if (q.answer_type === 'SINGLE_CHOICE') {
+                // Collapse to scalar (first element)
+                loadedAnswers[key] = loadedAnswers[key][0] ?? '';
+              }
+              // MULTIPLE_CHOICE stays as array — no change needed
+            }
+          }
+          // Re-apply normalized answers so state reflects the correct types
+          setAnswers((prev) => ({ ...prev, ...loadedAnswers }));
+        }
       } else if (!isOnline) {
         Alert.alert('Offline', 'Tidak ada template tersimpan. Sambungkan ke internet untuk pertama kali.');
       }
@@ -471,7 +499,8 @@ export default function DynamicSurveyFormScreen({
           // All questions in this section are answered — try next section
         }
         isResumingFromEdit.current = true;
-        setCurrentSectionIndex(resumeSectionIdx);
+        const resumeSectionId = activeSectionsForResume[resumeSectionIdx]?.id ?? null;
+        setCurrentSectionId(resumeSectionId);
         setCurrentQuestionIndex(resumeItemIdx);
         setSetupComplete(true);
         // Auto-capture GPS from saved response
@@ -537,6 +566,14 @@ export default function DynamicSurveyFormScreen({
     return result;
   }, [template?.sections, resolvedAnswers, questionsMap]);
 
+  // Derive currentSectionIndex from currentSectionId — this survives activeSections recomputation
+  // when answers change (prevents navigation to wrong section after activeSections recalculates)
+  const currentSectionIndex = useMemo(() => {
+    if (currentSectionId === null) return 0;
+    const idx = activeSections.findIndex(s => s.id === currentSectionId);
+    return idx >= 0 ? idx : 0;
+  }, [currentSectionId, activeSections]);
+
   const currentSection = activeSections[currentSectionIndex];
 
   // Get flow items for current section — includes both Question pages and Hint pages.
@@ -544,7 +581,7 @@ export default function DynamicSurveyFormScreen({
   const activeFlowItems = useMemo(() => {
     if (!currentSection) return [];
     const items = getFlowItems(currentSection, resolvedAnswers, questionsMap, template?.sections, answers);
-    console.log(`[FLOW DEBUG] section=${currentSection.code} count=${items.length}`, items.map(i => i.kind === 'question' ? i.question.code : `HINT:${i.questionCode}`));
+    console.log(`[FLOW DEBUG] section=${currentSection.code} count=${items.length}`, items.map(i => i.kind === 'question' ? i.question.code : i.kind === 'hint' ? `HINT:${i.questionCode}` : 'END'));
     return items;
   }, [currentSection, resolvedAnswers, questionsMap, template?.sections, answers]);
 
@@ -556,7 +593,7 @@ export default function DynamicSurveyFormScreen({
     const allQDefs = template?.sections?.flatMap(s => s.questions || []) ?? [];
     let ctxTracker = '';
     return activeFlowItems.map((item) => {
-      if (item.kind === 'hint') return ctxTracker;
+      if (item.kind === 'hint' || item.kind === 'end_survey') return ctxTracker;
       const question = item.question;
       const isDetail = /[A-Z]$/.test(question.code);
 
@@ -595,7 +632,7 @@ export default function DynamicSurveyFormScreen({
 
   // DEBUG: Detailed flow item logging
   if (activeFlowItems.length > 0) {
-    console.log(`[FLOW ITEMS] total=${activeFlowItems.length} currentIdx=${currentQuestionIndex}`, activeFlowItems.map((item, i) => `${i}:${item?.kind ?? 'null'}${item?.kind === 'question' ? ':' + item.question.code : item?.kind === 'hint' ? ':' + item.questionCode : ''}`));
+    console.log(`[FLOW ITEMS] total=${activeFlowItems.length} currentIdx=${currentQuestionIndex}`, activeFlowItems.map((item, i) => `${i}:${item?.kind ?? 'null'}${item?.kind === 'question' ? ':' + item.question.code : item?.kind === 'hint' ? ':' + item.questionCode : item?.kind === 'end_survey' ? ':END' : ''}`));
   }
 
   // The active Question (null when current item is a hint page)
@@ -633,6 +670,8 @@ export default function DynamicSurveyFormScreen({
   // ctxOverride: the per-question MTC context (from questionContexts). Falls back to
   // currentMtcContext when not provided. Answers always accumulate — no context clearing.
   const handleAnswerChange = (questionCode: string, value: any, ctxOverride?: string) => {
+    // DEBUG: log current section state when answer changes
+    console.log(`[ANSWER] changing ${questionCode} to ${JSON.stringify(value)}, currentSectionId=${currentSectionId}, currentSectionIndex=${currentSectionIndex}, activeSections.length=${activeSections.length}`);
     // Detect MTC context change from the selected choice's cabang_mtc
     const allQuestions = template?.sections?.flatMap(s => s.questions || []) || [];
     const q = allQuestions.find(q => q.code === questionCode);
@@ -748,7 +787,7 @@ export default function DynamicSurveyFormScreen({
   const handleNext = () => {
     console.log(`[NAV] handleNext sectionIdx=${currentSectionIndex}/${activeSections.length} qIdx=${currentQuestionIndex}/${activeFlowItems.length} section=${currentSection?.code}`);
     // Push current position to history before advancing
-    const currentPos = { sectionIndex: currentSectionIndex, questionIndex: currentQuestionIndex };
+    const currentPos = { sectionId: currentSectionId, questionIndex: currentQuestionIndex };
 
     // Helper to find next section index with non-empty flow, or -1 if none
     const findNextNonEmptySection = (startIdx: number): number => {
@@ -775,12 +814,12 @@ export default function DynamicSurveyFormScreen({
           const nextSection = activeSections[nextSectionIdx];
           if (nextSection?.introduction_text) {
             setNavHistory((prev) => [...prev, currentPos]);
-            setCurrentSectionIndex(nextSectionIdx);
+            setCurrentSectionId(nextSection.id);
             setCurrentQuestionIndex(0);
             setShowIntroScreen(true);
           } else {
             setNavHistory((prev) => [...prev, currentPos]);
-            setCurrentSectionIndex(nextSectionIdx);
+            setCurrentSectionId(nextSection.id);
             setCurrentQuestionIndex(0);
           }
         }
@@ -810,7 +849,7 @@ export default function DynamicSurveyFormScreen({
         // Always skip section intro when using "Next" - go directly to first question
         // The section intro can be accessed via "Back" navigation if user wants to review it
         setNavHistory((prev) => [...prev, currentPos]);
-        setCurrentSectionIndex(nextSectionIdx);
+        setCurrentSectionId(nextSection.id);
         setCurrentQuestionIndex(0);
         setShowIntroScreen(false);
       }
@@ -823,7 +862,7 @@ export default function DynamicSurveyFormScreen({
     if (navHistory.length > 0) {
       const prevPos = navHistory[navHistory.length - 1];
       setNavHistory((prev) => prev.slice(0, -1));
-      setCurrentSectionIndex(prevPos.sectionIndex);
+      setCurrentSectionId(prevPos.sectionId);
       setCurrentQuestionIndex(prevPos.questionIndex);
       scrollRef.current?.scrollTo({ y: 0, animated: true });
       return;
@@ -833,11 +872,13 @@ export default function DynamicSurveyFormScreen({
       setCurrentQuestionIndex((prev) => prev - 1);
       scrollRef.current?.scrollTo({ y: 0, animated: true });
     } else if (currentSectionIndex > 0) {
-      const newSectionIndex = currentSectionIndex - 1;
-      const prevSection = activeSections[newSectionIndex];
-      const prevFlowItems = getFlowItems(prevSection, answers, questionsMap, template?.sections, answers);
-      setCurrentSectionIndex(newSectionIndex);
-      setCurrentQuestionIndex(Math.max(0, prevFlowItems.length - 1));
+      const newSectionId = activeSections[currentSectionIndex - 1]?.id;
+      const prevSection = activeSections[currentSectionIndex - 1];
+      const prevFlowItems = getFlowItems(prevSection!, answers, questionsMap, template?.sections, answers);
+      if (newSectionId != null) {
+        setCurrentSectionId(newSectionId);
+        setCurrentQuestionIndex(Math.max(0, prevFlowItems.length - 1));
+      }
       scrollRef.current?.scrollTo({ y: 0, animated: true });
     } else {
       setSetupComplete(false);
@@ -905,7 +946,10 @@ export default function DynamicSurveyFormScreen({
       }
       if (Object.keys(allErrors).length > 0) {
         setErrors(allErrors);
-        if (firstFailedSection >= 0) setCurrentSectionIndex(firstFailedSection);
+        if (firstFailedSection >= 0) {
+          const failedSectionId = activeSections[firstFailedSection]?.id;
+          if (failedSectionId != null) setCurrentSectionId(failedSectionId);
+        }
         const missingCodes = Object.keys(allErrors).join(', ');
         Alert.alert('Validasi', `Pertanyaan belum diisi: ${missingCodes}`);
         return;
@@ -969,6 +1013,10 @@ export default function DynamicSurveyFormScreen({
             survey_date: surveyDate,
             answers: answersWithOther,
           };
+          // Include started_at if captured (for new surveys or resumed ones)
+          if (startedAt) {
+            payload.started_at = startedAt;
+          }
           if (finalGps) {
             console.log(`[GPS] Saving to server: lat=${finalGps.latitude}, lng=${finalGps.longitude}`);
             payload.gps_latitude = finalGps.latitude;
@@ -983,6 +1031,10 @@ export default function DynamicSurveyFormScreen({
           }
 
           if (responseId) {
+            // When submitting an existing draft, explicitly set SUBMITTED status
+            if (submit) {
+              payload.verification_status = 'SUBMITTED';
+            }
             await apiClient.patch(`/surveys/responses/${responseId}/`, payload);
             await database.markSurveySynced(currentLocalId);
           } else {
@@ -1418,7 +1470,7 @@ export default function DynamicSurveyFormScreen({
       <View style={styles.choicesContainer}>
         {choices.map((choice) => {
           const choiceSpeakKey = `${question.code}_choice_${choice.value}`;
-          const thisSelected = value === choice.value;
+          const thisSelected = Array.isArray(value) ? value.includes(choice.value) : value === choice.value;
           return (
           <View key={choice.value}>
             <TouchableOpacity
@@ -1502,10 +1554,15 @@ export default function DynamicSurveyFormScreen({
         ? [String(value)]
         : [];
 
+    // DEBUG: log value being rendered
+    console.log(`[MULTICHOICE] ${question.code} value=${JSON.stringify(value)} selectedValues=${JSON.stringify(selectedValues)}`);
+
     const toggleChoice = (choiceValue: string) => {
+      console.log(`[TOGGLE] ${question.code} tap choice=${choiceValue}, current selectedValues=${JSON.stringify(selectedValues)}`);
       const newValues = selectedValues.includes(choiceValue)
         ? selectedValues.filter((v) => v !== choiceValue)
         : [...selectedValues, choiceValue];
+      console.log(`[TOGGLE] ${question.code} newValues=${JSON.stringify(newValues)}`);
       handleAnswerChange(question.code, newValues, ctx);
     };
 
@@ -1515,10 +1572,11 @@ export default function DynamicSurveyFormScreen({
           const isChecked = selectedValues.includes(choice.value);
           const choiceSpeakKey = `${question.code}_choice_${choice.value}`;
           return (
-            <View key={choice.value}>
+            <View key={choice.value} style={{ flexDirection: 'row', alignItems: 'center' }}>
               <TouchableOpacity
                 style={[
                   styles.choiceOption,
+                  { flex: 1 },
                   {
                     backgroundColor: isDark ? '#1f1f1f' : '#fff',
                     borderColor: isChecked ? '#03979D' : (isDark ? '#2e2e2e' : '#e5e7eb'),
@@ -1544,20 +1602,20 @@ export default function DynamicSurveyFormScreen({
                 ]}>
                   {toSentenceCase(choice.label)}
                 </Text>
-                <TouchableOpacity
-                  style={[
-                    styles.choiceAudioBtn,
-                    {
-                      backgroundColor: isDark ? '#1f1f1f' : '#fff',
-                      borderColor: speakingCode === choiceSpeakKey ? '#03979D' : (isDark ? '#404040' : '#d1d5db'),
-                    },
-                    speakingCode === choiceSpeakKey && { backgroundColor: isDark ? '#1a2e2e' : '#e6f7f7', borderColor: '#03979D' },
-                  ]}
-                  onPress={(e) => { e.stopPropagation(); speakQuestion(choiceSpeakKey, choice.label); }}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <MaterialIcons name="volume-up" size={18} color={speakingCode === choiceSpeakKey ? '#03979D' : (isDark ? '#737373' : '#9ca3af')} />
-                </TouchableOpacity>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.choiceAudioBtn,
+                  {
+                    backgroundColor: isDark ? '#1f1f1f' : '#fff',
+                    borderColor: speakingCode === choiceSpeakKey ? '#03979D' : (isDark ? '#404040' : '#d1d5db'),
+                  },
+                  speakingCode === choiceSpeakKey && { backgroundColor: isDark ? '#1a2e2e' : '#e6f7f7', borderColor: '#03979D' },
+                ]}
+                onPress={(e) => { e.stopPropagation(); speakQuestion(choiceSpeakKey, choice.label); }}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <MaterialIcons name="volume-up" size={18} color={speakingCode === choiceSpeakKey ? '#03979D' : (isDark ? '#737373' : '#9ca3af')} />
               </TouchableOpacity>
               {choice.has_other_input && isChecked && (
                 <TextInput
@@ -1960,10 +2018,69 @@ export default function DynamicSurveyFormScreen({
     );
   };
 
-  // Staff table — surveyor fills in job title + M/F count manually (REPEATING_TABLE style)
+  // Staff table — two modes:
+  // 1. Fixed rows (config.rows set): pre-defined job positions, value is Record<rowCode, Record<colCode, string>>
+  // 2. Repeating rows (no config.rows): user adds rows freely, value is Array<Record<colCode, string>>
   const renderStaffTableRepeating = (question: Question, value: any, ctx: string = '') => {
     const config = question.table_config;
-    // Fallback columns: Jabatan (text), L (number), P (number)
+
+    // ── Mode 1: Fixed rows from config ──────────────────────────────────────
+    if (config?.rows?.length) {
+      const columns: Array<{ code: string; label: string; type: string }> = config.columns ?? [
+        { code: 'LAKI_LAKI', label: 'L', type: 'number' },
+        { code: 'PEREMPUAN', label: 'P', type: 'number' },
+      ];
+      const currentValue: Record<string, Record<string, string>> =
+        value && !Array.isArray(value) ? value : {};
+
+      const updateCell = (rowCode: string, colCode: string, cellValue: string) => {
+        const next = { ...currentValue, [rowCode]: { ...currentValue[rowCode], [colCode]: cellValue } };
+        handleAnswerChange(question.code, next, ctx);
+      };
+
+      return (
+        <ScrollView horizontal showsHorizontalScrollIndicator style={{ marginTop: 4 }}>
+          <View>
+            {/* Header */}
+            <View style={[styles.tableRow, { backgroundColor: c.border }]}>
+              <View style={[styles.tableCell, { width: 160 }]}>
+                <Text style={styles.tableHeaderText}>Jabatan</Text>
+              </View>
+              {columns.map((col: any) => (
+                <View key={col.code} style={[styles.tableCell, { width: 70 }]}>
+                  <Text style={styles.tableHeaderText}>{col.label}</Text>
+                </View>
+              ))}
+            </View>
+            {/* Fixed rows */}
+            {config.rows.map((row: any) => {
+              const rowData = currentValue[row.code] ?? {};
+              return (
+                <View key={row.code} style={styles.tableRow}>
+                  <View style={[styles.tableCell, { width: 160 }]}>
+                    <Text style={[styles.tableCellLabel, { fontSize: 12 * fs }]}>{row.label}</Text>
+                  </View>
+                  {columns.map((col: any) => (
+                    <View key={col.code} style={[styles.tableCell, { width: 70, padding: 2 }]}>
+                      <TextInput
+                        style={[styles.tableCellInput, { fontSize: 12 * fs }]}
+                        value={String(rowData[col.code] ?? '')}
+                        onChangeText={(t) => updateCell(row.code, col.code, t)}
+                        keyboardType="number-pad"
+                        placeholder="0"
+                        placeholderTextColor="#d1d5db"
+                      />
+                    </View>
+                  ))}
+                </View>
+              );
+            })}
+          </View>
+        </ScrollView>
+      );
+    }
+
+    // ── Mode 2: Repeating rows (no config.rows) ──────────────────────────────
     const columns = config?.columns ?? [
       { code: 'jabatan', label: 'Jabatan', type: 'text' },
       { code: 'male', label: 'L', type: 'number' },
@@ -2804,6 +2921,13 @@ export default function DynamicSurveyFormScreen({
                     Alert.alert('Validasi', 'Rekam lokasi GPS terlebih dahulu');
                     return;
                   }
+                  // Capture start timestamp when surveyor begins questions
+                  setStartedAt(new Date().toISOString());
+                  // Set current section to first section when starting
+                  if (activeSections.length > 0) {
+                    setCurrentSectionId(activeSections[0].id);
+                    setCurrentQuestionIndex(0);
+                  }
                   setSetupComplete(true);
                   // Check if first section has introduction_text to show intro screen
                   const firstSection = activeSections[0];
@@ -2938,15 +3062,17 @@ export default function DynamicSurveyFormScreen({
                   const prevPos = navHistory[navHistory.length - 1];
                   setNavHistory((prev) => prev.slice(0, -1));
                   setShowIntroScreen(false);
-                  setCurrentSectionIndex(prevPos.sectionIndex);
+                  setCurrentSectionId(prevPos.sectionId);
                   setCurrentQuestionIndex(prevPos.questionIndex);
                 } else if (currentSectionIndex > 0) {
-                  const newSectionIndex = currentSectionIndex - 1;
-                  const prevSection = activeSections[newSectionIndex];
-                  const prevSectionQuestions = getFlowBasedQuestions(prevSection, answers, questionsMap, template?.sections, answers);
+                  const newSectionId = activeSections[currentSectionIndex - 1]?.id;
+                  const prevSection = activeSections[currentSectionIndex - 1];
+                  const prevSectionQuestions = getFlowBasedQuestions(prevSection!, answers, questionsMap, template?.sections, answers);
                   setShowIntroScreen(false);
-                  setCurrentSectionIndex(newSectionIndex);
-                  setCurrentQuestionIndex(Math.max(0, prevSectionQuestions.length - 1));
+                  if (newSectionId != null) {
+                    setCurrentSectionId(newSectionId);
+                    setCurrentQuestionIndex(Math.max(0, prevSectionQuestions.length - 1));
+                  }
                 } else {
                   setShowIntroScreen(false);
                   setSetupComplete(false);
@@ -3039,12 +3165,33 @@ export default function DynamicSurveyFormScreen({
 
           {/* ONE question or hint — full screen */}
           {(() => {
-            console.log(`[RENDER] activeFlowItems.length=${activeFlowItems.length} currentQuestionIndex=${currentQuestionIndex} currentFlowItem=${JSON.stringify(currentFlowItem ? { kind: currentFlowItem.kind, code: currentFlowItem.kind === 'question' ? currentFlowItem.question.code : currentFlowItem.questionCode } : null)} currentQ=${currentQ?.code ?? null}`);
+            console.log(`[RENDER] activeFlowItems.length=${activeFlowItems.length} currentQuestionIndex=${currentQuestionIndex} currentFlowItem=${JSON.stringify(currentFlowItem ? { kind: currentFlowItem.kind, code: currentFlowItem.kind === 'question' ? currentFlowItem.question.code : currentFlowItem.kind === 'hint' ? currentFlowItem.questionCode : 'END' } : null)} currentQ=${currentQ?.code ?? null}`);
             return null;
           })()}
           {currentFlowItem?.kind === 'hint' ? (
             <View style={styles.questionScreenContainer}>
               {renderHintPage(currentFlowItem)}
+            </View>
+          ) : currentFlowItem?.kind === 'end_survey' ? (
+            <View style={styles.questionScreenContainer}>
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 }}>
+                <MaterialIcons name="info-outline" size={48} color="#00979D" />
+                <Text style={{ fontSize: 18, fontWeight: '600', color: c.text, marginTop: 16, textAlign: 'center' }}>
+                  Survei Selesai
+                </Text>
+                <Text style={{ fontSize: 14, color: c.textSecondary, marginTop: 8, textAlign: 'center' }}>
+                  Anda telah menyelesaikan survei.{'n'}Data akan disimpan.
+                </Text>
+                <TouchableOpacity
+                  style={{ marginTop: 32, backgroundColor: '#00979D', paddingHorizontal: 32, paddingVertical: 14, borderRadius: 8 }}
+                  onPress={() => {
+                    // Auto-save as submitted and show confirmation
+                    handleSave(true);
+                  }}
+                >
+                  <Text style={{ color: '#fff', fontWeight: '600', fontSize: 15 }}>Simpan & Selesaikan</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           ) : currentQ ? (
             <View style={styles.questionScreenContainer}>
@@ -3075,11 +3222,11 @@ export default function DynamicSurveyFormScreen({
                       if (nextFlow.length > 0) {
                         // Found non-empty section
                         if (nextSection?.introduction_text) {
-                          setCurrentSectionIndex(nextIdx);
+                          setCurrentSectionId(nextSection.id);
                           setCurrentQuestionIndex(0);
                           setShowIntroScreen(true);
                         } else {
-                          setCurrentSectionIndex(nextIdx);
+                          setCurrentSectionId(nextSection.id);
                           setCurrentQuestionIndex(0);
                         }
                         scrollRef.current?.scrollTo({ y: 0, animated: true });

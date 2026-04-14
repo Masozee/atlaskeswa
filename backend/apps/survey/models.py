@@ -1,5 +1,6 @@
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
+from django.utils import timezone
 
 
 # =============================================================================
@@ -183,6 +184,9 @@ class Question(models.Model):
         REPEATING_TABLE = 'REPEATING_TABLE', 'Tabel Dinamis (baris berulang)'
         INTERVENTION_MATRIX = 'INTERVENTION_MATRIX', 'Matriks Intervensi (baris pilih + kolom detail)'
 
+        # Operating hours type (e.g. "Minggu 09.00-22.00")
+        OPERATING_HOURS = 'OPERATING_HOURS', 'Jam Operasional'
+
     section = models.ForeignKey(
         QuestionSection,
         on_delete=models.CASCADE,
@@ -239,6 +243,13 @@ class Question(models.Model):
         help_text='JSON: [{"value": "YA", "goto": "RQ2"}, {"value": "TIDAK", "goto": "RQ5"}]'
     )
 
+    # Table configuration for REPEATING_TABLE type
+    table_config = models.JSONField(
+        null=True,
+        blank=True,
+        help_text='JSON: {"columns": [{"code": "jabatan", "label": "Jabatan", "type": "text"}, {"code": "l", "label": "L", "type": "number"}]}'
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -283,6 +294,21 @@ class QuestionChoice(models.Model):
     # If selecting this requires additional text input ("Lainnya, sebutkan...")
     has_other_input = models.BooleanField(default=False)
     other_input_label = models.CharField(max_length=100, blank=True, default='Sebutkan')
+    OTHER_INPUT_TYPES = [
+        ('text', 'Text'),
+        ('date', 'Date'),
+        ('integer', 'Integer'),
+        ('decimal', 'Decimal'),
+        ('phone', 'Phone'),
+        ('email', 'Email'),
+    ]
+    other_input_type = models.CharField(
+        max_length=20,
+        blank=True,
+        default='text',
+        choices=OTHER_INPUT_TYPES,
+        help_text='Data type for other input'
+    )
 
     # DESDE-LTC classification fields
     cabang_mtc = models.CharField(max_length=50, blank=True, help_text='Cabang MTC')
@@ -341,7 +367,7 @@ class DynamicSurveyResponse(models.Model):
         related_name='dynamic_surveys_conducted',
         limit_choices_to={'role': 'SURVEYOR'}
     )
-    survey_date = models.DateField(db_index=True)
+    survey_date = models.DateTimeField(db_index=True)
     surveyor_notes = models.TextField(blank=True)
 
     # Verification workflow - same pattern as existing Survey model
@@ -398,6 +424,7 @@ class DynamicSurveyResponse(models.Model):
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    started_at = models.DateTimeField(null=True, blank=True, help_text='When the surveyor actually started filling out questions')
     submitted_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
@@ -815,3 +842,42 @@ class SurveyAuditLog(models.Model):
 
     def __str__(self):
         return f"{self.get_action_display()} - Survey #{self.survey_id} at {self.timestamp}"
+
+
+# =============================================================================
+# SURVEY PHOTOS (for DynamicSurveyResponse)
+# =============================================================================
+
+def survey_photo_upload_path(instance, filename):
+    """Generate upload path: survey_photos/<survey_id>/<filename>"""
+    ext = filename.split('.')[-1]
+    new_filename = f"{instance.id or 'new'}_{timezone.now().strftime('%Y%m%d%H%M%S')}.{ext}"
+    return f"survey_photos/{instance.survey_id}/{new_filename}"
+
+
+class SurveyPhoto(models.Model):
+    """Facility photos for DynamicSurveyResponse - added after survey completion"""
+
+    survey = models.ForeignKey(
+        DynamicSurveyResponse,
+        on_delete=models.CASCADE,
+        related_name='photos'
+    )
+    image = models.ImageField(upload_to=survey_photo_upload_path)
+    caption = models.CharField(max_length=255, blank=True)
+    uploaded_by = models.ForeignKey(
+        'accounts.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='uploaded_survey_photos'
+    )
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'survey_photos'
+        ordering = ['-uploaded_at']
+        verbose_name = 'Survey Photo'
+        verbose_name_plural = 'Survey Photos'
+
+    def __str__(self):
+        return f"Photo for Survey #{self.survey_id} - {self.caption[:30] or 'No caption'}"

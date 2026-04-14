@@ -109,6 +109,12 @@ wheels = [
 ]
 
 [[package]]
+name = "import-export"
+version = "0.3.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/d0/cd/1a8c0719058ad9869758a3b4b2417519241c2c9f57ebc074730dbf664adf/import-export-0.3.1.tar.gz", hash = "sha256:1e47906ef2cb35bedaf5082e37ead4f332f35757005a7eff85bf9aef85ea6a7b", size = 5060, upload-time = "2022-11-30T22:39:51.629Z" }
+
+[[package]]
 name = "openpyxl"
 version = "3.1.5"
 source = { registry = "https://pypi.org/simple" }
@@ -226,6 +232,7 @@ dependencies = [
     { name = "django-import-export" },
     { name = "djangorestframework" },
     { name = "djangorestframework-simplejwt" },
+    { name = "import-export" },
     { name = "openpyxl" },
     { name = "pillow" },
     { name = "pymysql" },
@@ -241,6 +248,7 @@ requires-dist = [
     { name = "django-import-export", specifier = ">=4.4.0" },
     { name = "djangorestframework", specifier = ">=3.16.1" },
     { name = "djangorestframework-simplejwt", specifier = ">=5.5.1" },
+    { name = "import-export", specifier = ">=0.3.1" },
     { name = "openpyxl", specifier = ">=3.1.5" },
     { name = "pillow", specifier = ">=12.0.0" },
     { name = "pymysql", specifier = ">=1.1.0" },

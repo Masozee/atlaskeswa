@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
 import NetInfo from '@react-native-community/netinfo';
 import { apiClient } from '../services/api';
 import { useTheme, useFontScale } from '../contexts/SettingsContext';
+import LucideIcon from './LucideIcon';
 
 interface User {
   first_name: string;
@@ -75,16 +75,11 @@ export default function TopHeader() {
           </View>
         </View>
 
-        {/* Right: Notification + Menu */}
+        {/* Right: Notification */}
         <View style={styles.rightSection}>
           <View style={[styles.iconWrapper, { backgroundColor: c.iconWrapper }]}>
             <TouchableOpacity style={styles.iconButton}>
-              <MaterialIcons name="notifications" size={20} color={c.iconDefault} />
-            </TouchableOpacity>
-          </View>
-          <View style={[styles.iconWrapper, { backgroundColor: c.iconWrapper }]}>
-            <TouchableOpacity style={styles.iconButton}>
-              <MaterialIcons name="menu" size={20} color={c.iconDefault} />
+              <LucideIcon name="bell" size={20} color={c.iconDefault} />
             </TouchableOpacity>
           </View>
         </View>
@@ -127,6 +122,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  avatarText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
   statusDot: {
     position: 'absolute',
     bottom: 0,
@@ -135,10 +134,6 @@ const styles = StyleSheet.create({
     height: 12,
     borderRadius: 6,
     borderWidth: 2,
-  },
-  avatarText: {
-    color: '#fff',
-    fontWeight: '600',
   },
   userName: {
     fontWeight: '600',

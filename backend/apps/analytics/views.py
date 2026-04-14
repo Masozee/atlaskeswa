@@ -19,6 +19,104 @@ from apps.logs.utils import log_export
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
+def mobile_home(request):
+    """
+    Get mobile home page data - surveys summary, recent surveys, and kecamatan distribution
+    """
+    user = request.user
+
+    # Survey stats (combine old Survey + DynamicSurveyResponse)
+    old_survey_stats = Survey.objects.aggregate(
+        total=Count('id'),
+        pending=Count('id', filter=Q(verification_status=Survey.Status.SUBMITTED)),
+        verified=Count('id', filter=Q(verification_status=Survey.Status.VERIFIED)),
+    )
+    dynamic_survey_stats = DynamicSurveyResponse.objects.aggregate(
+        total=Count('id'),
+        pending=Count('id', filter=Q(verification_status=DynamicSurveyResponse.Status.SUBMITTED)),
+        verified=Count('id', filter=Q(verification_status=DynamicSurveyResponse.Status.VERIFIED)),
+    )
+    survey_stats = {
+        'total': old_survey_stats['total'] + dynamic_survey_stats['total'],
+        'pending': old_survey_stats['pending'] + dynamic_survey_stats['pending'],
+        'verified': old_survey_stats['verified'] + dynamic_survey_stats['verified'],
+    }
+
+    # Geographic distribution (by kecamatan) - top 5 based on Q7 answers from surveys
+    from apps.survey.models import QuestionAnswer, Question
+
+    # Get Q7 geographic_unit answers for dynamic surveys
+    q7_geo_answers = QuestionAnswer.objects.filter(
+        question__code='Q7',
+        geographic_unit__isnull=False
+    ).exclude(
+        geographic_unit__name=''
+    ).values('geographic_unit__name').annotate(
+        count=Count('id')
+    ).order_by('-count')[:5]
+
+    kecamatan_distribution = [
+        {'kecamatan': item['geographic_unit__name'], 'count': item['count']}
+        for item in q7_geo_answers
+    ]
+
+    # Latest 5 surveys (combine old + dynamic, sorted by created_at)
+    # Get Q7 answer (geographic_unit) for each dynamic survey
+    from apps.survey.models import QuestionAnswer
+    dynamic_response_ids = list(
+        DynamicSurveyResponse.objects.order_by('-created_at')[:5].values_list('id', flat=True)
+    )
+    # Fetch Q7 answers for these responses (geographic_unit question)
+    q7_answers = {
+        ans.response_id: ans.geographic_unit.name if ans.geographic_unit else None
+        for ans in QuestionAnswer.objects.filter(
+            response_id__in=dynamic_response_ids,
+            question__code='Q7'
+        ).select_related('geographic_unit')
+    }
+
+    old_surveys = [
+        {
+            'id': s.id,
+            'service_name': s.service.name if s.service else 'Unknown Service',
+            'kecamatan': s.service.kecamatan if s.service else None,
+            'city': s.service.city if s.service else None,
+            'template_name': None,
+            'verification_status': s.verification_status,
+            'survey_date': s.survey_date.isoformat() if s.survey_date else None,
+            'created_at': s.created_at.isoformat(),
+        }
+        for s in Survey.objects.select_related('service').order_by('-created_at')[:5]
+    ]
+    dynamic_surveys = [
+        {
+            'id': s.id,
+            'service_name': s.service.name if s.service else 'Unknown Service',
+            'kecamatan': s.service.kecamatan if s.service else None,
+            'city': s.service.city if s.service else None,
+            'template_name': s.template.name if s.template else None,
+            'verification_status': s.verification_status,
+            'survey_date': s.survey_date.isoformat() if s.survey_date else None,
+            'created_at': s.created_at.isoformat(),
+            'geographic_unit_name': q7_answers.get(s.id),
+        }
+        for s in DynamicSurveyResponse.objects.select_related('service', 'template').order_by('-created_at')[:5]
+    ]
+    recent_surveys = sorted(
+        old_surveys + dynamic_surveys,
+        key=lambda x: x['created_at'],
+        reverse=True
+    )[:5]
+
+    return Response({
+        'surveys': survey_stats,
+        'recent_surveys': recent_surveys,
+        'geographic_distribution': kecamatan_distribution,
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def dashboard_stats(request):
     """
     Get comprehensive dashboard statistics
@@ -66,8 +164,10 @@ def dashboard_stats(request):
         active=Count('id', filter=Q(is_active=True)),
     )
 
-    # Geographic distribution (by kecamatan/city)
-    kecamatan_distribution = Service.objects.values('city').annotate(
+    # Geographic distribution (by kecamatan)
+    kecamatan_distribution = Service.objects.filter(
+        kecamatan__isnull=False
+    ).exclude(kecamatan='').values('kecamatan').annotate(
         count=Count('id')
     ).order_by('-count')
 

@@ -729,6 +729,11 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
         answers_data = self.request.data.get('answers')
         if answers_data and isinstance(answers_data, dict):
             self._update_answers(instance, answers_data)
+        # Set submitted_at when status transitions to SUBMITTED
+        new_status = self.request.data.get('verification_status')
+        if new_status == DynamicSurveyResponse.Status.SUBMITTED and not instance.submitted_at:
+            instance.submitted_at = timezone.now()
+            instance.save(update_fields=['submitted_at'])
         log_update(self.request, instance, f'Updated dynamic survey response for template: {instance.template.name}')
 
     @action(detail=True, methods=['post'])

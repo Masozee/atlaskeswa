@@ -8,33 +8,41 @@ import {
   ActivityIndicator,
   TouchableOpacity,
 } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
 import TopHeader from '../components/TopHeader';
 import { apiClient } from '../services/api';
 import { useTheme, useFontScale } from '../contexts/SettingsContext';
+import DonutChart from '../components/DonutChart';
+import LucideIcon from '../components/LucideIcon';
 
 interface Survey {
   id: number;
   service_name: string;
+  kecamatan?: string;
+  city?: string;
   template_name?: string;
   verification_status: 'PENDING' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'NEEDS_REVISION';
   status_display?: string;
   survey_date: string;
   created_at: string;
+  geographic_unit_name?: string;
 }
 
 interface DashboardStats {
   surveys: {
     total: number;
     pending: number;
+    verified: number;
   };
   recent_surveys: Survey[];
+  geographic_distribution: { kecamatan: string; count: number }[];
 }
 
 interface User {
   id: string;
   email: string;
   full_name?: string;
+  first_name: string;
+  last_name: string;
 }
 
 interface HomePageProps {
@@ -57,7 +65,7 @@ export default function HomePage({ onNavigateToSurveys, onSelectSurvey }: HomePa
     try {
       setError('');
       const [dashboardData, userData] = await Promise.all([
-        apiClient.get<DashboardStats>('/analytics/dashboard/'),
+        apiClient.get<DashboardStats>('/analytics/mobile/home/'),
         apiClient.get<User>('/accounts/users/me/')
       ]);
       setStats(dashboardData);
@@ -81,6 +89,7 @@ export default function HomePage({ onNavigateToSurveys, onSelectSurvey }: HomePa
 
   const getFullName = () => {
     if (user?.full_name) return user.full_name;
+    if (user?.first_name || user?.last_name) return `${user.first_name} ${user.last_name}`.trim();
     return user?.email.split('@')[0] || 'User';
   };
 
@@ -114,6 +123,19 @@ export default function HomePage({ onNavigateToSurveys, onSelectSurvey }: HomePa
     }
   };
 
+  // Prepare survey status chart data
+  const surveyStatusData = stats ? [
+    { value: stats.surveys.verified || 0, color: '#10b981', label: 'Diverifikasi' },
+    { value: stats.surveys.pending || 0, color: '#f59e0b', label: 'Menunggu' },
+  ] : [];
+
+  // Prepare kecamatan chart data (top 5)
+  const kecamatanData = stats?.geographic_distribution?.slice(0, 5).map((item, index) => ({
+    value: item.count,
+    color: index === 0 ? '#03979D' : index === 1 ? '#06b6d4' : index === 2 ? '#14b8a6' : index === 3 ? '#22c55e' : '#84cc16',
+    label: item.kecamatan,
+  })) || [];
+
   if (loading) {
     return (
       <View style={[styles.centered, { backgroundColor: c.background }]}>
@@ -142,25 +164,62 @@ export default function HomePage({ onNavigateToSurveys, onSelectSurvey }: HomePa
       >
         {/* Hero Card */}
         <View style={[styles.heroCard, { backgroundColor: c.heroBg }]}>
-          <Text style={[styles.heroSubgreeting, { fontSize: fs(14) }]}>Selamat pagi,</Text>
-          <Text style={[styles.heroGreeting, { fontSize: fs(22) }]}>{getFullName()}</Text>
-          <View style={styles.heroCountRow}>
-            <MaterialIcons name="assignment" size={18} color="rgba(255,255,255,0.9)" />
-            <Text style={[styles.heroSurveyCount, { fontSize: fs(14) }]}>
-              {stats?.surveys.total || 0} Survei tercatat
-            </Text>
+          <View style={styles.heroContent}>
+            <View>
+              <Text style={[styles.heroSubgreeting, { fontSize: fs(14) }]}>Selamat pagi,</Text>
+              <Text style={[styles.heroGreeting, { fontSize: fs(22) }]}>{getFullName()}</Text>
+              <View style={styles.heroCountRow}>
+                <Text style={[styles.heroSurveyCount, { fontSize: fs(14) }]}>
+                  {stats?.surveys.total || 0} Survei tercatat
+                </Text>
+              </View>
+            </View>
+            <View style={styles.heroDecor}>
+              {[...Array(20)].map((_, i) => (
+                <View key={i} style={[
+                  styles.heroDecorDot,
+                  { opacity: 0.05 + (i % 4) * 0.03 }
+                ]} />
+              ))}
+            </View>
+          </View>
+        </View>
+
+        {/* Charts Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: c.textMuted }]}>Statistik</Text>
+          </View>
+          <View style={styles.chartsRow}>
+            <View style={[styles.chartCard, { backgroundColor: c.surface }]}>
+              <DonutChart
+                data={surveyStatusData}
+                size={100}
+                strokeWidth={12}
+                title="Status Survei"
+                centerValue={stats?.surveys.total.toString()}
+                centerLabel="Total"
+              />
+            </View>
+            <View style={[styles.chartCard, { backgroundColor: c.surface }]}>
+              <DonutChart
+                data={kecamatanData}
+                size={100}
+                strokeWidth={12}
+                title="Kecamatan"
+                centerValue={stats?.geographic_distribution?.length.toString()}
+                centerLabel="Kecamatan"
+              />
+            </View>
           </View>
         </View>
 
         {/* Latest Surveys */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <View>
-              <Text style={[styles.sectionTitle, { color: c.text, fontSize: fs(16) }]}>Survei Terbaru</Text>
-              <Text style={[styles.sectionDesc, { color: c.textMuted, fontSize: fs(11) }]}>5 survei terakhir yang telah Anda kerjakan</Text>
-            </View>
+            <Text style={[styles.sectionTitle, { color: c.textMuted }]}>Survei Terbaru</Text>
             <TouchableOpacity style={styles.seeAllButton} onPress={onNavigateToSurveys}>
-              <Text style={[styles.seeAllText, { fontSize: fs(13) }]}>Lihat Semua</Text>
+              <Text style={[styles.seeAllText]}>Lihat Semua</Text>
             </TouchableOpacity>
           </View>
 
@@ -168,33 +227,35 @@ export default function HomePage({ onNavigateToSurveys, onSelectSurvey }: HomePa
             stats.recent_surveys.slice(0, 5).map((survey) => (
               <TouchableOpacity
                 key={survey.id}
-                style={[styles.surveyCard, { backgroundColor: c.surface, borderColor: c.border }]}
+                style={[styles.recentSurveyCard, { backgroundColor: c.surface }]}
                 onPress={() => onSelectSurvey(survey.id)}
                 activeOpacity={0.7}
               >
-                <View style={styles.surveyLeft}>
-                  <Text style={[styles.surveyName, { color: c.text, fontSize: fs(13) }]} numberOfLines={1}>{survey.service_name}</Text>
-                  {survey.template_name ? (
-                    <Text style={[styles.surveyTemplate, { color: c.textMuted, fontSize: fs(11) }]} numberOfLines={1}>{survey.template_name}</Text>
-                  ) : null}
-                  <Text style={[styles.surveyDate, { color: c.textPlaceholder, fontSize: fs(11) }]}>
-                    {new Date(survey.survey_date || survey.created_at).toLocaleDateString('id-ID', {
-                      day: 'numeric',
-                      month: 'short',
-                      year: 'numeric',
-                    })}
-                  </Text>
+                <View style={styles.recentSurveyLeft}>
+                  <View style={[styles.recentSurveyIcon, { backgroundColor: c.primary + '20' }]}>
+                    <LucideIcon name="clipboard" size={20} color={c.primary} />
+                  </View>
+                  <View style={styles.recentSurveyInfo}>
+                    <Text style={[styles.recentSurveyName, { color: c.text, fontSize: fs(13) }]} numberOfLines={1}>{survey.service_name}</Text>
+                    <Text style={[styles.recentSurveyDate, { color: c.textMuted, fontSize: fs(11) }]}>
+                      {survey.geographic_unit_name || (survey.kecamatan ? `Kec. ${survey.kecamatan}` : (survey.city || '-'))} • {new Date(survey.survey_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </Text>
+                  </View>
                 </View>
                 <View
                   style={[
-                    styles.statusBadge,
-                    { backgroundColor: getStatusColor(survey.verification_status) + '20' },
+                    styles.recentSurveyBadge,
+                    {
+                      borderWidth: 1,
+                      borderColor: getStatusColor(survey.verification_status),
+                      backgroundColor: 'transparent',
+                    },
                   ]}
                 >
                   <Text
                     style={[
-                      styles.statusText,
-                      { color: getStatusColor(survey.verification_status), fontSize: fs(11) },
+                      styles.recentSurveyBadgeText,
+                      { color: getStatusColor(survey.verification_status), fontSize: fs(10) },
                     ]}
                   >
                     {getStatusLabel(survey.verification_status)}
@@ -221,13 +282,31 @@ const styles = StyleSheet.create({
   errorText: { color: '#dc2626', textAlign: 'center' },
 
   heroCard: {
-    borderRadius: 16,
+    borderRadius: 6,
     marginHorizontal: 20,
     marginTop: 4,
     marginBottom: 8,
     paddingVertical: 24,
     paddingHorizontal: 24,
     gap: 6,
+  },
+  heroContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  heroDecor: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    width: 100,
+    gap: 8,
+    justifyContent: 'flex-end',
+  },
+  heroDecorDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#ffffff',
   },
   heroSubgreeting: {
     color: 'rgba(255,255,255,0.8)',
@@ -253,6 +332,16 @@ const styles = StyleSheet.create({
     marginTop: 12,
     marginBottom: 20,
   },
+  chartsRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  chartCard: {
+    flex: 1,
+    borderRadius: 6,
+    padding: 16,
+    alignItems: 'center',
+  },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -260,7 +349,8 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   sectionTitle: {
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
   },
   sectionDesc: {
     marginTop: 2,
@@ -272,35 +362,47 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   seeAllText: {
+    fontSize: 12,
     fontWeight: '500',
-    color: '#03979D',
+    color: '#374151',
   },
 
-  surveyCard: {
+  recentSurveyCard: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 14,
+    borderRadius: 6,
+    padding: 12,
     marginBottom: 8,
   },
-  surveyLeft: { flex: 1, marginRight: 10 },
-  surveyName: {
+  recentSurveyLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 12,
+  },
+  recentSurveyIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  recentSurveyInfo: {
+    flex: 1,
+  },
+  recentSurveyName: {
     fontWeight: '600',
     marginBottom: 2,
   },
-  surveyTemplate: {
-    marginBottom: 2,
+  recentSurveyDate: {
   },
-  surveyDate: {
-  },
-  statusBadge: {
-    paddingHorizontal: 10,
+  recentSurveyBadge: {
+    paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 20,
+    borderRadius: 4,
   },
-  statusText: {
+  recentSurveyBadgeText: {
     fontWeight: '600',
   },
 

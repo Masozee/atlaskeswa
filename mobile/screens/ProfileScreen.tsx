@@ -9,17 +9,17 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
 import TopHeader from '../components/TopHeader';
 import { apiClient } from '../services/api';
 import { useTheme, useFontScale } from '../contexts/SettingsContext';
+import LucideIcon from '../components/LucideIcon';
 
 interface UserProfile {
   id: string;
   email: string;
   first_name: string;
   last_name: string;
-  phone?: string;
+  phone_number?: string;
   role: string;
   organization?: string;
 }
@@ -49,7 +49,7 @@ export default function ProfileScreen() {
       setProfile(data);
       setFirstName(data.first_name || '');
       setLastName(data.last_name || '');
-      setPhone(data.phone || '');
+      setPhone(data.phone_number || '');
       setOrganization(data.organization || '');
     } catch (err) {
       console.error('Failed to load profile:', err);
@@ -65,7 +65,7 @@ export default function ProfileScreen() {
     if (profile) {
       setFirstName(profile.first_name || '');
       setLastName(profile.last_name || '');
-      setPhone(profile.phone || '');
+      setPhone(profile.phone_number || '');
       setOrganization(profile.organization || '');
     }
     setIsEditing(false);
@@ -79,23 +79,28 @@ export default function ProfileScreen() {
 
     setSaving(true);
     try {
-      const updatedData = await apiClient.put<UserProfile>('/accounts/users/me/', {
+      const updatedData = await apiClient.patch<UserProfile>('/accounts/users/profile/', {
         first_name: firstName,
         last_name: lastName,
-        phone: phone || null,
+        phone_number: phone || null,
         organization: organization || null,
       });
       setProfile(updatedData);
       setIsEditing(false);
       Alert.alert('Success', 'Profile updated successfully');
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Failed to update profile');
+      console.error('Profile update error:', err);
+      const apiErr = err as { message?: string; errors?: Record<string, string[]> };
+      const message = apiErr.message || 'Failed to update profile';
+      const detail = apiErr.errors ? JSON.stringify(apiErr.errors) : '';
+      Alert.alert('Error', detail ? `${message}\n${detail}` : message);
     } finally {
       setSaving(false);
     }
   };
 
-  const getRoleDisplay = (role: string) => {
+  const getRoleDisplay = (role?: string) => {
+    if (!role) return '';
     return role.charAt(0).toUpperCase() + role.slice(1).toLowerCase();
   };
 
@@ -126,35 +131,11 @@ export default function ProfileScreen() {
     <View style={[styles.container, { backgroundColor: c.background }]}>
       <TopHeader />
       <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.scrollContent}>
-        <View style={styles.pageHeader}>
-          <Text style={[styles.pageTitle, { color: c.text, fontSize: fs(16) }]}>Profil</Text>
-        </View>
-
-        <View style={[styles.header, { backgroundColor: c.surface, borderColor: c.border }]}>
-          <View style={styles.headerContent}>
-            <View style={[styles.avatar, { backgroundColor: c.avatarBg }]}>
-              <Text style={[styles.avatarText, { fontSize: fs(26) }]}>
-                {profile.first_name.charAt(0)}{profile.last_name.charAt(0)}
-              </Text>
-            </View>
-            <Text style={[styles.headerName, { color: c.text, fontSize: fs(18) }]}>
-              {profile.first_name} {profile.last_name}
-            </Text>
-            <Text style={[styles.headerRole, { color: c.textMuted, fontSize: fs(13) }]}>{getRoleDisplay(profile.role)}</Text>
-          </View>
-          {!isEditing && (
-            <TouchableOpacity style={styles.editButton} onPress={handleEdit}>
-              <MaterialIcons name="edit" size={14} color="#ffffff" />
-              <Text style={[styles.editButtonText, { fontSize: fs(13) }]}>Edit Profil</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: c.text, fontSize: fs(14) }]}>Informasi Pribadi</Text>
+            <Text style={[styles.sectionTitle, { color: c.textMuted }]}>Informasi Pribadi</Text>
           </View>
-          <View style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
+          <View style={[styles.card, { backgroundColor: c.surface }]}>
             <View style={styles.fieldGroup}>
               <Text style={[styles.fieldLabel, { color: c.textPlaceholder, fontSize: fs(11) }]}>Nama Depan</Text>
               {isEditing ? (
@@ -232,9 +213,9 @@ export default function ProfileScreen() {
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: c.text, fontSize: fs(14) }]}>Informasi Akun</Text>
+            <Text style={[styles.sectionTitle, { color: c.textMuted }]}>Informasi Akun</Text>
           </View>
-          <View style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
+          <View style={[styles.card, { backgroundColor: c.surface }]}>
             <View style={styles.fieldGroup}>
               <Text style={[styles.fieldLabel, { color: c.textPlaceholder, fontSize: fs(11) }]}>Role</Text>
               <Text style={[styles.fieldValue, { color: c.text, fontSize: fs(14) }]}>{getRoleDisplay(profile.role)}</Text>
@@ -270,6 +251,12 @@ export default function ProfileScreen() {
           </View>
         )}
       </ScrollView>
+
+      {!isEditing && (
+        <TouchableOpacity style={styles.floatingButton} onPress={handleEdit}>
+          <LucideIcon name="pencil" size={24} color="#ffffff" />
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -283,45 +270,15 @@ const styles = StyleSheet.create({
   errorText: { color: '#dc2626', textAlign: 'center' },
   pageHeader: { alignItems: 'center', paddingTop: 12, paddingBottom: 4 },
   pageTitle: { fontWeight: '600' },
-  header: {
-    borderWidth: 1,
-    padding: 24,
-    alignItems: 'center',
-    borderRadius: 16,
-    marginHorizontal: 20,
-    marginTop: 16,
-  },
-  headerContent: { alignItems: 'center', marginBottom: 12, gap: 2 },
-  avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  avatarText: { color: '#ffffff', fontWeight: '700' },
-  headerName: { fontWeight: '700' },
-  headerRole: {},
-  editButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#03979D',
-    paddingHorizontal: 20,
-    paddingVertical: 9,
-    borderRadius: 10,
-    gap: 6,
-  },
-  editButtonText: { color: '#ffffff', fontWeight: '600' },
   section: { marginTop: 20, paddingHorizontal: 20 },
   sectionHeader: { marginBottom: 10 },
-  sectionTitle: { fontWeight: '700' },
-  card: { borderWidth: 1, borderRadius: 12, padding: 16 },
+  sectionTitle: { fontSize: 14, fontWeight: '600' },
+  card: { borderRadius: 6, padding: 16 },
   fieldGroup: { paddingVertical: 10 },
   fieldLabel: { fontWeight: '400', marginBottom: 2 },
   fieldValue: { fontWeight: '500' },
   fieldHint: { marginTop: 3, fontStyle: 'italic' },
-  input: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8 },
+  input: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 6 },
   divider: { height: 1 },
   actionButtons: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, marginTop: 20 },
   button: {
@@ -330,10 +287,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 12,
-    borderRadius: 12,
+    borderRadius: 6,
     gap: 6,
   },
   cancelButtonText: { fontWeight: '600' },
   saveButton: { backgroundColor: '#03979D' },
   saveButtonText: { color: '#ffffff', fontWeight: '600' },
+  floatingButton: {
+    position: 'absolute',
+    bottom: 24,
+    right: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 6,
+    backgroundColor: '#03979D',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
 });
