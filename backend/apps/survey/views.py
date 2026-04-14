@@ -708,7 +708,8 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
     rbac_status_field = 'verification_status'
     rbac_verified_status = 'VERIFIED'
     rbac_submitted_status = 'SUBMITTED'
-    rbac_admin_sees_all = True
+    # ADMIN sees only their own surveys (not all) — aligns with mobile UX requirement
+    rbac_admin_sees_all = False
     rbac_allow_superuser = True
 
     def get_serializer_class(self):
@@ -717,6 +718,13 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
         elif self.action in ['create']:
             return DynamicSurveyResponseCreateSerializer
         return DynamicSurveyResponseDetailSerializer
+
+    def apply_rbac_filter(self, queryset, user):
+        """
+        Override: all users — regardless of role — see only their own surveys.
+        Mobile UX requirement: every user only sees surveys they submitted.
+        """
+        return queryset.filter(surveyor=user)
 
     def perform_create(self, serializer):
         """Create survey response with current user as surveyor"""
