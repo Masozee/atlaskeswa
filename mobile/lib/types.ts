@@ -70,6 +70,7 @@ export interface TableConfig {
     options?: string[];
     days?: string[];
   }>;
+  default_rows?: string[];
 }
 
 export interface Question {

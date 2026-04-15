@@ -84,6 +84,7 @@ export interface TableConfig {
   rows?: TableRow[];
   columns?: TableColumn[];
   sub_questions?: InterventionSubQuestion[];
+  default_rows?: string[];
 }
 
 export interface ValidationRules {

@@ -773,9 +773,13 @@ function InterventionMatrixInput({ question, value, onChange, error }: Intervent
   // ── New format: user-defined rows + sub_questions ──────────────────────────
   if (hasSubQuestions) {
     const subQuestions = config!.sub_questions!;
-    const rows: Array<Record<string, any>> = Array.isArray(value) ? value : [];
-
     const genId = () => `${Date.now()}${Math.random().toString(36).slice(2)}`;
+
+    // Pre-populate with default_rows from config when no answer exists yet
+    const defaultRows: Array<Record<string, any>> = Array.isArray(config?.default_rows)
+      ? (config.default_rows as string[]).map((label: string, i: number) => ({ id: `default_${i}`, label }))
+      : [];
+    const rows: Array<Record<string, any>> = Array.isArray(value) && value.length > 0 ? value : defaultRows;
 
     const addRow = () => {
       onChange([...rows, { id: genId(), label: '' }]);

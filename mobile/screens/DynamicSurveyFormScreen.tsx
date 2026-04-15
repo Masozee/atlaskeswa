@@ -2305,10 +2305,14 @@ export default function DynamicSurveyFormScreen({
     }
 
     // ── New format: user-defined rows + nested 9-question sub-form ────────────
-    const rows: Array<Record<string, any>> = Array.isArray(value) ? value : [];
-    const subQuestions: any[] = config!.sub_questions!;
-
     const genId = () => String(Date.now()) + Math.random().toString(36).slice(2);
+
+    // Pre-populate with default_rows from config when no answer exists yet
+    const defaultRows: Array<Record<string, any>> = Array.isArray(config?.default_rows)
+      ? (config.default_rows as string[]).map((label: string, i: number) => ({ id: `default_${i}`, label }))
+      : [];
+    const rows: Array<Record<string, any>> = Array.isArray(value) && value.length > 0 ? value : defaultRows;
+    const subQuestions: any[] = config!.sub_questions!;
 
     const addRow = () => {
       handleAnswerChange(question.code, [...rows, { id: genId(), label: '' }], ctx);
