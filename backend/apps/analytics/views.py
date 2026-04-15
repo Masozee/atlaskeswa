@@ -21,61 +21,63 @@ from apps.logs.utils import log_export
 @permission_classes([IsAuthenticated])
 def mobile_home(request):
     """
-    Get mobile home page data - surveys summary, recent surveys, and kecamatan distribution
+    Get mobile home page data.
+    Returns global stats, user-specific stats, user's recent surveys, and kecamatan distribution.
     """
     user = request.user
+    from apps.survey.models import QuestionAnswer
 
-    # Survey stats (combine old Survey + DynamicSurveyResponse)
-    old_survey_stats = Survey.objects.aggregate(
-        total=Count('id'),
-        pending=Count('id', filter=Q(verification_status=Survey.Status.SUBMITTED)),
-        verified=Count('id', filter=Q(verification_status=Survey.Status.VERIFIED)),
+    def _survey_stats(qs_old, qs_dynamic):
+        old = qs_old.aggregate(
+            total=Count('id'),
+            draft=Count('id', filter=Q(verification_status=Survey.Status.DRAFT)),
+            submitted=Count('id', filter=Q(verification_status=Survey.Status.SUBMITTED)),
+            verified=Count('id', filter=Q(verification_status=Survey.Status.VERIFIED)),
+            rejected=Count('id', filter=Q(verification_status=Survey.Status.REJECTED)),
+        )
+        dyn = qs_dynamic.aggregate(
+            total=Count('id'),
+            draft=Count('id', filter=Q(verification_status=DynamicSurveyResponse.Status.DRAFT)),
+            submitted=Count('id', filter=Q(verification_status=DynamicSurveyResponse.Status.SUBMITTED)),
+            verified=Count('id', filter=Q(verification_status=DynamicSurveyResponse.Status.VERIFIED)),
+            rejected=Count('id', filter=Q(verification_status=DynamicSurveyResponse.Status.REJECTED)),
+        )
+        return {
+            'total':    (old['total']    or 0) + (dyn['total']    or 0),
+            'draft':    (old['draft']    or 0) + (dyn['draft']    or 0),
+            'submitted':(old['submitted']or 0) + (dyn['submitted']or 0),
+            'verified': (old['verified'] or 0) + (dyn['verified'] or 0),
+            'rejected': (old['rejected'] or 0) + (dyn['rejected'] or 0),
+        }
+
+    global_stats = _survey_stats(Survey.objects.all(), DynamicSurveyResponse.objects.all())
+    my_stats = _survey_stats(
+        Survey.objects.filter(surveyor=user),
+        DynamicSurveyResponse.objects.filter(surveyor=user),
     )
-    dynamic_survey_stats = DynamicSurveyResponse.objects.aggregate(
-        total=Count('id'),
-        pending=Count('id', filter=Q(verification_status=DynamicSurveyResponse.Status.SUBMITTED)),
-        verified=Count('id', filter=Q(verification_status=DynamicSurveyResponse.Status.VERIFIED)),
-    )
-    survey_stats = {
-        'total': old_survey_stats['total'] + dynamic_survey_stats['total'],
-        'pending': old_survey_stats['pending'] + dynamic_survey_stats['pending'],
-        'verified': old_survey_stats['verified'] + dynamic_survey_stats['verified'],
-    }
 
-    # Geographic distribution (by kecamatan) - top 5 based on Q7 answers from surveys
-    from apps.survey.models import QuestionAnswer, Question
-
-    # Get Q7 geographic_unit answers for dynamic surveys
-    q7_geo_answers = QuestionAnswer.objects.filter(
-        question__code='Q7',
-        geographic_unit__isnull=False
-    ).exclude(
-        geographic_unit__name=''
-    ).values('geographic_unit__name').annotate(
-        count=Count('id')
-    ).order_by('-count')[:5]
-
+    # Geographic distribution (global, top 5 by Q7 answer)
     kecamatan_distribution = [
         {'kecamatan': item['geographic_unit__name'], 'count': item['count']}
-        for item in q7_geo_answers
+        for item in QuestionAnswer.objects.filter(
+            question__code='Q7',
+            geographic_unit__isnull=False
+        ).exclude(geographic_unit__name='').values('geographic_unit__name').annotate(
+            count=Count('id')
+        ).order_by('-count')[:5]
     ]
 
-    # Latest 5 surveys (combine old + dynamic, sorted by created_at)
-    # Get Q7 answer (geographic_unit) for each dynamic survey
-    from apps.survey.models import QuestionAnswer
-    dynamic_response_ids = list(
-        DynamicSurveyResponse.objects.order_by('-created_at')[:5].values_list('id', flat=True)
+    # User's 5 most recent surveys
+    my_dynamic_ids = list(
+        DynamicSurveyResponse.objects.filter(surveyor=user).order_by('-created_at')[:5].values_list('id', flat=True)
     )
-    # Fetch Q7 answers for these responses (geographic_unit question)
-    q7_answers = {
+    my_q7 = {
         ans.response_id: ans.geographic_unit.name if ans.geographic_unit else None
         for ans in QuestionAnswer.objects.filter(
-            response_id__in=dynamic_response_ids,
-            question__code='Q7'
+            response_id__in=my_dynamic_ids, question__code='Q7'
         ).select_related('geographic_unit')
     }
-
-    old_surveys = [
+    my_old = [
         {
             'id': s.id,
             'service_name': s.service.name if s.service else 'Unknown Service',
@@ -86,9 +88,9 @@ def mobile_home(request):
             'survey_date': s.survey_date.isoformat() if s.survey_date else None,
             'created_at': s.created_at.isoformat(),
         }
-        for s in Survey.objects.select_related('service').order_by('-created_at')[:5]
+        for s in Survey.objects.filter(surveyor=user).select_related('service').order_by('-created_at')[:5]
     ]
-    dynamic_surveys = [
+    my_dynamic = [
         {
             'id': s.id,
             'service_name': s.service.name if s.service else 'Unknown Service',
@@ -98,18 +100,16 @@ def mobile_home(request):
             'verification_status': s.verification_status,
             'survey_date': s.survey_date.isoformat() if s.survey_date else None,
             'created_at': s.created_at.isoformat(),
-            'geographic_unit_name': q7_answers.get(s.id),
+            'geographic_unit_name': my_q7.get(s.id),
         }
-        for s in DynamicSurveyResponse.objects.select_related('service', 'template').order_by('-created_at')[:5]
+        for s in DynamicSurveyResponse.objects.filter(surveyor=user).select_related('service', 'template').order_by('-created_at')[:5]
     ]
-    recent_surveys = sorted(
-        old_surveys + dynamic_surveys,
-        key=lambda x: x['created_at'],
-        reverse=True
-    )[:5]
+    recent_surveys = sorted(my_old + my_dynamic, key=lambda x: x['created_at'], reverse=True)[:5]
 
     return Response({
-        'surveys': survey_stats,
+        'surveys': global_stats,          # kept for backward compat
+        'global_surveys': global_stats,
+        'my_surveys': my_stats,
         'recent_surveys': recent_surveys,
         'geographic_distribution': kecamatan_distribution,
     })

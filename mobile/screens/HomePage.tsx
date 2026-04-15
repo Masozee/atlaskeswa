@@ -20,19 +20,25 @@ interface Survey {
   kecamatan?: string;
   city?: string;
   template_name?: string;
-  verification_status: 'PENDING' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'NEEDS_REVISION';
+  verification_status: 'DRAFT' | 'PENDING' | 'SUBMITTED' | 'APPROVED' | 'VERIFIED' | 'REJECTED' | 'NEEDS_REVISION';
   status_display?: string;
   survey_date: string;
   created_at: string;
   geographic_unit_name?: string;
 }
 
+interface SurveyStats {
+  total: number;
+  draft: number;
+  submitted: number;
+  verified: number;
+  rejected: number;
+}
+
 interface DashboardStats {
-  surveys: {
-    total: number;
-    pending: number;
-    verified: number;
-  };
+  surveys: SurveyStats;
+  global_surveys: SurveyStats;
+  my_surveys: SurveyStats;
   recent_surveys: Survey[];
   geographic_distribution: { kecamatan: string; count: number }[];
 }
@@ -78,14 +84,8 @@ export default function HomePage({ onNavigateToSurveys, onSelectSurvey }: HomePa
     }
   };
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const onRefresh = () => {
-    setRefreshing(true);
-    fetchData();
-  };
+  useEffect(() => { fetchData(); }, []);
+  const onRefresh = () => { setRefreshing(true); fetchData(); };
 
   const getFullName = () => {
     if (user?.full_name) return user.full_name;
@@ -95,46 +95,38 @@ export default function HomePage({ onNavigateToSurveys, onSelectSurvey }: HomePa
 
   const getStatusColor = (status?: string) => {
     switch (status) {
-      case 'APPROVED':
-      case 'VERIFIED':
-        return '#10b981';
-      case 'SUBMITTED':
-      case 'PENDING':
-        return '#f59e0b';
-      case 'REJECTED':
-        return '#ef4444';
-      default:
-        return '#6b7280';
+      case 'APPROVED': case 'VERIFIED': return '#10b981';
+      case 'SUBMITTED': case 'PENDING': return '#f59e0b';
+      case 'REJECTED': return '#ef4444';
+      case 'DRAFT': return '#6b7280';
+      default: return '#6b7280';
     }
   };
 
   const getStatusLabel = (status?: string) => {
     switch (status) {
-      case 'APPROVED':
-      case 'VERIFIED':
-        return 'Diverifikasi';
-      case 'SUBMITTED':
-      case 'PENDING':
-        return 'Menunggu';
-      case 'REJECTED':
-        return 'Ditolak';
-      default:
-        return 'Draft';
+      case 'APPROVED': case 'VERIFIED': return 'Diverifikasi';
+      case 'SUBMITTED': case 'PENDING': return 'Diajukan';
+      case 'REJECTED': return 'Ditolak';
+      case 'DRAFT': return 'Draft';
+      default: return 'Draft';
     }
   };
 
-  // Prepare survey status chart data
-  const surveyStatusData = stats ? [
-    { value: stats.surveys.verified || 0, color: '#10b981', label: 'Diverifikasi' },
-    { value: stats.surveys.pending || 0, color: '#f59e0b', label: 'Menunggu' },
-  ] : [];
+  const makeChartData = (s?: SurveyStats) => {
+    if (!s) return [];
+    const data = [];
+    if (s.draft > 0)     data.push({ value: s.draft,     color: '#9ca3af', label: 'Draft' });
+    if (s.submitted > 0) data.push({ value: s.submitted, color: '#f59e0b', label: 'Diajukan' });
+    if (s.verified > 0)  data.push({ value: s.verified,  color: '#10b981', label: 'Verified' });
+    if (s.rejected > 0)  data.push({ value: s.rejected,  color: '#ef4444', label: 'Ditolak' });
+    return data;
+  };
 
-  // Prepare kecamatan chart data (top 5)
-  const kecamatanData = stats?.geographic_distribution?.slice(0, 5).map((item, index) => ({
-    value: item.count,
-    color: index === 0 ? '#03979D' : index === 1 ? '#06b6d4' : index === 2 ? '#14b8a6' : index === 3 ? '#22c55e' : '#84cc16',
-    label: item.kecamatan,
-  })) || [];
+  const globalStats = stats?.global_surveys ?? stats?.surveys;
+  const myStats = stats?.my_surveys;
+  const globalChartData = makeChartData(globalStats);
+  const myChartData = makeChartData(myStats);
 
   if (loading) {
     return (
@@ -158,9 +150,7 @@ export default function HomePage({ onNavigateToSurveys, onSelectSurvey }: HomePa
       <TopHeader />
       <ScrollView
         style={styles.scrollContainer}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#03979D']} />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#03979D']} />}
       >
         {/* Hero Card */}
         <View style={[styles.heroCard, { backgroundColor: c.heroBg }]}>
@@ -170,16 +160,13 @@ export default function HomePage({ onNavigateToSurveys, onSelectSurvey }: HomePa
               <Text style={[styles.heroGreeting, { fontSize: fs(22) }]}>{getFullName()}</Text>
               <View style={styles.heroCountRow}>
                 <Text style={[styles.heroSurveyCount, { fontSize: fs(14) }]}>
-                  {stats?.surveys.total || 0} Survei tercatat
+                  {myStats?.total ?? 0} Survei saya • {globalStats?.total ?? 0} Total global
                 </Text>
               </View>
             </View>
             <View style={styles.heroDecor}>
               {[...Array(20)].map((_, i) => (
-                <View key={i} style={[
-                  styles.heroDecorDot,
-                  { opacity: 0.05 + (i % 4) * 0.03 }
-                ]} />
+                <View key={i} style={[styles.heroDecorDot, { opacity: 0.05 + (i % 4) * 0.03 }]} />
               ))}
             </View>
           </View>
@@ -188,38 +175,60 @@ export default function HomePage({ onNavigateToSurveys, onSelectSurvey }: HomePa
         {/* Charts Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: c.textMuted }]}>Statistik</Text>
+            <Text style={[styles.sectionTitle, { color: c.textMuted }]}>Statistik Survei</Text>
           </View>
           <View style={styles.chartsRow}>
+            {/* Global */}
             <View style={[styles.chartCard, { backgroundColor: c.surface }]}>
               <DonutChart
-                data={surveyStatusData}
+                data={globalChartData}
                 size={100}
                 strokeWidth={12}
-                title="Status Survei"
-                centerValue={stats?.surveys.total.toString()}
+                title="Semua Survei"
+                centerValue={String(globalStats?.total ?? 0)}
                 centerLabel="Total"
               />
+              <View style={styles.legend}>
+                {globalChartData.map((d) => (
+                  <View key={d.label} style={styles.legendRow}>
+                    <View style={[styles.legendDot, { backgroundColor: d.color }]} />
+                    <Text style={[styles.legendText, { color: c.textMuted, fontSize: fs(10) }]}>{d.label}: {d.value}</Text>
+                  </View>
+                ))}
+              </View>
             </View>
+
+            {/* My surveys */}
             <View style={[styles.chartCard, { backgroundColor: c.surface }]}>
               <DonutChart
-                data={kecamatanData}
+                data={myChartData.length > 0 ? myChartData : [{ value: 1, color: '#e5e7eb', label: '' }]}
                 size={100}
                 strokeWidth={12}
-                title="Kecamatan"
-                centerValue={stats?.geographic_distribution?.length.toString()}
-                centerLabel="Kecamatan"
+                title="Survei Saya"
+                centerValue={String(myStats?.total ?? 0)}
+                centerLabel="Saya"
               />
+              <View style={styles.legend}>
+                {myChartData.map((d) => (
+                  <View key={d.label} style={styles.legendRow}>
+                    <View style={[styles.legendDot, { backgroundColor: d.color }]} />
+                    <Text style={[styles.legendText, { color: c.textMuted, fontSize: fs(10) }]}>{d.label}: {d.value}</Text>
+                  </View>
+                ))}
+                {myChartData.length === 0 && (
+                  <Text style={[styles.legendText, { color: c.textMuted, fontSize: fs(10) }]}>Belum ada survei</Text>
+                )}
+              </View>
             </View>
           </View>
         </View>
 
-        {/* Latest Surveys */}
+        {/* Latest Surveys (user's own) */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: c.textMuted }]}>Survei Terbaru</Text>
+            <Text style={[styles.sectionTitle, { color: c.textMuted }]}>Survei Terbaru Saya</Text>
             <TouchableOpacity style={styles.seeAllButton} onPress={onNavigateToSurveys}>
-              <Text style={[styles.seeAllText]}>Lihat Semua</Text>
+              <Text style={styles.seeAllText}>Lihat Semua</Text>
             </TouchableOpacity>
           </View>
 
@@ -236,28 +245,17 @@ export default function HomePage({ onNavigateToSurveys, onSelectSurvey }: HomePa
                     <LucideIcon name="clipboard" size={20} color={c.primary} />
                   </View>
                   <View style={styles.recentSurveyInfo}>
-                    <Text style={[styles.recentSurveyName, { color: c.text, fontSize: fs(13) }]} numberOfLines={1}>{survey.service_name}</Text>
+                    <Text style={[styles.recentSurveyName, { color: c.text, fontSize: fs(13) }]} numberOfLines={1}>
+                      {survey.service_name}
+                    </Text>
                     <Text style={[styles.recentSurveyDate, { color: c.textMuted, fontSize: fs(11) }]}>
-                      {survey.geographic_unit_name || (survey.kecamatan ? `Kec. ${survey.kecamatan}` : (survey.city || '-'))} • {new Date(survey.survey_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      {survey.geographic_unit_name || (survey.kecamatan ? `Kec. ${survey.kecamatan}` : (survey.city || '-'))} •{' '}
+                      {new Date(survey.survey_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
                     </Text>
                   </View>
                 </View>
-                <View
-                  style={[
-                    styles.recentSurveyBadge,
-                    {
-                      borderWidth: 1,
-                      borderColor: getStatusColor(survey.verification_status),
-                      backgroundColor: 'transparent',
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.recentSurveyBadgeText,
-                      { color: getStatusColor(survey.verification_status), fontSize: fs(10) },
-                    ]}
-                  >
+                <View style={[styles.recentSurveyBadge, { borderWidth: 1, borderColor: getStatusColor(survey.verification_status), backgroundColor: 'transparent' }]}>
+                  <Text style={[styles.recentSurveyBadgeText, { color: getStatusColor(survey.verification_status), fontSize: fs(10) }]}>
                     {getStatusLabel(survey.verification_status)}
                   </Text>
                 </View>
@@ -281,130 +279,36 @@ const styles = StyleSheet.create({
   loadingText: { marginTop: 12 },
   errorText: { color: '#dc2626', textAlign: 'center' },
 
-  heroCard: {
-    borderRadius: 6,
-    marginHorizontal: 20,
-    marginTop: 4,
-    marginBottom: 8,
-    paddingVertical: 24,
-    paddingHorizontal: 24,
-    gap: 6,
-  },
-  heroContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  heroDecor: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    width: 100,
-    gap: 8,
-    justifyContent: 'flex-end',
-  },
-  heroDecorDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#ffffff',
-  },
-  heroSubgreeting: {
-    color: 'rgba(255,255,255,0.8)',
-  },
-  heroGreeting: {
-    fontWeight: '700',
-    color: '#ffffff',
-    letterSpacing: -0.4,
-  },
-  heroCountRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingTop: 8,
-  },
-  heroSurveyCount: {
-    color: 'rgba(255,255,255,0.9)',
-    fontWeight: '500',
-  },
+  heroCard: { borderRadius: 6, marginHorizontal: 20, marginTop: 4, marginBottom: 8, paddingVertical: 24, paddingHorizontal: 24, gap: 6 },
+  heroContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  heroDecor: { flexDirection: 'row', flexWrap: 'wrap', width: 100, gap: 8, justifyContent: 'flex-end' },
+  heroDecorDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: '#ffffff' },
+  heroSubgreeting: { color: 'rgba(255,255,255,0.8)' },
+  heroGreeting: { fontWeight: '700', color: '#ffffff', letterSpacing: -0.4 },
+  heroCountRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: 8 },
+  heroSurveyCount: { color: 'rgba(255,255,255,0.9)', fontWeight: '500' },
 
-  section: {
-    paddingHorizontal: 20,
-    marginTop: 12,
-    marginBottom: 20,
-  },
-  chartsRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  chartCard: {
-    flex: 1,
-    borderRadius: 6,
-    padding: 16,
-    alignItems: 'center',
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  sectionDesc: {
-    marginTop: 2,
-  },
-  seeAllButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 2,
-  },
-  seeAllText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#374151',
-  },
+  section: { paddingHorizontal: 20, marginTop: 12, marginBottom: 20 },
+  chartsRow: { flexDirection: 'row', gap: 12 },
+  chartCard: { flex: 1, borderRadius: 6, padding: 16, alignItems: 'center' },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
+  sectionTitle: { fontSize: 14, fontWeight: '600' },
+  seeAllButton: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
+  seeAllText: { fontSize: 12, fontWeight: '500', color: '#374151' },
 
-  recentSurveyCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderRadius: 6,
-    padding: 12,
-    marginBottom: 8,
-  },
-  recentSurveyLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    gap: 12,
-  },
-  recentSurveyIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  recentSurveyInfo: {
-    flex: 1,
-  },
-  recentSurveyName: {
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  recentSurveyDate: {
-  },
-  recentSurveyBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-  },
-  recentSurveyBadgeText: {
-    fontWeight: '600',
-  },
+  legend: { marginTop: 8, alignSelf: 'stretch', gap: 3 },
+  legendRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  legendDot: { width: 8, height: 8, borderRadius: 4 },
+  legendText: { flexShrink: 1 },
+
+  recentSurveyCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderRadius: 6, padding: 12, marginBottom: 8 },
+  recentSurveyLeft: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: 12 },
+  recentSurveyIcon: { width: 40, height: 40, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
+  recentSurveyInfo: { flex: 1 },
+  recentSurveyName: { fontWeight: '600', marginBottom: 2 },
+  recentSurveyDate: {},
+  recentSurveyBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 },
+  recentSurveyBadgeText: { fontWeight: '600' },
 
   emptyState: { padding: 40, alignItems: 'center' },
   emptyText: {},
