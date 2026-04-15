@@ -422,14 +422,80 @@ export default function SurveyDetailPage({
                         });
                       });
 
-                      const formatValue = (answer: any): string =>
+                      const formatTableData = (tableData: any): React.ReactNode => {
+                        // New format: array of user-defined intervention rows with sub-questions
+                        if (Array.isArray(tableData) && tableData.length > 0) {
+                          return (
+                            <div className="space-y-3 mt-1">
+                              {tableData.map((row: any, idx: number) => (
+                                <div key={row.id ?? idx} className="border rounded-lg overflow-hidden text-sm">
+                                  <div className="bg-muted/40 px-3 py-1.5 font-semibold text-foreground">
+                                    {idx + 1}. {row.label || <span className="text-muted-foreground italic">Tidak ada nama</span>}
+                                  </div>
+                                  <div className="px-3 py-2 space-y-1">
+                                    {Object.entries(row)
+                                      .filter(([k]) => k !== 'id' && k !== 'label')
+                                      .map(([key, val]) => {
+                                        let display: React.ReactNode = '—';
+                                        if (Array.isArray(val)) {
+                                          display = val.join(', ') || '—';
+                                        } else if (val !== null && val !== undefined && val !== '') {
+                                          if (typeof val === 'object' && ('hari' in val || 'jam' in val)) {
+                                            const days = (val as any).hari?.join(', ') || '—';
+                                            const time = (val as any).jam || '—';
+                                            display = `${days} · ${time}`;
+                                          } else if (typeof val === 'boolean') {
+                                            display = val ? 'Ya' : 'Tidak';
+                                          } else {
+                                            display = String(val);
+                                          }
+                                        }
+                                        return (
+                                          <div key={key} className="flex gap-2 text-xs">
+                                            <span className="text-muted-foreground font-medium min-w-[120px] shrink-0">{key}</span>
+                                            <span className="text-foreground">{display}</span>
+                                          </div>
+                                        );
+                                      })}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        }
+                        // Legacy format: object keyed by row code
+                        if (tableData && typeof tableData === 'object') {
+                          const entries = Object.entries(tableData).filter(([, v]: [string, any]) => v?.selected);
+                          if (entries.length > 0) {
+                            return (
+                              <div className="space-y-1 mt-1">
+                                {entries.map(([code, rowData]: [string, any]) => {
+                                  const cols = Object.entries(rowData)
+                                    .filter(([k]) => k !== 'selected')
+                                    .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
+                                    .join(' · ');
+                                  return (
+                                    <div key={code} className="text-xs">
+                                      <span className="font-medium">{code}</span>
+                                      {cols && <span className="text-muted-foreground ml-2">({cols})</span>}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            );
+                          }
+                        }
+                        return <span className="text-muted-foreground italic">Tidak ada data</span>;
+                      };
+
+                      const formatValue = (answer: any): React.ReactNode =>
                         answer.text_value ||
                         (answer.number_value !== null && answer.number_value !== undefined ? String(answer.number_value) : null) ||
                         (answer.boolean_value !== null && answer.boolean_value !== undefined ? (answer.boolean_value ? 'Ya' : 'Tidak') : null) ||
                         answer.geographic_unit_name ||
                         (answer.selected_choice_labels?.length > 0 ? answer.selected_choice_labels.join(', ') : null) ||
                         (answer.gps_latitude && answer.gps_longitude ? `${answer.gps_latitude}, ${answer.gps_longitude}` : null) ||
-                        (answer.table_data ? JSON.stringify(answer.table_data) : null) ||
+                        (answer.table_data ? formatTableData(answer.table_data) : null) ||
                         'Tidak ada jawaban';
 
                       const nonDetail = answers.filter((a: any) => !/[A-Z]$/.test(a.question_code));

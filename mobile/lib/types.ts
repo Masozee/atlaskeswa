@@ -62,7 +62,14 @@ export interface TableColumn {
 
 export interface TableConfig {
   rows?: TableRow[];
-  columns: TableColumn[];
+  columns?: TableColumn[];
+  sub_questions?: Array<{
+    code: string;
+    label: string;
+    type: string;
+    options?: string[];
+    days?: string[];
+  }>;
 }
 
 export interface Question {

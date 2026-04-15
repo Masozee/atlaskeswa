@@ -72,9 +72,18 @@ export interface TableRow {
   label: string;
 }
 
+export interface InterventionSubQuestion {
+  code: string;
+  label: string;
+  type: 'number' | 'multiple_choice' | 'operating_hours' | 'boolean' | string;
+  options?: string[];
+  days?: string[];
+}
+
 export interface TableConfig {
-  rows: TableRow[];
-  columns: TableColumn[];
+  rows?: TableRow[];
+  columns?: TableColumn[];
+  sub_questions?: InterventionSubQuestion[];
 }
 
 export interface ValidationRules {

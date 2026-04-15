@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
-import { Question, QuestionOption, TableAnswer } from '@/lib/types/survey-template';
+import { Question, QuestionOption, TableAnswer, InterventionSubQuestion } from '@/lib/types/survey-template';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -460,7 +460,7 @@ function TableInput({ question, value, onChange, error }: TableInputProps) {
         <thead>
           <tr>
             <th className="border p-2 bg-muted text-left font-medium">Posisi</th>
-            {config.columns.map((col) => (
+            {config.columns!.map((col) => (
               <th key={col.code} className="border p-2 bg-muted text-left font-medium">
                 {col.label}
               </th>
@@ -468,10 +468,10 @@ function TableInput({ question, value, onChange, error }: TableInputProps) {
           </tr>
         </thead>
         <tbody>
-          {config.rows.map((row) => (
+          {config.rows!.map((row) => (
             <tr key={row.code}>
               <td className="border p-2 font-medium">{row.label}</td>
-              {config.columns.map((col) => (
+              {config.columns!.map((col) => (
                 <td key={col.code} className="border p-2">
                   <Input
                     type={col.type}
@@ -534,7 +534,7 @@ function RepeatingTableInput({ question, value, onChange, error }: RepeatingTabl
           <thead>
             <tr>
               <th className="border p-2 bg-muted text-left font-medium w-10">No</th>
-              {config.columns.map((col) => (
+              {config.columns!.map((col) => (
                 <th key={col.code} className="border p-2 bg-muted text-left font-medium">
                   {col.label}
                 </th>
@@ -546,7 +546,7 @@ function RepeatingTableInput({ question, value, onChange, error }: RepeatingTabl
             {rows.map((row, rowIndex) => (
               <tr key={rowIndex}>
                 <td className="border p-2 text-center text-muted-foreground">{rowIndex + 1}</td>
-                {config.columns.map((col) => (
+                {config.columns!.map((col) => (
                   <td key={col.code} className="border p-1">
                     <Input
                       type={col.type === 'number' ? 'number' : 'text'}
@@ -588,14 +588,14 @@ function RepeatingTableInput({ question, value, onChange, error }: RepeatingTabl
 }
 
 /**
- * InterventionMatrixInput — rows with checkbox selection + per-row column detail inputs.
- * table_config.rows defines intervention types; table_config.columns defines the 9 sub-questions.
- * Value: Record<rowCode, { selected: true, [colCode]: any } | undefined>
+ * InterventionMatrixInput — supports two formats:
+ *   Legacy: table_config.rows + table_config.columns (fixed rows, grid cells)
+ *   New:    table_config.sub_questions (user-defined rows, each with 9 sub-questions)
  */
 interface InterventionMatrixInputProps {
   question: Question;
-  value: Record<string, any> | null;
-  onChange: (value: Record<string, any>) => void;
+  value: any;
+  onChange: (value: any) => void;
   error?: string;
 }
 
@@ -663,9 +663,197 @@ function renderMatrixCell(
   }
 }
 
+function renderSubQuestionInput(
+  sq: InterventionSubQuestion,
+  val: any,
+  onChange: (v: any) => void,
+) {
+  if (sq.type === 'number') {
+    return (
+      <Input
+        type="number"
+        value={val ?? ''}
+        onChange={(e) => onChange(e.target.value)}
+        className="h-8 text-sm"
+        placeholder="0"
+      />
+    );
+  }
+  if (sq.type === 'multiple_choice') {
+    const selected: string[] = Array.isArray(val) ? val : [];
+    return (
+      <div className="flex flex-col gap-1 mt-1">
+        {(sq.options ?? []).map((opt) => (
+          <label key={opt} className="flex items-center gap-2 text-sm cursor-pointer">
+            <Checkbox
+              checked={selected.includes(opt)}
+              onCheckedChange={(checked) => {
+                onChange(checked ? [...selected, opt] : selected.filter((v) => v !== opt));
+              }}
+            />
+            <span>{opt}</span>
+          </label>
+        ))}
+      </div>
+    );
+  }
+  if (sq.type === 'operating_hours') {
+    const opVal: { hari?: string[]; jam?: string } = (val && typeof val === 'object') ? val : {};
+    const selectedDays: string[] = Array.isArray(opVal.hari) ? opVal.hari : [];
+    return (
+      <div className="space-y-2 mt-1">
+        <div className="flex flex-wrap gap-1.5">
+          {(sq.days ?? []).map((day) => {
+            const active = selectedDays.includes(day);
+            return (
+              <button
+                key={day}
+                type="button"
+                onClick={() => {
+                  const next = active ? selectedDays.filter((d) => d !== day) : [...selectedDays, day];
+                  onChange({ ...opVal, hari: next });
+                }}
+                className={`px-3 py-1 rounded-full text-xs border font-medium transition-colors ${
+                  active
+                    ? 'bg-primary text-white border-primary'
+                    : 'bg-white text-muted-foreground border-border hover:border-primary/60'
+                }`}
+              >
+                {day}
+              </button>
+            );
+          })}
+        </div>
+        <Input
+          type="text"
+          value={opVal.jam ?? ''}
+          onChange={(e) => onChange({ ...opVal, jam: e.target.value })}
+          placeholder="contoh: 08:00-16:00"
+          className="h-8 text-sm"
+        />
+      </div>
+    );
+  }
+  if (sq.type === 'boolean') {
+    return (
+      <div className="flex gap-3 mt-1">
+        {[{ label: 'Ya', v: true }, { label: 'Tidak', v: false }].map(({ label, v }) => (
+          <button
+            key={label}
+            type="button"
+            onClick={() => onChange(v)}
+            className={`px-4 py-1.5 rounded-md text-sm border font-medium transition-colors ${
+              val === v
+                ? 'bg-primary/10 border-primary text-primary'
+                : 'bg-white border-border text-muted-foreground hover:border-primary/60'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+    );
+  }
+  return (
+    <Input
+      type="text"
+      value={val ?? ''}
+      onChange={(e) => onChange(e.target.value)}
+      className="h-8 text-sm"
+      placeholder="—"
+    />
+  );
+}
+
 function InterventionMatrixInput({ question, value, onChange, error }: InterventionMatrixInputProps) {
   const config = question.table_config;
+  const hasSubQuestions = Array.isArray(config?.sub_questions) && config.sub_questions!.length > 0;
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
+  // ── New format: user-defined rows + sub_questions ──────────────────────────
+  if (hasSubQuestions) {
+    const subQuestions = config!.sub_questions!;
+    const rows: Array<Record<string, any>> = Array.isArray(value) ? value : [];
+
+    const genId = () => `${Date.now()}${Math.random().toString(36).slice(2)}`;
+
+    const addRow = () => {
+      onChange([...rows, { id: genId(), label: '' }]);
+    };
+
+    const deleteRow = (id: string) => {
+      onChange(rows.filter((r) => r.id !== id));
+    };
+
+    const updateField = (id: string, field: string, val: any) => {
+      onChange(rows.map((r) => (r.id === id ? { ...r, [field]: val } : r)));
+    };
+
+    const toggleExpand = (id: string) =>
+      setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
+
+    return (
+      <div className="space-y-3">
+        {rows.map((row, idx) => {
+          const isExpanded = expanded[row.id] !== false; // default open
+          return (
+            <div key={row.id} className="border rounded-lg overflow-hidden">
+              {/* Row header */}
+              <div className="flex items-center gap-2 bg-muted/40 px-3 py-2">
+                <span className="text-xs font-bold text-muted-foreground w-5">{idx + 1}.</span>
+                <Input
+                  value={row.label ?? ''}
+                  onChange={(e) => updateField(row.id, 'label', e.target.value)}
+                  placeholder="Nama intervensi..."
+                  className="h-7 text-sm flex-1 border-0 bg-transparent focus-visible:ring-0 p-0"
+                />
+                <button
+                  type="button"
+                  onClick={() => toggleExpand(row.id)}
+                  className="text-muted-foreground text-xs hover:text-foreground px-1"
+                >
+                  {isExpanded ? '▲' : '▼'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => deleteRow(row.id)}
+                  className="text-destructive text-base hover:text-destructive/70 px-1 leading-none"
+                >
+                  ×
+                </button>
+              </div>
+
+              {/* Sub-questions */}
+              {isExpanded && (
+                <div className="px-4 py-3 space-y-4">
+                  {subQuestions.map((sq, sqIdx) => (
+                    <div key={sq.code}>
+                      <label className="text-sm font-medium text-foreground">
+                        {sqIdx + 1}. {sq.label}
+                      </label>
+                      {renderSubQuestionInput(sq, row[sq.code], (v) => updateField(row.id, sq.code, v))}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        <button
+          type="button"
+          onClick={addRow}
+          className="w-full py-2.5 border-2 border-dashed border-primary/50 rounded-lg text-sm text-primary font-medium hover:border-primary hover:bg-primary/5 transition-colors"
+        >
+          + Tambah Intervensi
+        </button>
+
+        {error && <p className="text-sm text-destructive">{error}</p>}
+      </div>
+    );
+  }
+
+  // ── Legacy format: fixed rows + columns grid ───────────────────────────────
   if (!config?.rows?.length || !config?.columns?.length) {
     return (
       <p className="text-sm text-muted-foreground">
@@ -701,7 +889,7 @@ function InterventionMatrixInput({ question, value, onChange, error }: Intervent
             <tr>
               <th className="border p-2 bg-muted text-left font-medium min-w-[160px]">Jenis Intervensi</th>
               <th className="border p-2 bg-muted text-center font-medium w-12">✓</th>
-              {config.columns.map((col) => (
+              {config.columns!.map((col) => (
                 <th key={col.code} className="border p-2 bg-muted text-center font-medium min-w-[90px] text-xs">
                   {col.label}
                 </th>
@@ -709,7 +897,7 @@ function InterventionMatrixInput({ question, value, onChange, error }: Intervent
             </tr>
           </thead>
           <tbody>
-            {config.rows.map((row) => {
+            {config.rows!.map((row) => {
               const rowData = currentValue[row.code];
               const isSelected = !!rowData?.selected;
               return (
@@ -721,7 +909,7 @@ function InterventionMatrixInput({ question, value, onChange, error }: Intervent
                       onCheckedChange={(checked) => handleSelect(row.code, !!checked)}
                     />
                   </td>
-                  {config.columns.map((col) => (
+                  {config.columns!.map((col) => (
                     <td key={col.code} className="border p-0.5">
                       {isSelected ? (
                         renderMatrixCell(col, rowData?.[col.code], (v) => handleCellChange(row.code, col.code, v))

@@ -483,9 +483,64 @@ export function getFlowItems(
 
             result.push(...crossItems);
 
-            // After completing cross-section detail (e.g., RQA→RQJ), continue to the next
-            // unvisited question in the current section (e.g., DQ1 after RQ13 triggered detail)
-            // Skip any questions that were already visited through a previous cross-section jump
+            // After a cross-section inline detail block (e.g. RQA→RQJ) completes,
+            // determine where to go next based on the MULTIPLE_CHOICE branching structure:
+            //
+            // Walk backward through result (only current-section questions via codeMap)
+            // to find the nearest MULTIPLE_CHOICE ancestor:
+            //   - If it has an unvisited matching choice → jump to that branch entry
+            //     (e.g. after AKUT detail, continue to NON-AKUT → RQ5)
+            //   - If all choices are visited → END this entry chain (e.g. AKUT-only after detail)
+            //   - If no MULTIPLE_CHOICE ancestor found → fall back to sequential navigation
+            //     (backward compat for non-MC-driven cross-sections)
+            let mcFound = false;
+            let nextBranchQuestion: Question | undefined;
+
+            for (let ri = result.length - 1; ri >= 0; ri--) {
+              const item = result[ri];
+              if (item.kind !== 'question') continue;
+              const mcQ = item.question;
+
+              // Only inspect questions from the current section (codeMap).
+              // DETAIL-section questions (RQA…RQJ) are NOT in codeMap — skip them.
+              if (!codeMap.has(mcQ.code)) continue;
+
+              if (mcQ.answer_type !== 'MULTIPLE_CHOICE') continue;
+
+              mcFound = true;
+              const mcAnswer = allResponses[mcQ.code];
+              if (Array.isArray(mcAnswer) && mcAnswer.length > 0) {
+                const nextChoice = (mcQ.choices || []).find(
+                  (c: QuestionOption) =>
+                    mcAnswer.includes(c.value) &&
+                    c.next_question_code &&
+                    !visited.has(c.next_question_code),
+                );
+                if (nextChoice?.next_question_code) {
+                  nextBranchQuestion = codeMap.get(nextChoice.next_question_code);
+                  if (nextBranchQuestion) {
+                    console.log(`[FLOW] cross-section done → next MC branch: ${mcQ.code} choice=${nextChoice.value} → ${nextChoice.next_question_code}`);
+                  }
+                }
+              }
+              break; // Always stop at the first current-section MULTIPLE_CHOICE found
+            }
+
+            if (nextBranchQuestion) {
+              // More MULTIPLE_CHOICE branches remain — navigate to the next entry point
+              current = nextBranchQuestion;
+              continue;
+            }
+
+            if (mcFound) {
+              // MULTIPLE_CHOICE found but all matching branches have been visited → END
+              console.log(`[FLOW] cross-section done → all MC branches exhausted → END`);
+              break;
+            }
+
+            // No MULTIPLE_CHOICE in the chain — fall back to sequential navigation
+            // (for cross-sections NOT driven by a MULTIPLE_CHOICE, e.g. a SINGLE_CHOICE
+            // that triggers a detail block with more questions following in the same section)
             let nextIdx = triggerIdx + 1;
             while (nextIdx < visibleQuestions.length && visited.has(visibleQuestions[nextIdx].code)) {
               nextIdx++;

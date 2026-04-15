@@ -2181,7 +2181,7 @@ export default function DynamicSurveyFormScreen({
             <View style={[styles.tableCell, { width: 32 }]}>
               <Text style={styles.tableHeaderText}>No</Text>
             </View>
-            {config.columns.map((col) => (
+            {config.columns!.map((col) => (
               <View key={col.code} style={[styles.tableCell, { flex: 1 }]}>
                 <Text style={styles.tableHeaderText}>{col.label}</Text>
               </View>
@@ -2194,7 +2194,7 @@ export default function DynamicSurveyFormScreen({
               <View style={[styles.tableCell, { width: 32 }]}>
                 <Text style={{ fontSize: 12 * fs, color: c.textMuted, textAlign: 'center' }}>{rowIndex + 1}</Text>
               </View>
-              {config.columns.map((col) => (
+              {config.columns!.map((col) => (
                 <View key={col.code} style={[styles.tableCell, { flex: 1 }]}>
                   <TextInput
                     style={styles.tableCellInput}
@@ -2223,143 +2223,304 @@ export default function DynamicSurveyFormScreen({
 
   const renderInterventionMatrix = (question: Question, value: any, ctx: string = '') => {
     const config = question.table_config;
-    if (!config?.rows?.length || !config?.columns?.length) {
+    const hasSubQuestions = Array.isArray(config?.sub_questions) && config.sub_questions.length > 0;
+
+    // ── Legacy format (rows + columns grid) ──────────────────────────────────
+    if (!hasSubQuestions) {
+      if (!config?.rows?.length || !config?.columns?.length) {
+        return (
+          <Text style={{ color: '#9ca3af', fontSize: 13 * fs }}>
+            Konfigurasi matriks tidak ditemukan.
+          </Text>
+        );
+      }
+      const currentValue: Record<string, any> = value || {};
+      const handleSelect = (rowCode: string, checked: boolean) => {
+        const next = { ...currentValue };
+        if (checked) { next[rowCode] = { ...next[rowCode], selected: true }; }
+        else { delete next[rowCode]; }
+        handleAnswerChange(question.code, next, ctx);
+      };
+      const handleCellChange = (rowCode: string, colCode: string, cellValue: any) => {
+        handleAnswerChange(question.code, { ...currentValue, [rowCode]: { ...currentValue[rowCode], [colCode]: cellValue } }, ctx);
+      };
       return (
-        <Text style={{ color: '#9ca3af', fontSize: 13 * fs }}>
-          Konfigurasi matriks tidak ditemukan.
-        </Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator style={{ marginTop: 4 }}>
+          <View>
+            <View style={[styles.tableRow, { backgroundColor: '#f3f4f6' }]}>
+              <View style={[styles.tableCell, { width: 140 }]}><Text style={styles.tableHeaderText}>Intervensi</Text></View>
+              <View style={[styles.tableCell, { width: 40 }]}><Text style={styles.tableHeaderText}>✓</Text></View>
+              {config.columns!.map((col: any) => (
+                <View key={col.code} style={[styles.tableCell, { width: 100 }]}>
+                  <Text style={[styles.tableHeaderText, { fontSize: 10 * fs }]}>{col.label}</Text>
+                </View>
+              ))}
+            </View>
+            {config.rows.map((row: any) => {
+              const rowData = currentValue[row.code];
+              const isSelected = !!rowData?.selected;
+              return (
+                <View key={row.code} style={[styles.tableRow, !isSelected && { opacity: 0.5 }]}>
+                  <View style={[styles.tableCell, { width: 140 }]}><Text style={styles.tableCellLabel}>{row.label}</Text></View>
+                  <View style={[styles.tableCell, { width: 40, alignItems: 'center' }]}>
+                    <TouchableOpacity onPress={() => handleSelect(row.code, !isSelected)}
+                      style={{ width: 20 * fs, height: 20 * fs, borderWidth: 2, borderColor: isSelected ? c.primary : '#9ca3af', borderRadius: 4, backgroundColor: isSelected ? c.primary : 'white', alignItems: 'center', justifyContent: 'center' }}>
+                      {isSelected && <Text style={{ color: 'white', fontSize: 12 * fs, fontWeight: 'bold' }}>✓</Text>}
+                    </TouchableOpacity>
+                  </View>
+                  {config.columns!.map((col: any) => (
+                    <View key={col.code} style={[styles.tableCell, { width: 100, padding: 2 }]}>
+                      {isSelected ? (
+                        col.type === 'number' ? (
+                          <TextInput style={[styles.tableCellInput, { fontSize: 12 * fs }]} value={String(rowData?.[col.code] ?? '')} onChangeText={(t) => handleCellChange(row.code, col.code, t)} keyboardType="number-pad" placeholder="0" placeholderTextColor="#d1d5db" />
+                        ) : col.type === 'multiple_choice' ? (
+                          <View style={{ gap: 2 }}>
+                            {(col.options ?? []).map((opt: any) => {
+                              const sel: string[] = Array.isArray(rowData?.[col.code]) ? rowData[col.code] : [];
+                              const chk = sel.includes(opt.value);
+                              return (
+                                <TouchableOpacity key={opt.value} onPress={() => handleCellChange(row.code, col.code, chk ? sel.filter((v: string) => v !== opt.value) : [...sel, opt.value])} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                  <View style={{ width: 14 * fs, height: 14 * fs, borderWidth: 1.5, borderColor: chk ? c.primary : '#9ca3af', borderRadius: 3, backgroundColor: chk ? c.primary : 'white', alignItems: 'center', justifyContent: 'center' }}>
+                                    {chk && <Text style={{ color: 'white', fontSize: 9 * fs }}>✓</Text>}
+                                  </View>
+                                  <Text style={{ fontSize: 10 * fs, color: '#374151' }}>{opt.label}</Text>
+                                </TouchableOpacity>
+                              );
+                            })}
+                          </View>
+                        ) : (
+                          <TextInput style={[styles.tableCellInput, { fontSize: 12 * fs }]} value={String(rowData?.[col.code] ?? '')} onChangeText={(t) => handleCellChange(row.code, col.code, t)} placeholder="—" placeholderTextColor="#d1d5db" />
+                        )
+                      ) : (
+                        <View style={{ height: 28, borderRadius: 4, backgroundColor: '#f3f4f6' }} />
+                      )}
+                    </View>
+                  ))}
+                </View>
+              );
+            })}
+          </View>
+        </ScrollView>
       );
     }
 
-    const currentValue: Record<string, any> = value || {};
+    // ── New format: user-defined rows + nested 9-question sub-form ────────────
+    const rows: Array<Record<string, any>> = Array.isArray(value) ? value : [];
+    const subQuestions: any[] = config!.sub_questions!;
 
-    const handleSelect = (rowCode: string, checked: boolean) => {
-      const next = { ...currentValue };
-      if (checked) {
-        next[rowCode] = { ...next[rowCode], selected: true };
-      } else {
-        delete next[rowCode];
-      }
-      handleAnswerChange(question.code, next, ctx);
+    const genId = () => String(Date.now()) + Math.random().toString(36).slice(2);
+
+    const addRow = () => {
+      handleAnswerChange(question.code, [...rows, { id: genId(), label: '' }], ctx);
     };
 
-    const handleCellChange = (rowCode: string, colCode: string, cellValue: any) => {
-      const next = {
-        ...currentValue,
-        [rowCode]: { ...currentValue[rowCode], [colCode]: cellValue },
-      };
-      handleAnswerChange(question.code, next, ctx);
+    const deleteRow = (id: string) => {
+      handleAnswerChange(question.code, rows.filter((r) => r.id !== id), ctx);
+    };
+
+    const updateRowField = (id: string, field: string, val: any) => {
+      handleAnswerChange(question.code, rows.map((r) => r.id === id ? { ...r, [field]: val } : r), ctx);
+    };
+
+    const [expandedRows, setExpandedRows] = React.useState<Record<string, boolean>>({});
+    const toggleExpand = (id: string) => setExpandedRows((prev) => ({ ...prev, [id]: !prev[id] }));
+
+    const renderSubQuestion = (rowId: string, sq: any, rowData: Record<string, any>) => {
+      const val = rowData[sq.code];
+
+      if (sq.type === 'number') {
+        return (
+          <TextInput
+            style={[styles.input, { marginTop: 4 }]}
+            value={val !== undefined && val !== null ? String(val) : ''}
+            onChangeText={(t) => updateRowField(rowId, sq.code, t)}
+            keyboardType="numeric"
+            placeholder="0"
+            placeholderTextColor="#9ca3af"
+          />
+        );
+      }
+
+      if (sq.type === 'multiple_choice') {
+        const selected: string[] = Array.isArray(val) ? val : [];
+        return (
+          <View style={{ marginTop: 6, gap: 6 }}>
+            {(sq.options ?? []).map((opt: string) => {
+              const checked = selected.includes(opt);
+              return (
+                <TouchableOpacity
+                  key={opt}
+                  onPress={() => {
+                    const next = checked ? selected.filter((v) => v !== opt) : [...selected, opt];
+                    updateRowField(rowId, sq.code, next);
+                  }}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
+                >
+                  <View style={{
+                    width: fs(18), height: fs(18),
+                    borderWidth: 2,
+                    borderColor: checked ? c.primary : '#9ca3af',
+                    borderRadius: 4,
+                    backgroundColor: checked ? c.primary : 'white',
+                    alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    {checked && <Text style={{ color: 'white', fontSize: fs(11), fontWeight: 'bold' }}>✓</Text>}
+                  </View>
+                  <Text style={{ fontSize: fs(13), color: '#374151', flex: 1 }}>{opt}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        );
+      }
+
+      if (sq.type === 'operating_hours') {
+        const opVal: { hari?: string[]; jam?: string } = (val && typeof val === 'object') ? val : {};
+        const selectedDays: string[] = Array.isArray(opVal.hari) ? opVal.hari : [];
+        return (
+          <View style={{ marginTop: 6 }}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+              {(sq.days ?? []).map((day: string) => {
+                const active = selectedDays.includes(day);
+                return (
+                  <TouchableOpacity
+                    key={day}
+                    onPress={() => {
+                      const next = active ? selectedDays.filter((d) => d !== day) : [...selectedDays, day];
+                      updateRowField(rowId, sq.code, { ...opVal, hari: next });
+                    }}
+                    style={{
+                      paddingHorizontal: 10, paddingVertical: 5,
+                      borderRadius: 16,
+                      borderWidth: 1.5,
+                      borderColor: active ? c.primary : '#d1d5db',
+                      backgroundColor: active ? c.primary : 'white',
+                    }}
+                  >
+                    <Text style={{ fontSize: fs(12), color: active ? 'white' : '#6b7280', fontWeight: active ? '600' : '400' }}>
+                      {day}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <TextInput
+              style={[styles.input]}
+              value={opVal.jam ?? ''}
+              onChangeText={(t) => updateRowField(rowId, sq.code, { ...opVal, jam: t })}
+              placeholder="contoh: 08:00-16:00"
+              placeholderTextColor="#9ca3af"
+            />
+          </View>
+        );
+      }
+
+      if (sq.type === 'boolean') {
+        return (
+          <View style={{ flexDirection: 'row', gap: 12, marginTop: 8 }}>
+            {['Ya', 'Tidak'].map((opt) => {
+              const boolVal = opt === 'Ya' ? true : false;
+              const active = val === boolVal;
+              return (
+                <TouchableOpacity
+                  key={opt}
+                  onPress={() => updateRowField(rowId, sq.code, boolVal)}
+                  style={{
+                    flexDirection: 'row', alignItems: 'center', gap: 6,
+                    paddingHorizontal: 16, paddingVertical: 8,
+                    borderRadius: 8,
+                    borderWidth: 1.5,
+                    borderColor: active ? c.primary : '#d1d5db',
+                    backgroundColor: active ? '#e6f7f7' : 'white',
+                  }}
+                >
+                  <View style={{
+                    width: fs(16), height: fs(16),
+                    borderRadius: 8,
+                    borderWidth: 2,
+                    borderColor: active ? c.primary : '#9ca3af',
+                    alignItems: 'center', justifyContent: 'center',
+                    backgroundColor: 'white',
+                  }}>
+                    {active && <View style={{ width: fs(8), height: fs(8), borderRadius: 4, backgroundColor: c.primary }} />}
+                  </View>
+                  <Text style={{ fontSize: fs(14), color: active ? c.primary : '#374151', fontWeight: active ? '600' : '400' }}>{opt}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        );
+      }
+
+      // Fallback: text input
+      return (
+        <TextInput
+          style={[styles.input, { marginTop: 4 }]}
+          value={val !== undefined && val !== null ? String(val) : ''}
+          onChangeText={(t) => updateRowField(rowId, sq.code, t)}
+          placeholder="—"
+          placeholderTextColor="#9ca3af"
+        />
+      );
     };
 
     return (
-      <ScrollView horizontal showsHorizontalScrollIndicator style={{ marginTop: 4 }}>
-        <View>
-          {/* Header */}
-          <View style={[styles.tableRow, { backgroundColor: '#f3f4f6' }]}>
-            <View style={[styles.tableCell, { width: 140 }]}>
-              <Text style={styles.tableHeaderText}>Intervensi</Text>
-            </View>
-            <View style={[styles.tableCell, { width: 40 }]}>
-              <Text style={styles.tableHeaderText}>✓</Text>
-            </View>
-            {config.columns.map((col: any) => (
-              <View key={col.code} style={[styles.tableCell, { width: 100 }]}>
-                <Text style={[styles.tableHeaderText, { fontSize: 10 * fs }]}>{col.label}</Text>
+      <View style={{ gap: 10, marginTop: 4 }}>
+        {rows.map((row, idx) => {
+          const isExpanded = expandedRows[row.id] !== false; // default expanded
+          return (
+            <View key={row.id} style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 10, overflow: 'hidden' }}>
+              {/* Row header */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#f9fafb', paddingHorizontal: 12, paddingVertical: 10, gap: 8 }}>
+                <Text style={{ fontSize: fs(13), color: '#6b7280', fontWeight: '600', minWidth: 20 }}>
+                  {idx + 1}.
+                </Text>
+                <TextInput
+                  style={{ flex: 1, fontSize: fs(14), color: '#1f2937', padding: 0 }}
+                  value={row.label ?? ''}
+                  onChangeText={(t) => updateRowField(row.id, 'label', t)}
+                  placeholder="Nama intervensi..."
+                  placeholderTextColor="#9ca3af"
+                />
+                <TouchableOpacity onPress={() => toggleExpand(row.id)} style={{ padding: 4 }}>
+                  <Text style={{ fontSize: fs(16), color: '#6b7280' }}>{isExpanded ? '▲' : '▼'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => deleteRow(row.id)} style={{ padding: 4 }}>
+                  <Text style={{ fontSize: fs(16), color: '#ef4444' }}>×</Text>
+                </TouchableOpacity>
               </View>
-            ))}
-          </View>
-          {/* Rows */}
-          {config.rows.map((row: any) => {
-            const rowData = currentValue[row.code];
-            const isSelected = !!rowData?.selected;
-            return (
-              <View key={row.code} style={[styles.tableRow, !isSelected && { opacity: 0.5 }]}>
-                <View style={[styles.tableCell, { width: 140 }]}>
-                  <Text style={styles.tableCellLabel}>{row.label}</Text>
+
+              {/* Sub-questions */}
+              {isExpanded && (
+                <View style={{ paddingHorizontal: 14, paddingBottom: 14, paddingTop: 10, gap: 14 }}>
+                  {subQuestions.map((sq: any, sqIdx: number) => (
+                    <View key={sq.code}>
+                      <Text style={{ fontSize: fs(13), color: '#374151', fontWeight: '600', marginBottom: 2 }}>
+                        {sqIdx + 1}. {sq.label}
+                      </Text>
+                      {renderSubQuestion(row.id, sq, row)}
+                    </View>
+                  ))}
                 </View>
-                <View style={[styles.tableCell, { width: 40, alignItems: 'center' }]}>
-                  <TouchableOpacity
-                    onPress={() => handleSelect(row.code, !isSelected)}
-                    style={{
-                      width: 20 * fs,
-                      height: 20 * fs,
-                      borderWidth: 2,
-                      borderColor: isSelected ? c.primary : '#9ca3af',
-                      borderRadius: 4,
-                      backgroundColor: isSelected ? c.primary : 'white',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    {isSelected && <Text style={{ color: 'white', fontSize: 12 * fs, fontWeight: 'bold' }}>✓</Text>}
-                  </TouchableOpacity>
-                </View>
-                {config.columns.map((col: any) => (
-                  <View key={col.code} style={[styles.tableCell, { width: 100, padding: 2 }]}>
-                    {isSelected ? (
-                      col.type === 'number' ? (
-                        <TextInput
-                          style={[styles.tableCellInput, { fontSize: 12 * fs }]}
-                          value={String(rowData?.[col.code] ?? '')}
-                          onChangeText={(t) => handleCellChange(row.code, col.code, t)}
-                          keyboardType="number-pad"
-                          placeholder="0"
-                          placeholderTextColor="#d1d5db"
-                        />
-                      ) : col.type === 'multiple_choice' ? (
-                        <View style={{ gap: 2 }}>
-                          {(col.options ?? []).map((opt: any) => {
-                            const selected: string[] = Array.isArray(rowData?.[col.code]) ? rowData[col.code] : [];
-                            const checked = selected.includes(opt.value);
-                            return (
-                              <TouchableOpacity
-                                key={opt.value}
-                                onPress={() => {
-                                  const next = checked
-                                    ? selected.filter((v: string) => v !== opt.value)
-                                    : [...selected, opt.value];
-                                  handleCellChange(row.code, col.code, next);
-                                }}
-                                style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
-                              >
-                                <View
-                                  style={{
-                                    width: 14 * fs,
-                                    height: 14 * fs,
-                                    borderWidth: 1.5,
-                                    borderColor: checked ? c.primary : '#9ca3af',
-                                    borderRadius: 3,
-                                    backgroundColor: checked ? c.primary : 'white',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                  }}
-                                >
-                                  {checked && <Text style={{ color: 'white', fontSize: 9 * fs }}>✓</Text>}
-                                </View>
-                                <Text style={{ fontSize: 10 * fs, color: '#374151' }}>{opt.label}</Text>
-                              </TouchableOpacity>
-                            );
-                          })}
-                        </View>
-                      ) : (
-                        <TextInput
-                          style={[styles.tableCellInput, { fontSize: 12 * fs }]}
-                          value={String(rowData?.[col.code] ?? '')}
-                          onChangeText={(t) => handleCellChange(row.code, col.code, t)}
-                          placeholder="—"
-                          placeholderTextColor="#d1d5db"
-                        />
-                      )
-                    ) : (
-                      <View style={{ height: 28, borderRadius: 4, backgroundColor: '#f3f4f6' }} />
-                    )}
-                  </View>
-                ))}
-              </View>
-            );
-          })}
-        </View>
-      </ScrollView>
+              )}
+            </View>
+          );
+        })}
+
+        {/* Add row button */}
+        <TouchableOpacity
+          onPress={addRow}
+          style={{
+            flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+            gap: 8, paddingVertical: 12,
+            borderWidth: 1.5, borderColor: c.primary, borderRadius: 10,
+            borderStyle: 'dashed',
+          }}
+        >
+          <Text style={{ fontSize: fs(20), color: c.primary, lineHeight: fs(22) }}>+</Text>
+          <Text style={{ fontSize: fs(14), color: c.primary, fontWeight: '600' }}>Tambah Intervensi</Text>
+        </TouchableOpacity>
+      </View>
     );
   };
 

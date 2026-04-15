@@ -186,7 +186,7 @@ export default function GeographicUnitsPage() {
       header: 'Level',
       cell: ({ row }) => (
         <Badge variant="outline" className="text-xs">
-          {LEVEL_LABELS[row.getValue('level')] || row.getValue('level')}
+          {LEVEL_LABELS[row.getValue('level') as string] || row.getValue('level') as string}
         </Badge>
       ),
     },
