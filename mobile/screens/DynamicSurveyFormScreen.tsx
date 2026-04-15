@@ -14,6 +14,7 @@ import {
   Platform,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { ArrowUp01Icon, ArrowDown01Icon } from 'hugeicons-react-native';
 import * as Location from 'expo-location';
 import * as Speech from 'expo-speech';
 import { apiClient } from '../services/api';
@@ -243,7 +244,9 @@ function InterventionMatrixNewFormat({ questionCode, ctx, value, config, onAnswe
                 placeholderTextColor="#9ca3af"
               />
               <TouchableOpacity onPress={() => toggleExpand(row.id)} style={{ padding: 4 }}>
-                <Text style={{ fontSize: fs(16), color: '#6b7280' }}>{isExpanded ? '▲' : '▼'}</Text>
+                {isExpanded
+                  ? <ArrowUp01Icon size={fs(18)} color="#6b7280" />
+                  : <ArrowDown01Icon size={fs(18)} color="#6b7280" />}
               </TouchableOpacity>
               <TouchableOpacity onPress={() => deleteRow(row.id)} style={{ padding: 4 }}>
                 <Text style={{ fontSize: fs(16), color: '#ef4444' }}>×</Text>
