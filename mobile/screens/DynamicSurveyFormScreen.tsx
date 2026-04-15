@@ -990,6 +990,12 @@ export default function DynamicSurveyFormScreen({
       return -1;
     };
 
+    // If current item is END_SURVEY sentinel, go straight to confirm/submit screen
+    if (currentFlowItem?.kind === 'end_survey') {
+      setShowConfirmScreen(true);
+      return;
+    }
+
     // If current item is a HINT page, just advance to the next item (no validation needed)
     if (!currentFlowItem || currentFlowItem.kind === 'hint') {
       const nextIndex = currentQuestionIndex + 1;
@@ -3403,11 +3409,13 @@ export default function DynamicSurveyFormScreen({
             </TouchableOpacity>
             <TouchableOpacity style={[styles.nextButton, { backgroundColor: c.primary }]} onPress={handleNext}>
               <Text style={[styles.nextButtonText, { color: '#fff' }]}>
-                {currentQuestionIndex < totalItemsInSection - 1
-                  ? 'Selanjutnya'
-                  : currentSectionIndex < activeSections.length - 1
-                    ? 'Bagian Berikutnya'
-                    : 'Selesai'}
+                {currentFlowItem?.kind === 'end_survey'
+                  ? 'Selesai'
+                  : currentQuestionIndex < totalItemsInSection - 1
+                    ? 'Selanjutnya'
+                    : currentSectionIndex < activeSections.length - 1
+                      ? 'Bagian Berikutnya'
+                      : 'Selesai'}
               </Text>
             </TouchableOpacity>
           </View>
