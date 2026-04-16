@@ -111,8 +111,9 @@ export default function DashboardPage() {
 
   // Prepare chart data
   const mtcChartData = stats?.mtc_distribution.slice(0, 5).map((item) => ({
-    name: item.mtc__code,
+    name: `${item.mtc__code} — ${item.mtc__name}`,
     value: item.count,
+    code: item.mtc__code,
   }));
 
   const activityTrendData = stats?.activity_trends.slice(-14).map((item) => ({

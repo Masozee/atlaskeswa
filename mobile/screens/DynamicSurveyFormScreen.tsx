@@ -43,6 +43,11 @@ const toSentenceCase = (text: string): string => {
   return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
 };
 
+const toUpper = (text: string): string => {
+  if (!text) return text;
+  return text.toUpperCase();
+};
+
 // Check if GPS coordinates are valid (not null, undefined, or NaN)
 const isValidGps = (gps: { latitude: number; longitude: number; accuracy: number | null } | null): boolean => {
   if (!gps) return false;
@@ -103,8 +108,9 @@ function InterventionMatrixNewFormat({ questionCode, ctx, value, config, onAnswe
   const fs = useFontScale();
   const c = theme.colors;
 
-  const [expandedRows, setExpandedRows] = React.useState<Record<string, boolean>>({});
-  const toggleExpand = (id: string) => setExpandedRows((prev) => ({ ...prev, [id]: !prev[id] }));
+  // Accordion: only one row expanded at a time (for pre-populated rows, no delete)
+  const [expandedRowId, setExpandedRowId] = React.useState<string | null>(null);
+  const toggleExpand = (id: string) => setExpandedRowId((prev) => (prev === id ? null : id));
 
   const genId = () => String(Date.now()) + Math.random().toString(36).slice(2);
 
@@ -123,14 +129,19 @@ function InterventionMatrixNewFormat({ questionCode, ctx, value, config, onAnswe
     const val = rowData[sq.code];
 
     if (sq.type === 'number') {
+      // TARIF_RATA (number 5): only enable if "Pembayaran Mandiri/Keluarga" is checked in SUMBER_PEMBIAYAAN
+      const sumberPembiayaan: string[] = Array.isArray(rowData['SUMBER_PEMBIAYAAN']) ? rowData['SUMBER_PEMBIAYAAN'] : [];
+      const isMandiri = sumberPembiayaan.includes('Pembayaran Mandiri/Keluarga');
+      const isTARIF = sq.code === 'TARIF_RATA';
       return (
         <TextInput
-          style={{ flex: 1, paddingVertical: 10, fontSize: 18, color: '#1a1a1a', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 6, paddingHorizontal: 10, marginTop: 4 }}
+          style={{ flex: 1, paddingVertical: 10, fontSize: 18, color: isTARIF && !isMandiri ? '#9ca3af' : '#1a1a1a', borderWidth: 1, borderColor: isTARIF && !isMandiri ? '#e5e7eb' : '#e5e7eb', borderRadius: 6, paddingHorizontal: 10, marginTop: 4, backgroundColor: isTARIF && !isMandiri ? '#f9fafb' : 'white' }}
           value={val !== undefined && val !== null ? String(val) : ''}
-          onChangeText={(t) => updateRowField(rowId, sq.code, t)}
+          onChangeText={isTARIF && !isMandiri ? undefined : (t) => updateRowField(rowId, sq.code, t)}
           keyboardType="numeric"
-          placeholder="0"
+          placeholder={isTARIF && !isMandiri ? 'Akan aktif jika Mandiri' : '0'}
           placeholderTextColor="#9ca3af"
+          editable={!(isTARIF && !isMandiri)}
         />
       );
     }
@@ -162,57 +173,128 @@ function InterventionMatrixNewFormat({ questionCode, ctx, value, config, onAnswe
     }
 
     if (sq.type === 'operating_hours') {
-      const opVal: { hari?: string[]; jam?: string } = (val && typeof val === 'object') ? val : {};
-      const selectedDays: string[] = Array.isArray(opVal.hari) ? opVal.hari : [];
+      // Table layout: [✓ Select] [Day] [Buka] [Tutup] [✓ 24h]
+      // 24h toggle disables Buka/Tutup fields
+      const opVal: Record<string, { buka: string; tutup: string; is24h: boolean }> = (val && typeof val === 'object') ? val : {};
+      const allDays: string[] = sq.days ?? [];
+      const toggleDay = (day: string) => {
+        if (opVal[day]) {
+          const next = { ...opVal };
+          delete next[day];
+          updateRowField(rowId, sq.code, next);
+        } else {
+          updateRowField(rowId, sq.code, { ...opVal, [day]: { buka: '', tutup: '', is24h: false } });
+        }
+      };
+      const updateTime = (day: string, field: 'buka' | 'tutup', val: string) => {
+        const existing = opVal[day] || { buka: '', tutup: '', is24h: false };
+        updateRowField(rowId, sq.code, { ...opVal, [day]: { ...existing, [field]: val } });
+      };
+      const toggle24h = (day: string) => {
+        const existing = opVal[day] || { buka: '', tutup: '', is24h: false };
+        updateRowField(rowId, sq.code, { ...opVal, [day]: { ...existing, is24h: !existing.is24h } });
+      };
       return (
         <View style={{ marginTop: 6 }}>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-            {(sq.days ?? []).map((day: string) => {
-              const active = selectedDays.includes(day);
-              return (
-                <TouchableOpacity
-                  key={day}
-                  onPress={() => {
-                    const next = active ? selectedDays.filter((d) => d !== day) : [...selectedDays, day];
-                    updateRowField(rowId, sq.code, { ...opVal, hari: next });
-                  }}
-                  style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 16, borderWidth: 1.5, borderColor: active ? c.primary : '#d1d5db', backgroundColor: active ? c.primary : 'white' }}
-                >
-                  <Text style={{ fontSize: fs(12), color: active ? 'white' : '#6b7280', fontWeight: active ? '600' : '400' }}>{day}</Text>
-                </TouchableOpacity>
-              );
-            })}
+          {/* Table header */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4, paddingVertical: 4, backgroundColor: '#f3f4f6', borderRadius: 6, marginBottom: 4 }}>
+            <Text style={{ fontSize: fs(10), color: '#6b7280', fontWeight: '700', width: 28, textAlign: 'center' }}>✓</Text>
+            <Text style={{ fontSize: fs(10), color: '#6b7280', fontWeight: '700', flex: 1, textAlign: 'center' }}>Hari</Text>
+            <Text style={{ fontSize: fs(10), color: '#6b7280', fontWeight: '700', flex: 1, textAlign: 'center' }}>Buka</Text>
+            <Text style={{ fontSize: fs(10), color: '#6b7280', fontWeight: '700', flex: 1, textAlign: 'center' }}>Tutup</Text>
+            <Text style={{ fontSize: fs(10), color: '#6b7280', fontWeight: '700', width: 36, textAlign: 'center' }}>24h</Text>
           </View>
-          <TextInput
-            style={{ flex: 1, paddingVertical: 10, fontSize: 18, color: '#1a1a1a', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 6, paddingHorizontal: 10 }}
-            value={opVal.jam ?? ''}
-            onChangeText={(t) => updateRowField(rowId, sq.code, { ...opVal, jam: t })}
-            placeholder="contoh: 08:00-16:00"
-            placeholderTextColor="#9ca3af"
-          />
+          {/* Day rows */}
+          {allDays.map((day: string) => {
+            const entry = opVal[day];
+            const isSelected = !!entry;
+            const is24h = entry?.is24h ?? false;
+            const isDisabled = !isSelected;
+            return (
+              <View key={day} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4, paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: '#f3f4f6' }}>
+                {/* Col 1: select checkbox */}
+                <TouchableOpacity onPress={() => toggleDay(day)} style={{ width: 28, alignItems: 'center', justifyContent: 'center' }}>
+                  <View style={{ width: fs(18), height: fs(18), borderWidth: 2, borderColor: isSelected ? c.primary : '#9ca3af', borderRadius: 4, backgroundColor: isSelected ? c.primary : 'white', alignItems: 'center', justifyContent: 'center' }}>
+                    {isSelected && <Text style={{ color: 'white', fontSize: fs(10), fontWeight: 'bold' }}>✓</Text>}
+                  </View>
+                </TouchableOpacity>
+                {/* Col 2: day name */}
+                <Text style={{ fontSize: fs(12), color: '#374151', flex: 1, textAlign: 'center', fontWeight: isSelected ? '600' : '400' }}>{day}</Text>
+                {/* Col 3: buka time */}
+                <TextInput
+                  style={{ flex: 1, fontSize: fs(12), color: isDisabled ? '#9ca3af' : '#1a1a1a', backgroundColor: isDisabled ? '#f9fafb' : 'white', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 4, paddingVertical: 6, paddingHorizontal: 6, marginHorizontal: 2 }}
+                  value={entry?.buka ?? ''}
+                  onChangeText={(t) => updateTime(day, 'buka', t)}
+                  placeholder={is24h ? '-' : '09.00'}
+                  placeholderTextColor="#d1d5db"
+                  editable={!isDisabled && !is24h}
+                  keyboardType="numbers-and-punctuation"
+                />
+                {/* Col 4: tutup time */}
+                <TextInput
+                  style={{ flex: 1, fontSize: fs(12), color: isDisabled ? '#9ca3af' : '#1a1a1a', backgroundColor: isDisabled ? '#f9fafb' : 'white', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 4, paddingVertical: 6, paddingHorizontal: 6, marginHorizontal: 2 }}
+                  value={entry?.tutup ?? ''}
+                  onChangeText={(t) => updateTime(day, 'tutup', t)}
+                  placeholder={is24h ? '-' : '17.00'}
+                  placeholderTextColor="#d1d5db"
+                  editable={!isDisabled && !is24h}
+                  keyboardType="numbers-and-punctuation"
+                />
+                {/* Col 5: 24h checkbox */}
+                <TouchableOpacity onPress={() => isSelected && toggle24h(day)} style={{ width: 36, alignItems: 'center', justifyContent: 'center' }}>
+                  <View style={{ width: fs(18), height: fs(18), borderWidth: 2, borderColor: !isSelected ? '#d1d5db' : is24h ? c.primary : '#9ca3af', borderRadius: 4, backgroundColor: !isSelected ? '#f3f4f6' : is24h ? c.primary : 'white', alignItems: 'center', justifyContent: 'center' }}>
+                    {is24h && <Text style={{ color: 'white', fontSize: fs(10), fontWeight: 'bold' }}>✓</Text>}
+                  </View>
+                </TouchableOpacity>
+              </View>
+            );
+          })}
         </View>
       );
     }
 
     if (sq.type === 'boolean') {
+      // Support both plain boolean (legacy) and object { bool, text } for keterkaitan follow-up
+      // val === true (plain boolean) or val.bool === true (new format)
+      const isYaActive = val === true || (typeof val === 'object' && val !== null && (val as any).bool === true);
+      const isTidakActive = val === false;
+      const extraText = typeof val === 'object' && val !== null ? (val as any).text ?? '' : '';
       return (
-        <View style={{ flexDirection: 'row', gap: 12, marginTop: 8 }}>
-          {['Ya', 'Tidak'].map((opt) => {
-            const boolVal = opt === 'Ya';
-            const active = val === boolVal;
-            return (
-              <TouchableOpacity
-                key={opt}
-                onPress={() => updateRowField(rowId, sq.code, boolVal)}
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, borderWidth: 1.5, borderColor: active ? c.primary : '#d1d5db', backgroundColor: active ? '#e6f7f7' : 'white' }}
-              >
-                <View style={{ width: fs(16), height: fs(16), borderRadius: 8, borderWidth: 2, borderColor: active ? c.primary : '#9ca3af', alignItems: 'center', justifyContent: 'center', backgroundColor: 'white' }}>
-                  {active && <View style={{ width: fs(8), height: fs(8), borderRadius: 4, backgroundColor: c.primary }} />}
-                </View>
-                <Text style={{ fontSize: fs(14), color: active ? c.primary : '#374151', fontWeight: active ? '600' : '400' }}>{opt}</Text>
-              </TouchableOpacity>
-            );
-          })}
+        <View style={{ marginTop: 8, gap: 8 }}>
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            {/* Ya button */}
+            <TouchableOpacity
+              onPress={() => updateRowField(rowId, sq.code, { bool: true, text: extraText })}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, borderWidth: 1.5, borderColor: isYaActive ? c.primary : '#d1d5db', backgroundColor: isYaActive ? '#e6f7f7' : 'white' }}
+            >
+              <View style={{ width: fs(16), height: fs(16), borderRadius: 8, borderWidth: 2, borderColor: isYaActive ? c.primary : '#9ca3af', alignItems: 'center', justifyContent: 'center', backgroundColor: 'white' }}>
+                {isYaActive && <View style={{ width: fs(8), height: fs(8), borderRadius: 4, backgroundColor: c.primary }} />}
+              </View>
+              <Text style={{ fontSize: fs(14), color: isYaActive ? c.primary : '#374151', fontWeight: isYaActive ? '600' : '400' }}>Ya</Text>
+            </TouchableOpacity>
+            {/* Tidak button */}
+            <TouchableOpacity
+              onPress={() => updateRowField(rowId, sq.code, false)}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, borderWidth: 1.5, borderColor: isTidakActive ? c.primary : '#d1d5db', backgroundColor: isTidakActive ? '#e6f7f7' : 'white' }}
+            >
+              <View style={{ width: fs(16), height: fs(16), borderRadius: 8, borderWidth: 2, borderColor: isTidakActive ? c.primary : '#9ca3af', alignItems: 'center', justifyContent: 'center', backgroundColor: 'white' }}>
+                {isTidakActive && <View style={{ width: fs(8), height: fs(8), borderRadius: 4, backgroundColor: c.primary }} />}
+              </View>
+              <Text style={{ fontSize: fs(14), color: isTidakActive ? c.primary : '#374151', fontWeight: isTidakActive ? '600' : '400' }}>Tidak</Text>
+            </TouchableOpacity>
+          </View>
+          {/* Extra text field when Ya is selected (question 9: keterkaitan) */}
+          {isYaActive && (
+            <TextInput
+              style={{ flex: 1, paddingVertical: 10, fontSize: 16, color: '#1a1a1a', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 6, paddingHorizontal: 10 }}
+              value={extraText}
+              onChangeText={(t) => updateRowField(rowId, sq.code, { bool: true, text: t })}
+              placeholder="Jelaskan keterkaitan dengan fasilitas lain..."
+              placeholderTextColor="#9ca3af"
+              multiline
+              numberOfLines={3}
+            />
+          )}
         </View>
       );
     }
@@ -231,27 +313,21 @@ function InterventionMatrixNewFormat({ questionCode, ctx, value, config, onAnswe
   return (
     <View style={{ gap: 10, marginTop: 4 }}>
       {rows.map((row, idx) => {
-        const isExpanded = expandedRows[row.id] !== false;
+        const isExpanded = expandedRowId === row.id;
         return (
           <View key={row.id} style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 10, overflow: 'hidden' }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#f9fafb', paddingHorizontal: 12, paddingVertical: 10, gap: 8 }}>
+            <TouchableOpacity onPress={() => toggleExpand(row.id)} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#f9fafb', paddingHorizontal: 12, paddingVertical: 10, gap: 8 }}>
               <Text style={{ fontSize: fs(13), color: '#6b7280', fontWeight: '600', minWidth: 20 }}>{idx + 1}.</Text>
-              <TextInput
-                style={{ flex: 1, fontSize: fs(14), color: '#1f2937', padding: 0 }}
-                value={row.label ?? ''}
-                onChangeText={(t) => updateRowField(row.id, 'label', t)}
-                placeholder="Nama intervensi..."
-                placeholderTextColor="#9ca3af"
-              />
-              <TouchableOpacity onPress={() => toggleExpand(row.id)} style={{ padding: 4 }}>
-                {isExpanded
-                  ? <ArrowUp01Icon size={fs(18)} color="#6b7280" />
-                  : <ArrowDown01Icon size={fs(18)} color="#6b7280" />}
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => deleteRow(row.id)} style={{ padding: 4 }}>
-                <Text style={{ fontSize: fs(16), color: '#ef4444' }}>×</Text>
-              </TouchableOpacity>
-            </View>
+              <Text style={{ flex: 1, fontSize: fs(14), color: '#1f2937' }} numberOfLines={isExpanded ? undefined : 1}>{row.label ?? 'Nama intervensi...'}</Text>
+              {isExpanded
+                ? <ArrowUp01Icon size={fs(18)} color="#6b7280" />
+                : <ArrowDown01Icon size={fs(18)} color="#6b7280" />}
+              {!row.id.startsWith('default_') && (
+                <TouchableOpacity onPress={() => deleteRow(row.id)} style={{ padding: 4 }}>
+                  <Text style={{ fontSize: fs(16), color: '#ef4444' }}>×</Text>
+                </TouchableOpacity>
+              )}
+            </TouchableOpacity>
             {isExpanded && (
               <View style={{ paddingHorizontal: 14, paddingBottom: 14, paddingTop: 10, gap: 14 }}>
                 {subQuestions.map((sq: any, sqIdx: number) => (
@@ -795,11 +871,8 @@ export default function DynamicSurveyFormScreen({
         if (rawAns !== null && rawAns !== undefined && rawAns !== '') {
           const qDef = allQDefs.find(q => q.code === question.code);
           const choice = (qDef?.choices as any[])?.find((c: any) => c.value === rawAns);
-          if (choice?.cabang_mtc) {
-            ctxTracker = choice.cabang_mtc;
-          } else {
-            ctxTracker = '';
-          }
+          // Store BSIC code + narrative: "R1 — Pemantauan Intensitas Tinggi"
+          ctxTracker = rawAns + (choice?.cabang_mtc ? ` — ${choice.cabang_mtc}` : (choice?.label ? ` — ${choice.label}` : ''));
         } else {
           ctxTracker = '';
         }
@@ -881,8 +954,13 @@ export default function DynamicSurveyFormScreen({
 
     if (newCtx && newCtx !== currentMtcContext) {
       setCurrentMtcContext(newCtx);
-      setCurrentMtcLabel(selectedChoice?.label || '');
-    } else if (!isDetailQuestion(questionCode) && !newCtx) {
+      // Use cabang_mtc (the narrative like "Pemantauan Intensitas Tinggi") instead of label
+      setCurrentMtcLabel(selectedChoice?.cabang_mtc || selectedChoice?.label || '');
+    }
+    // Clear context when answering a non-detail question with no new context.
+    // This prevents stale context from leaking into subsequent detail questions
+    // when the user goes back and changes a non-detail MC answer.
+    if (!isDetailQuestion(questionCode) && !newCtx) {
       setCurrentMtcContext('');
       setCurrentMtcLabel('');
     }
@@ -1333,23 +1411,9 @@ export default function DynamicSurveyFormScreen({
     return (
       <View style={[styles.questionContainer, { backgroundColor: c.background }]}>
         <Text style={[styles.questionCode, { color: c.primary }]}>{hintItem.questionCode}</Text>
-        <View style={[styles.hintPageHeader, { backgroundColor: isDark ? '#1a2e2e' : '#e6f7f7', borderColor: c.primary }]}>
-          <MaterialIcons name="info-outline" size={28} color={c.primary} />
-          <Text style={[styles.hintPageLabel, { fontSize: fs(13), color: c.text }]}>Informasi Langkah Sebelumnya</Text>
-        </View>
-        {hintItem.prevAnswerLabel && (
-          <View style={[styles.hintPagePrevAnswer, { backgroundColor: c.surface, borderColor: c.border }]}>
-            <Text style={[styles.hintPagePrevAnswerLabel, { fontSize: fs(12), color: c.textMuted }]}>
-              Berdasarkan jawaban Anda:
-            </Text>
-            <Text style={[styles.hintPagePrevAnswerValue, { fontSize: fs(14), color: c.primary }]}>
-              {toSentenceCase(hintItem.prevAnswerLabel)}
-            </Text>
-          </View>
-        )}
         <View style={styles.hintPageText}>
           <Text style={[styles.hintPageBodyText, { fontSize: fs(15), color: c.textSecondary, lineHeight: fs(22) }]}>
-            {hintItem.hintText}
+            {toUpper(hintItem.hintText)}
           </Text>
         </View>
       </View>
@@ -1370,7 +1434,7 @@ export default function DynamicSurveyFormScreen({
         <Text style={[styles.questionCode, { color: c.primary }]}>{question.code}</Text>
         <View style={styles.questionHeader}>
           <Text style={[styles.questionText, { color: c.text, fontSize: fs(26) }]}>
-            {toSentenceCase(question.question_text)}
+            {toUpper(question.question_text)}
             {question.is_required && <Text style={[styles.required, { color: '#ef4444' }]}> *</Text>}
           </Text>
           {settings.ttsEnabled && (
@@ -1503,21 +1567,24 @@ export default function DynamicSurveyFormScreen({
 
       case 'TIME':
         return (
-          <TextInput
+          <TouchableOpacity
+            onPress={() => setShowTimePicker({ code: question.code, value: value || '' })}
             style={{
               backgroundColor: c.surface,
               borderRadius: 6,
               padding: 16,
-              fontSize: 18,
-              color: c.text,
               borderWidth: 1,
               borderColor: c.border,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
             }}
-            value={value || ''}
-            onChangeText={(text) => handleAnswerChange(question.code, text, ctx)}
-            placeholder="HH:MM"
-            placeholderTextColor={c.textMuted}
-          />
+          >
+            <Text style={{ color: value ? c.text : c.textMuted, fontSize: 18 }}>
+              {value || 'HH:MM (24 Jam)'}
+            </Text>
+            <MaterialIcons name="access-time" size={22} color={c.textMuted} />
+          </TouchableOpacity>
         );
 
       case 'BOOLEAN':
@@ -1624,13 +1691,9 @@ export default function DynamicSurveyFormScreen({
         return renderCoverageLevel(question, value, ctx);
 
       case 'STAFF_TABLE':
-        return renderStaffTableRepeating(question, value, ctx);
-
       case 'DIAGNOSIS_TABLE':
-        return renderRepeatingTable(question, value, ctx);
-
       case 'REPEATING_TABLE':
-        return renderRepeatingTable(question, value, ctx);
+        return renderStaffTableRepeating(question, value, ctx);
 
       case 'INTERVENTION_MATRIX':
         return renderInterventionMatrix(question, value, ctx);
@@ -2255,12 +2318,12 @@ export default function DynamicSurveyFormScreen({
               return (
                 <View key={row.code} style={styles.tableRow}>
                   <View style={[styles.tableCell, { width: 160 }]}>
-                    <Text style={[styles.tableCellLabel, { fontSize: 12 * fs }]}>{row.label}</Text>
+                    <Text style={[styles.tableCellLabel, { fontSize: fs(12) }]}>{row.label}</Text>
                   </View>
                   {columns.map((col: any) => (
                     <View key={col.code} style={[styles.tableCell, { width: 70, padding: 2 }]}>
                       <TextInput
-                        style={[styles.tableCellInput, { fontSize: 12 * fs }]}
+                        style={[styles.tableCellInput, { fontSize: fs(12) }]}
                         value={String(rowData[col.code] ?? '')}
                         onChangeText={(t) => updateCell(row.code, col.code, t)}
                         keyboardType="number-pad"
@@ -2277,148 +2340,95 @@ export default function DynamicSurveyFormScreen({
       );
     }
 
-    // ── Mode 2: Repeating rows (no config.rows) ──────────────────────────────
-    const columns = config?.columns ?? [
-      { code: 'jabatan', label: 'Jabatan', type: 'text' },
-      { code: 'male', label: 'L', type: 'number' },
-      { code: 'female', label: 'P', type: 'number' },
-    ];
+    // ── Mode 2: Kegiatan table (Nomor, Kegiatan, Jam Mulai, Jam Selesai) ───────
+    const kegRows: Array<{ kegiatan: string; start: string; stop: string }> =
+      Array.isArray(value) && value.length > 0 ? value : [{ kegiatan: '', start: '', stop: '' }];
 
-    const rows: Array<Record<string, string>> = Array.isArray(value) ? value : [{}];
-
-    const updateCell = (rowIndex: number, colCode: string, cellValue: string) => {
-      const next = rows.map((r, i) => (i === rowIndex ? { ...r, [colCode]: cellValue } : r));
+    const updateKegCell = (idx: number, field: 'kegiatan' | 'start' | 'stop', val: string) => {
+      const next = kegRows.map((r, i) => i === idx ? { ...r, [field]: val } : r);
       handleAnswerChange(question.code, next, ctx);
     };
 
-    const addRow = () => handleAnswerChange(question.code, [...rows, {}], ctx);
-
-    const removeRow = (rowIndex: number) => {
-      if (rows.length <= 1) return;
-      handleAnswerChange(question.code, rows.filter((_, i) => i !== rowIndex), ctx);
+    const addKegRow = () => handleAnswerChange(question.code, [...kegRows, { kegiatan: '', start: '', stop: '' }], ctx);
+    const removeKegRow = (idx: number) => {
+      if (kegRows.length <= 1) return;
+      handleAnswerChange(question.code, kegRows.filter((_, i) => i !== idx), ctx);
     };
 
     return (
-      <View style={{ gap: 8 }}>
-        <View style={styles.tableContainer}>
+      <View>
+        <View style={styles.kegTableContainer}>
           {/* Header */}
-          <View style={[styles.tableRow, { backgroundColor: c.border }]}>
-            <View style={[styles.tableCell, { width: 32 }]}>
-              <Text style={styles.tableHeaderText}>No</Text>
-            </View>
-            {columns.map((col) => (
-              <View key={col.code} style={[styles.tableCell, { flex: 1 }]}>
-                <Text style={styles.tableHeaderText}>{col.label}</Text>
-              </View>
-            ))}
-            <View style={[styles.tableCell, { width: 32 }]} />
+          <View style={styles.kegHeaderRow}>
+            <Text style={[styles.kegColLabel, { width: 40 }]}>No</Text>
+            <Text style={[styles.kegColLabel, { flex: 2 }]}>KEGIATAN</Text>
+            <Text style={[styles.kegColLabel, { flex: 1 }]}>MULAI</Text>
+            <Text style={[styles.kegColLabel, { flex: 1 }]}>SELESAI</Text>
+            <View style={{ width: 40 }} />
           </View>
+
           {/* Rows */}
-          {rows.map((row, rowIndex) => (
-            <View key={rowIndex} style={styles.tableRow}>
-              <View style={[styles.tableCell, { width: 32 }]}>
-                <Text style={{ fontSize: 12 * fs, color: c.textMuted, textAlign: 'center' }}>{rowIndex + 1}</Text>
-              </View>
-              {columns.map((col) => (
-                <View key={col.code} style={[styles.tableCell, { flex: 1 }]}>
-                  <TextInput
-                    style={styles.tableCellInput}
-                    value={row[col.code] || ''}
-                    onChangeText={(text) => updateCell(rowIndex, col.code, text)}
-                    keyboardType={col.type === 'number' ? 'numeric' : 'default'}
-                    placeholder="-"
-                    placeholderTextColor="#d1d5db"
-                  />
-                </View>
-              ))}
-              <View style={[styles.tableCell, { width: 32 }]}>
-                <TouchableOpacity onPress={() => removeRow(rowIndex)} disabled={rows.length <= 1}>
-                  <Text style={{ fontSize: 18, color: rows.length <= 1 ? '#d1d5db' : '#ef4444', textAlign: 'center' }}>×</Text>
-                </TouchableOpacity>
-              </View>
+          {kegRows.map((row, idx) => (
+            <View key={idx} style={styles.kegRow}>
+              <Text style={styles.kegNumText}>{idx + 1}</Text>
+
+              {/* Kegiatan — text input */}
+              <TextInput
+                style={styles.kegTextInput}
+                value={row.kegiatan}
+                onChangeText={(t) => updateKegCell(idx, 'kegiatan', t)}
+                placeholder="Nama kegiatan"
+                placeholderTextColor="#d1d5db"
+              />
+
+              {/* Jam Mulai — time picker */}
+              <TouchableOpacity
+                style={styles.kegTimeBtn}
+                onPress={() => setShowTimePicker({ code: question.code + '_start_' + idx, value: row.start, kegArray: kegRows })}
+              >
+                <Text style={[styles.kegTimeText, !row.start && { color: '#9ca3af' }]}>
+                  {row.start || '00:00'}
+                </Text>
+                <MaterialIcons name="access-time" size={16} color="#6b7280" />
+              </TouchableOpacity>
+
+              {/* Jam Selesai — time picker */}
+              <TouchableOpacity
+                style={styles.kegTimeBtn}
+                onPress={() => setShowTimePicker({ code: question.code + '_stop_' + idx, value: row.stop, kegArray: kegRows })}
+              >
+                <Text style={[styles.kegTimeText, !row.stop && { color: '#9ca3af' }]}>
+                  {row.stop || '00:00'}
+                </Text>
+                <MaterialIcons name="access-time" size={16} color="#6b7280" />
+              </TouchableOpacity>
+
+              {/* Delete */}
+              <TouchableOpacity
+                style={{ width: 40, alignItems: 'center', justifyContent: 'center' }}
+                onPress={() => removeKegRow(idx)}
+                disabled={kegRows.length <= 1}
+              >
+                <MaterialIcons name="delete-outline" size={20} color={kegRows.length <= 1 ? '#d1d5db' : '#ef4444'} />
+              </TouchableOpacity>
             </View>
           ))}
         </View>
-        <TouchableOpacity onPress={addRow} style={{ paddingVertical: 4 }}>
-          <Text style={{ color: c.primary, fontSize: 13 * fs }}>+ Tambah baris</Text>
+
+        {/* Add row */}
+        <TouchableOpacity style={styles.opHoursAddButton} onPress={addKegRow}>
+          <MaterialIcons name="add" size={18} color={c.primary} />
+          <Text style={styles.opHoursAddButtonText}>Tambah Baris</Text>
         </TouchableOpacity>
       </View>
     );
   };
 
   const renderRepeatingTable = (question: Question, value: any, ctx: string = '') => {
-    const config = question.table_config;
-    if (!config?.columns?.length) {
-      return (
-        <Text style={{ color: c.textMuted, fontSize: 13 * fs }}>
-          Konfigurasi kolom tabel tidak ditemukan.
-        </Text>
-      );
-    }
-
-    const rows: Array<Record<string, string>> = Array.isArray(value) ? value : [{}];
-
-    const updateCell = (rowIndex: number, colCode: string, cellValue: string) => {
-      const next = rows.map((r, i) => (i === rowIndex ? { ...r, [colCode]: cellValue } : r));
-      handleAnswerChange(question.code, next, ctx);
-    };
-
-    const addRow = () => handleAnswerChange(question.code, [...rows, {}], ctx);
-
-    const removeRow = (rowIndex: number) => {
-      if (rows.length <= 1) return;
-      handleAnswerChange(question.code, rows.filter((_, i) => i !== rowIndex), ctx);
-    };
-
-    return (
-      <View style={{ gap: 8 }}>
-        <View style={styles.tableContainer}>
-          {/* Header */}
-          <View style={[styles.tableRow, { backgroundColor: c.border }]}>
-            <View style={[styles.tableCell, { width: 32 }]}>
-              <Text style={styles.tableHeaderText}>No</Text>
-            </View>
-            {config.columns!.map((col) => (
-              <View key={col.code} style={[styles.tableCell, { flex: 1 }]}>
-                <Text style={styles.tableHeaderText}>{col.label}</Text>
-              </View>
-            ))}
-            <View style={[styles.tableCell, { width: 32 }]} />
-          </View>
-          {/* Rows */}
-          {rows.map((row, rowIndex) => (
-            <View key={rowIndex} style={styles.tableRow}>
-              <View style={[styles.tableCell, { width: 32 }]}>
-                <Text style={{ fontSize: 12 * fs, color: c.textMuted, textAlign: 'center' }}>{rowIndex + 1}</Text>
-              </View>
-              {config.columns!.map((col) => (
-                <View key={col.code} style={[styles.tableCell, { flex: 1 }]}>
-                  <TextInput
-                    style={styles.tableCellInput}
-                    value={row[col.code] || ''}
-                    onChangeText={(text) => updateCell(rowIndex, col.code, text)}
-                    keyboardType={col.type === 'number' ? 'numeric' : 'default'}
-                    placeholder="-"
-                    placeholderTextColor="#d1d5db"
-                  />
-                </View>
-              ))}
-              <View style={[styles.tableCell, { width: 32 }]}>
-                <TouchableOpacity onPress={() => removeRow(rowIndex)} disabled={rows.length <= 1}>
-                  <Text style={{ fontSize: 18, color: rows.length <= 1 ? '#d1d5db' : '#ef4444', textAlign: 'center' }}>×</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ))}
-        </View>
-        <TouchableOpacity onPress={addRow} style={{ paddingVertical: 4 }}>
-          <Text style={{ color: c.primary, fontSize: 13 * fs }}>+ Tambah baris</Text>
-        </TouchableOpacity>
-      </View>
-    );
+    // Redirect to kegiatan-style table for all repeating tables
+    return renderStaffTableRepeating(question, value, ctx);
   };
-
-  const renderInterventionMatrix = (question: Question, value: any, ctx: string = '') => {
+    const renderInterventionMatrix = (question: Question, value: any, ctx: string = '') => {
     const config = question.table_config;
     const hasSubQuestions = Array.isArray(config?.sub_questions) && config.sub_questions.length > 0;
 
@@ -2426,7 +2436,7 @@ export default function DynamicSurveyFormScreen({
     if (!hasSubQuestions) {
       if (!config?.rows?.length || !config?.columns?.length) {
         return (
-          <Text style={{ color: '#9ca3af', fontSize: 13 * fs }}>
+          <Text style={{ color: '#9ca3af', fontSize: fs(13) }}>
             Konfigurasi matriks tidak ditemukan.
           </Text>
         );
@@ -2449,7 +2459,7 @@ export default function DynamicSurveyFormScreen({
               <View style={[styles.tableCell, { width: 40 }]}><Text style={styles.tableHeaderText}>✓</Text></View>
               {config.columns!.map((col: any) => (
                 <View key={col.code} style={[styles.tableCell, { width: 100 }]}>
-                  <Text style={[styles.tableHeaderText, { fontSize: 10 * fs }]}>{col.label}</Text>
+                  <Text style={[styles.tableHeaderText, { fontSize: fs(10) }]}>{col.label}</Text>
                 </View>
               ))}
             </View>
@@ -2461,15 +2471,15 @@ export default function DynamicSurveyFormScreen({
                   <View style={[styles.tableCell, { width: 140 }]}><Text style={styles.tableCellLabel}>{row.label}</Text></View>
                   <View style={[styles.tableCell, { width: 40, alignItems: 'center' }]}>
                     <TouchableOpacity onPress={() => handleSelect(row.code, !isSelected)}
-                      style={{ width: 20 * fs, height: 20 * fs, borderWidth: 2, borderColor: isSelected ? c.primary : '#9ca3af', borderRadius: 4, backgroundColor: isSelected ? c.primary : 'white', alignItems: 'center', justifyContent: 'center' }}>
-                      {isSelected && <Text style={{ color: 'white', fontSize: 12 * fs, fontWeight: 'bold' }}>✓</Text>}
+                      style={{ width: fs(20), height: fs(20), borderWidth: 2, borderColor: isSelected ? c.primary : '#9ca3af', borderRadius: 4, backgroundColor: isSelected ? c.primary : 'white', alignItems: 'center', justifyContent: 'center' }}>
+                      {isSelected && <Text style={{ color: 'white', fontSize: fs(12), fontWeight: 'bold' }}>✓</Text>}
                     </TouchableOpacity>
                   </View>
                   {config.columns!.map((col: any) => (
                     <View key={col.code} style={[styles.tableCell, { width: 100, padding: 2 }]}>
                       {isSelected ? (
                         col.type === 'number' ? (
-                          <TextInput style={[styles.tableCellInput, { fontSize: 12 * fs }]} value={String(rowData?.[col.code] ?? '')} onChangeText={(t) => handleCellChange(row.code, col.code, t)} keyboardType="number-pad" placeholder="0" placeholderTextColor="#d1d5db" />
+                          <TextInput style={[styles.tableCellInput, { fontSize: fs(12) }]} value={String(rowData?.[col.code] ?? '')} onChangeText={(t) => handleCellChange(row.code, col.code, t)} keyboardType="number-pad" placeholder="0" placeholderTextColor="#d1d5db" />
                         ) : col.type === 'multiple_choice' ? (
                           <View style={{ gap: 2 }}>
                             {(col.options ?? []).map((opt: any) => {
@@ -2477,16 +2487,16 @@ export default function DynamicSurveyFormScreen({
                               const chk = sel.includes(opt.value);
                               return (
                                 <TouchableOpacity key={opt.value} onPress={() => handleCellChange(row.code, col.code, chk ? sel.filter((v: string) => v !== opt.value) : [...sel, opt.value])} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                                  <View style={{ width: 14 * fs, height: 14 * fs, borderWidth: 1.5, borderColor: chk ? c.primary : '#9ca3af', borderRadius: 3, backgroundColor: chk ? c.primary : 'white', alignItems: 'center', justifyContent: 'center' }}>
-                                    {chk && <Text style={{ color: 'white', fontSize: 9 * fs }}>✓</Text>}
+                                  <View style={{ width: fs(14), height: fs(14), borderWidth: 1.5, borderColor: chk ? c.primary : '#9ca3af', borderRadius: 3, backgroundColor: chk ? c.primary : 'white', alignItems: 'center', justifyContent: 'center' }}>
+                                    {chk && <Text style={{ color: 'white', fontSize: fs(9) }}>✓</Text>}
                                   </View>
-                                  <Text style={{ fontSize: 10 * fs, color: '#374151' }}>{opt.label}</Text>
+                                  <Text style={{ fontSize: fs(10), color: '#374151' }}>{opt.label}</Text>
                                 </TouchableOpacity>
                               );
                             })}
                           </View>
                         ) : (
-                          <TextInput style={[styles.tableCellInput, { fontSize: 12 * fs }]} value={String(rowData?.[col.code] ?? '')} onChangeText={(t) => handleCellChange(row.code, col.code, t)} placeholder="—" placeholderTextColor="#d1d5db" />
+                          <TextInput style={[styles.tableCellInput, { fontSize: fs(12) }]} value={String(rowData?.[col.code] ?? '')} onChangeText={(t) => handleCellChange(row.code, col.code, t)} placeholder="—" placeholderTextColor="#d1d5db" />
                         )
                       ) : (
                         <View style={{ height: 28, borderRadius: 4, backgroundColor: '#f3f4f6' }} />
@@ -2519,6 +2529,7 @@ export default function DynamicSurveyFormScreen({
 
   // Day picker modal state (index of row whose day is being picked)
   const [opHoursDayPicker, setOpHoursDayPicker] = useState<number | null>(null);
+  const [showTimePicker, setShowTimePicker] = useState<{ code: string; value: string; kegArray?: Array<{ kegiatan: string; start: string; stop: string }> } | null>(null); // {code, value, kegArray?}
 
   const renderOperatingHours = (question: Question, value: any, ctx: string = '') => {
     const schedule: Array<{ day: string; open: string; close: string }> =
@@ -2540,8 +2551,8 @@ export default function DynamicSurveyFormScreen({
       <View>
         {/* Header */}
         <View style={styles.sectionHeaderContainer}>
-          <Text style={styles.sectionHeader}>Jam Operasional</Text>
-          <Text style={styles.sectionSubtitle}>Isilah jam operasional sesuai ketentuan</Text>
+          <Text style={styles.sectionHeader}>JAM OPERASIONAL</Text>
+          <Text style={styles.sectionSubtitle}>ISILAH JAM OPERASIONAL SESUAI KETENTUAN</Text>
         </View>
 
         {/* Table */}
@@ -2655,6 +2666,119 @@ export default function DynamicSurveyFormScreen({
                   </TouchableOpacity>
                 ))}
               </ScrollView>
+            </View>
+          </View>
+        )}
+
+        {/* TIME PICKER MODAL — 24-hour format */}
+        {showTimePicker && (
+          <View style={styles.pickerOverlay}>
+            <TouchableOpacity
+              style={styles.pickerBackdrop}
+              onPress={() => setShowTimePicker(null)}
+            />
+            <View style={styles.pickerModal}>
+              <View style={styles.pickerHeader}>
+                <Text style={styles.pickerHeaderText}>Pilih Jam (24 Jam)</Text>
+                <TouchableOpacity onPress={() => setShowTimePicker(null)}>
+                  <MaterialIcons name="close" size={22} color="#6b7280" />
+                </TouchableOpacity>
+              </View>
+              {/* Parse current time */}
+              {(() => {
+                const parts = (showTimePicker.value || '').split(':');
+                const initHour = parts[0] ? parseInt(parts[0], 10) : -1;
+                const initMin = parts[1] ? parseInt(parts[1], 10) : -1;
+                return (
+                  <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-start', paddingHorizontal: 16, paddingBottom: 16 }}>
+                    {/* Hours column */}
+                    <ScrollView style={{ height: 200, width: 70 }} showsVerticalScrollIndicator>
+                      {Array.from({ length: 24 }, (_, i) => i).map((h) => {
+                        const label = String(h).padStart(2, '0');
+                        const isSelected = h === initHour;
+                        return (
+                          <TouchableOpacity
+                            key={`h-${h}`}
+                            style={{ paddingVertical: 10, alignItems: 'center', backgroundColor: isSelected ? '#e6f7f7' : 'transparent', borderRadius: 8 }}
+                            onPress={() => {
+                              const min = initMin >= 0 ? String(initMin).padStart(2, '0') : '00';
+                              const newVal = `${label}:${min}`;
+                              // Intercept kegiatan table synthetic codes (e.g. "QL8A_start_0")
+                              const code = showTimePicker.code;
+                              const parts2 = code.split('_start_');
+                              if (parts2.length === 2) {
+                                const qCode = parts2[0];
+                                const rowIdx = parseInt(parts2[1], 10);
+                                const rows = showTimePicker.kegArray ?? [];
+                                const next = rows.map((r: any, i: number) => i === rowIdx ? { ...r, start: newVal } : r);
+                                handleAnswerChange(qCode, next, ctx);
+                                setShowTimePicker(null);
+                                return;
+                              }
+                              const partsStop = code.split('_stop_');
+                              if (partsStop.length === 2) {
+                                const qCode = partsStop[0];
+                                const rowIdx = parseInt(partsStop[1], 10);
+                                const rows = showTimePicker.kegArray ?? [];
+                                const next = rows.map((r: any, i: number) => i === rowIdx ? { ...r, stop: newVal } : r);
+                                handleAnswerChange(qCode, next, ctx);
+                                setShowTimePicker(null);
+                                return;
+                              }
+                              handleAnswerChange(code, newVal, ctx);
+                              setShowTimePicker({ code, value: newVal });
+                            }}
+                          >
+                            <Text style={{ fontSize: 18, color: isSelected ? c.primary : '#374151', fontWeight: isSelected ? '700' : '400' }}>{label}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </ScrollView>
+                    {/* Minutes column */}
+                    <ScrollView style={{ height: 200, width: 70 }} showsVerticalScrollIndicator>
+                      {[0, 15, 30, 45].map((m) => {
+                        const label = String(m).padStart(2, '0');
+                        const isSelected = m === initMin;
+                        return (
+                          <TouchableOpacity
+                            key={`m-${m}`}
+                            style={{ paddingVertical: 10, alignItems: 'center', backgroundColor: isSelected ? '#e6f7f7' : 'transparent', borderRadius: 8 }}
+                            onPress={() => {
+                              const hour = initHour >= 0 ? String(initHour).padStart(2, '0') : '00';
+                              const newVal = `${hour}:${label}`;
+                              const code = showTimePicker.code;
+                              const parts2 = code.split('_start_');
+                              if (parts2.length === 2) {
+                                const qCode = parts2[0];
+                                const rowIdx = parseInt(parts2[1], 10);
+                                const rows = showTimePicker.kegArray ?? [];
+                                const next = rows.map((r: any, i: number) => i === rowIdx ? { ...r, start: newVal } : r);
+                                handleAnswerChange(qCode, next, ctx);
+                                setShowTimePicker(null);
+                                return;
+                              }
+                              const partsStop = code.split('_stop_');
+                              if (partsStop.length === 2) {
+                                const qCode = partsStop[0];
+                                const rowIdx = parseInt(partsStop[1], 10);
+                                const rows = showTimePicker.kegArray ?? [];
+                                const next = rows.map((r: any, i: number) => i === rowIdx ? { ...r, stop: newVal } : r);
+                                handleAnswerChange(qCode, next, ctx);
+                                setShowTimePicker(null);
+                                return;
+                              }
+                              handleAnswerChange(code, newVal, ctx);
+                              setShowTimePicker({ code, value: newVal });
+                            }}
+                          >
+                            <Text style={{ fontSize: 18, color: isSelected ? c.primary : '#374151', fontWeight: isSelected ? '700' : '400' }}>{label}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </ScrollView>
+                  </View>
+                );
+              })()}
             </View>
           </View>
         )}
@@ -3242,13 +3366,13 @@ export default function DynamicSurveyFormScreen({
             {/* Teks Pengantar */}
             {introText ? (
               <View style={[styles.introBox, { backgroundColor: isDark ? '#1f1f1f' : '#fefce8', borderColor: isDark ? '#404040' : '#fde68a' }]}>
-                <Text style={[styles.introText, { color: c.text }]}>{toSentenceCase(introText.replace(/\(nama enumerator\)/gi, currentUserName))}</Text>
+                <Text style={[styles.introText, { color: c.text }]}>{toUpper(introText.replace(/\(nama enumerator\)/gi, currentUserName))}</Text>
               </View>
             ) : (
               <View style={[styles.introBox, { backgroundColor: isDark ? '#1f1f1f' : '#fefce8', borderColor: isDark ? '#404040' : '#fde68a' }]}>
                 <Text style={[styles.introText, { color: c.text }]}>
-                  Bagian ini berisi {totalItemsInSection} pertanyaan.
-                  Silakan jawab setiap pertanyaan dengan benar.
+                  BAGIAN INI BERISI {totalItemsInSection} PERTANYAAN.
+                  SILAKAN JAWAB SETIAP PERTANYAAN DENGAN BENAR.
                 </Text>
               </View>
             )}
@@ -3305,12 +3429,13 @@ export default function DynamicSurveyFormScreen({
           automaticallyAdjustKeyboardInsets
           contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingBottom: 32 }}
         >
-          {/* MTC context banner — shown when in a detail loop */}
-          {currentQCtx && (
+          {/* MTC context banner — shown only for detail questions (RQA..RQJ, IQA..IQC, etc.) */}
+          {currentQCtx && isDetailQuestion(currentQ?.code ?? '') && (
             <View style={[styles.mtcBanner, { backgroundColor: isDark ? '#1a2e2e' : '#e6f7f7', borderColor: c.primary }]}>
-              <Text style={[styles.mtcBannerLabel, { color: c.textSecondary }]}>Sedang mengisi detail: </Text>
-              <Text style={[styles.mtcBannerCode, { color: c.primary }]}>{currentQCtx}</Text>
-              {currentMtcLabel ? <Text style={[styles.mtcBannerLabel, { color: c.textSecondary }]}> — {toSentenceCase(currentMtcLabel)}</Text> : null}
+              <Text style={[styles.mtcBannerCode, { color: c.primary, fontSize: fs(15), fontWeight: '700' }]}>{currentQCtx}</Text>
+              {currentMtcLabel ? (
+                <Text style={[styles.mtcBannerLabel, { color: c.textSecondary, marginLeft: 4 }]} numberOfLines={2}>— {toUpper(currentMtcLabel)}</Text>
+              ) : null}
             </View>
           )}
 
@@ -3626,4 +3751,14 @@ const styles = StyleSheet.create({
   opHoursTimeInput: { fontSize: 14, color: '#374151', textAlign: 'center', backgroundColor: '#f9fafb', borderRadius: 6, paddingVertical: 8, paddingHorizontal: 4, width: '100%', borderWidth: 1, borderColor: '#e5e7eb' },
   opHoursAddButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 6, borderWidth: 1.5, borderColor: '#00979D', borderStyle: 'dashed' },
   opHoursAddButtonText: { fontSize: 14, fontWeight: '600', color: '#00979D' },
+
+  // Kegiatan table (kegiatans with start/stop time pickers)
+  kegTableContainer: { backgroundColor: '#fff', borderRadius: 8, overflow: 'hidden', marginBottom: 12 },
+  kegHeaderRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 12, backgroundColor: '#f3f4f6', borderBottomWidth: 1, borderBottomColor: '#e5e7eb' },
+  kegRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#f3f4f6' },
+  kegColLabel: { fontSize: 12, fontWeight: '700', color: '#6b7280', textAlign: 'center' },
+  kegNumText: { width: 40, fontSize: 13, color: '#6b7280', textAlign: 'center', fontWeight: '600' },
+  kegTextInput: { flex: 2, fontSize: 14, color: '#374151', backgroundColor: '#f9fafb', borderRadius: 6, paddingVertical: 8, paddingHorizontal: 10, borderWidth: 1, borderColor: '#e5e7eb', marginHorizontal: 4 },
+  kegTimeBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, backgroundColor: '#f9fafb', borderRadius: 6, paddingVertical: 8, paddingHorizontal: 8, borderWidth: 1, borderColor: '#e5e7eb', marginHorizontal: 2 },
+  kegTimeText: { fontSize: 14, color: '#374151', textAlign: 'center' },
 });

@@ -232,10 +232,8 @@ export function DynamicQuestion({ question, value, onChange, onOtherTextChange, 
 
       case 'STAFF_TABLE':
       case 'DIAGNOSIS_TABLE':
-        return <TableInput question={question} value={value} onChange={onChange} error={error} />;
-
       case 'REPEATING_TABLE':
-        return <RepeatingTableInput question={question} value={value} onChange={onChange} error={error} />;
+        return <KegiatanTableInput question={question} value={value} onChange={onChange} error={error} />;
 
       case 'INTERVENTION_MATRIX':
         return <InterventionMatrixInput question={question} value={value} onChange={onChange} error={error} />;
@@ -491,40 +489,36 @@ function TableInput({ question, value, onChange, error }: TableInputProps) {
 }
 
 /**
- * RepeatingTableInput — dynamic rows table (e.g. DQB intervention programs)
- * Columns are defined in question.table_config.columns.
- * Users can add/remove rows freely.
+ * KegiatanTableInput — kegiatan schedule table with:
+ * - Auto-numbered rows
+ * - Kegiatan (text)
+ * - Jam Mulai (time picker)
+ * - Jam Selesai (time picker)
+ * Used for STAFF_TABLE, DIAGNOSIS_TABLE, REPEATING_TABLE
  */
-interface RepeatingTableInputProps {
+interface KegiatanTableInputProps {
   question: Question;
   value: Array<Record<string, string>> | null;
   onChange: (value: Array<Record<string, string>>) => void;
   error?: string;
 }
 
-function RepeatingTableInput({ question, value, onChange, error }: RepeatingTableInputProps) {
-  const config = question.table_config;
+function KegiatanTableInput({ question, value, onChange, error }: KegiatanTableInputProps) {
+  const rows: Array<{ kegiatan: string; start: string; stop: string }> =
+    Array.isArray(value) && value.length > 0
+      ? value.map(r => ({ kegiatan: r.kegiatan ?? '', start: r.start ?? '', stop: r.stop ?? '' }))
+      : [{ kegiatan: '', start: '', stop: '' }];
 
-  if (!config?.columns?.length) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        Konfigurasi kolom tabel tidak ditemukan. Tambahkan <code>table_config</code> pada pertanyaan ini.
-      </p>
-    );
-  }
-
-  const rows: Array<Record<string, string>> = Array.isArray(value) ? value : [{}];
-
-  const handleCellChange = (rowIndex: number, colCode: string, cellValue: string) => {
-    const next = rows.map((r, i) => (i === rowIndex ? { ...r, [colCode]: cellValue } : r));
+  const handleCellChange = (idx: number, field: 'kegiatan' | 'start' | 'stop', val: string) => {
+    const next = rows.map((r, i) => i === idx ? { ...r, [field]: val } : r);
     onChange(next);
   };
 
-  const handleAddRow = () => onChange([...rows, {}]);
+  const handleAddRow = () => onChange([...rows, { kegiatan: '', start: '', stop: '' }]);
 
-  const handleRemoveRow = (rowIndex: number) => {
+  const handleRemoveRow = (idx: number) => {
     if (rows.length <= 1) return;
-    onChange(rows.filter((_, i) => i !== rowIndex));
+    onChange(rows.filter((_, i) => i !== idx));
   };
 
   return (
@@ -533,34 +527,48 @@ function RepeatingTableInput({ question, value, onChange, error }: RepeatingTabl
         <table className="w-full border-collapse border text-sm">
           <thead>
             <tr>
-              <th className="border p-2 bg-muted text-left font-medium w-10">No</th>
-              {config.columns!.map((col) => (
-                <th key={col.code} className="border p-2 bg-muted text-left font-medium">
-                  {col.label}
-                </th>
-              ))}
+              <th className="border p-2 bg-muted text-center font-medium w-10">No</th>
+              <th className="border p-2 bg-muted text-left font-medium">KEGIATAN</th>
+              <th className="border p-2 bg-muted text-center font-medium w-28">MULAI</th>
+              <th className="border p-2 bg-muted text-center font-medium w-28">SELESAI</th>
               <th className="border p-2 bg-muted w-10" />
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, rowIndex) => (
-              <tr key={rowIndex}>
-                <td className="border p-2 text-center text-muted-foreground">{rowIndex + 1}</td>
-                {config.columns!.map((col) => (
-                  <td key={col.code} className="border p-1">
-                    <Input
-                      type={col.type === 'number' ? 'number' : 'text'}
-                      value={row[col.code] || ''}
-                      onChange={(e) => handleCellChange(rowIndex, col.code, e.target.value)}
-                      className="h-8 border-0 focus-visible:ring-1"
-                      placeholder={col.label}
-                    />
-                  </td>
-                ))}
+            {rows.map((row, idx) => (
+              <tr key={idx}>
+                <td className="border p-2 text-center text-muted-foreground">{idx + 1}</td>
+                {/* Kegiatan — text input */}
+                <td className="border p-1">
+                  <Input
+                    value={row.kegiatan}
+                    onChange={(e) => handleCellChange(idx, 'kegiatan', e.target.value)}
+                    placeholder="Nama kegiatan"
+                    className="h-8 border-0 focus-visible:ring-1"
+                  />
+                </td>
+                {/* Jam Mulai — time input */}
+                <td className="border p-1">
+                  <Input
+                    type="time"
+                    value={row.start}
+                    onChange={(e) => handleCellChange(idx, 'start', e.target.value)}
+                    className="h-8 border-0 focus-visible:ring-1 text-center"
+                  />
+                </td>
+                {/* Jam Selesai — time input */}
+                <td className="border p-1">
+                  <Input
+                    type="time"
+                    value={row.stop}
+                    onChange={(e) => handleCellChange(idx, 'stop', e.target.value)}
+                    className="h-8 border-0 focus-visible:ring-1 text-center"
+                  />
+                </td>
                 <td className="border p-1 text-center">
                   <button
                     type="button"
-                    onClick={() => handleRemoveRow(rowIndex)}
+                    onClick={() => handleRemoveRow(idx)}
                     disabled={rows.length <= 1}
                     className="text-destructive hover:text-destructive/80 disabled:opacity-30 text-lg leading-none px-1"
                     aria-label="Hapus baris"
