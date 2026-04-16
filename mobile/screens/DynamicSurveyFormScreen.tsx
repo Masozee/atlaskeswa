@@ -1568,7 +1568,7 @@ export default function DynamicSurveyFormScreen({
       case 'TIME':
         return (
           <TouchableOpacity
-            onPress={() => setShowTimePicker({ code: question.code, value: value || '' })}
+            onPress={() => setShowTimePicker({ code: question.code, value: value || '', ctx: ctx })}
             style={{
               backgroundColor: c.surface,
               borderRadius: 6,
@@ -2384,7 +2384,7 @@ export default function DynamicSurveyFormScreen({
               {/* Jam Mulai — time picker */}
               <TouchableOpacity
                 style={styles.kegTimeBtn}
-                onPress={() => setShowTimePicker({ code: question.code + '_start_' + idx, value: row.start, kegArray: kegRows })}
+                onPress={() => setShowTimePicker({ code: question.code + '_start_' + idx, value: row.start, ctx, kegArray: kegRows })}
               >
                 <Text style={[styles.kegTimeText, !row.start && { color: '#9ca3af' }]}>
                   {row.start || '00:00'}
@@ -2395,7 +2395,7 @@ export default function DynamicSurveyFormScreen({
               {/* Jam Selesai — time picker */}
               <TouchableOpacity
                 style={styles.kegTimeBtn}
-                onPress={() => setShowTimePicker({ code: question.code + '_stop_' + idx, value: row.stop, kegArray: kegRows })}
+                onPress={() => setShowTimePicker({ code: question.code + '_stop_' + idx, value: row.stop, ctx, kegArray: kegRows })}
               >
                 <Text style={[styles.kegTimeText, !row.stop && { color: '#9ca3af' }]}>
                   {row.stop || '00:00'}
@@ -2529,7 +2529,7 @@ export default function DynamicSurveyFormScreen({
 
   // Day picker modal state (index of row whose day is being picked)
   const [opHoursDayPicker, setOpHoursDayPicker] = useState<number | null>(null);
-  const [showTimePicker, setShowTimePicker] = useState<{ code: string; value: string; kegArray?: Array<{ kegiatan: string; start: string; stop: string }> } | null>(null); // {code, value, kegArray?}
+  const [showTimePicker, setShowTimePicker] = useState<{ code: string; value: string; ctx: string; kegArray?: Array<{ kegiatan: string; start: string; stop: string }> } | null>(null); // {code, value, ctx, kegArray?}
 
   const renderOperatingHours = (question: Question, value: any, ctx: string = '') => {
     const schedule: Array<{ day: string; open: string; close: string }> =
@@ -2711,7 +2711,7 @@ export default function DynamicSurveyFormScreen({
                                 const rowIdx = parseInt(parts2[1], 10);
                                 const rows = showTimePicker.kegArray ?? [];
                                 const next = rows.map((r: any, i: number) => i === rowIdx ? { ...r, start: newVal } : r);
-                                handleAnswerChange(qCode, next, ctx);
+                                handleAnswerChange(qCode, next, showTimePicker.ctx);
                                 setShowTimePicker(null);
                                 return;
                               }
@@ -2721,12 +2721,12 @@ export default function DynamicSurveyFormScreen({
                                 const rowIdx = parseInt(partsStop[1], 10);
                                 const rows = showTimePicker.kegArray ?? [];
                                 const next = rows.map((r: any, i: number) => i === rowIdx ? { ...r, stop: newVal } : r);
-                                handleAnswerChange(qCode, next, ctx);
+                                handleAnswerChange(qCode, next, showTimePicker.ctx);
                                 setShowTimePicker(null);
                                 return;
                               }
-                              handleAnswerChange(code, newVal, ctx);
-                              setShowTimePicker({ code, value: newVal });
+                              handleAnswerChange(code, newVal, showTimePicker.ctx);
+                              setShowTimePicker({ code, value: newVal, ctx: showTimePicker.ctx });
                             }}
                           >
                             <Text style={{ fontSize: 18, color: isSelected ? c.primary : '#374151', fontWeight: isSelected ? '700' : '400' }}>{label}</Text>
@@ -2753,7 +2753,7 @@ export default function DynamicSurveyFormScreen({
                                 const rowIdx = parseInt(parts2[1], 10);
                                 const rows = showTimePicker.kegArray ?? [];
                                 const next = rows.map((r: any, i: number) => i === rowIdx ? { ...r, start: newVal } : r);
-                                handleAnswerChange(qCode, next, ctx);
+                                handleAnswerChange(qCode, next, showTimePicker.ctx);
                                 setShowTimePicker(null);
                                 return;
                               }
@@ -2763,11 +2763,11 @@ export default function DynamicSurveyFormScreen({
                                 const rowIdx = parseInt(partsStop[1], 10);
                                 const rows = showTimePicker.kegArray ?? [];
                                 const next = rows.map((r: any, i: number) => i === rowIdx ? { ...r, stop: newVal } : r);
-                                handleAnswerChange(qCode, next, ctx);
+                                handleAnswerChange(qCode, next, showTimePicker.ctx);
                                 setShowTimePicker(null);
                                 return;
                               }
-                              handleAnswerChange(code, newVal, ctx);
+                              handleAnswerChange(code, newVal, showTimePicker.ctx);
                               setShowTimePicker({ code, value: newVal });
                             }}
                           >
