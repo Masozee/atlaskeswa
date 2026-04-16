@@ -2282,65 +2282,8 @@ export default function DynamicSurveyFormScreen({
   // 1. Fixed rows (config.rows set): pre-defined job positions, value is Record<rowCode, Record<colCode, string>>
   // 2. Repeating rows (no config.rows): user adds rows freely, value is Array<Record<colCode, string>>
   const renderStaffTableRepeating = (question: Question, value: any, ctx: string = '') => {
-    const config = question.table_config;
-
-    // ── Mode 1: Fixed rows from config ──────────────────────────────────────
-    if (config?.rows?.length) {
-      const columns: Array<{ code: string; label: string; type: string }> = config.columns ?? [
-        { code: 'LAKI_LAKI', label: 'L', type: 'number' },
-        { code: 'PEREMPUAN', label: 'P', type: 'number' },
-      ];
-      const currentValue: Record<string, Record<string, string>> =
-        value && !Array.isArray(value) ? value : {};
-
-      const updateCell = (rowCode: string, colCode: string, cellValue: string) => {
-        const next = { ...currentValue, [rowCode]: { ...currentValue[rowCode], [colCode]: cellValue } };
-        handleAnswerChange(question.code, next, ctx);
-      };
-
-      return (
-        <ScrollView horizontal showsHorizontalScrollIndicator style={{ marginTop: 4 }}>
-          <View>
-            {/* Header */}
-            <View style={[styles.tableRow, { backgroundColor: c.border }]}>
-              <View style={[styles.tableCell, { width: 160 }]}>
-                <Text style={styles.tableHeaderText}>Jabatan</Text>
-              </View>
-              {columns.map((col: any) => (
-                <View key={col.code} style={[styles.tableCell, { width: 70 }]}>
-                  <Text style={styles.tableHeaderText}>{col.label}</Text>
-                </View>
-              ))}
-            </View>
-            {/* Fixed rows */}
-            {config.rows.map((row: any) => {
-              const rowData = currentValue[row.code] ?? {};
-              return (
-                <View key={row.code} style={styles.tableRow}>
-                  <View style={[styles.tableCell, { width: 160 }]}>
-                    <Text style={[styles.tableCellLabel, { fontSize: fs(12) }]}>{row.label}</Text>
-                  </View>
-                  {columns.map((col: any) => (
-                    <View key={col.code} style={[styles.tableCell, { width: 70, padding: 2 }]}>
-                      <TextInput
-                        style={[styles.tableCellInput, { fontSize: fs(12) }]}
-                        value={String(rowData[col.code] ?? '')}
-                        onChangeText={(t) => updateCell(row.code, col.code, t)}
-                        keyboardType="number-pad"
-                        placeholder="0"
-                        placeholderTextColor="#d1d5db"
-                      />
-                    </View>
-                  ))}
-                </View>
-              );
-            })}
-          </View>
-        </ScrollView>
-      );
-    }
-
-    // ── Mode 2: Kegiatan table (Nomor, Kegiatan, Jam Mulai, Jam Selesai) ───────
+    // ── Kegiatan table (Nomor, Kegiatan, Jam Mulai, Jam Selesai) ─────────────
+    // Always use kegiatan format for STAFF_TABLE, DIAGNOSIS_TABLE, REPEATING_TABLE
     const kegRows: Array<{ kegiatan: string; start: string; stop: string }> =
       Array.isArray(value) && value.length > 0 ? value : [{ kegiatan: '', start: '', stop: '' }];
 
