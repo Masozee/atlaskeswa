@@ -13,88 +13,60 @@ def fix_saq_chain(apps, schema_editor):
         max_order=models.Max('order')
     )['max_order'] or 0
 
-    def get_next_code(code):
-        """Find the question object by code"""
-        try:
-            return Question.objects.get(code=code)
-        except Question.DoesNotExist:
-            return None
-
-    # SAQA exists, use it as target for SAQ7, SAQ8, SAQ9
-    saqa = get_next_code('SAQA')
-
-    # SAQF and SAQG don't exist — create them
-    def create_question(code, answer_type, is_required, order, section, show_cond=None):
-        return Question.objects.create(
+    def get_or_create_question(code, answer_type, is_required, order, section, show_cond=None):
+        """Idempotent: return existing question or create a new one."""
+        existing = Question.objects.filter(code=code).first()
+        if existing:
+            print(f'[0032] {code} already exists — skipping creation')
+            return existing
+        q = Question.objects.create(
             code=code,
             answer_type=answer_type,
             is_required=is_required,
             order=order,
             section=section,
             show_condition=show_cond,
-            question_text=f'{code} question'  # placeholder, should be updated in production
+            question_text=f'{code} question'
         )
+        print(f'[0032] Created {code}')
+        return q
 
-    # Create SAQ7
-    saq7 = create_question('SAQ7', 'SINGLE_CHOICE', True, max_order + 1, non_faskses)
+    saq7 = get_or_create_question('SAQ7', 'SINGLE_CHOICE', True, max_order + 1, non_faskses)
+    saq8 = get_or_create_question('SAQ8', 'SINGLE_CHOICE', True, max_order + 2, non_faskses)
+    saq9 = get_or_create_question('SAQ9', 'SINGLE_CHOICE', True, max_order + 3, non_faskses)
+    saqf = get_or_create_question('SAQF', 'SINGLE_CHOICE', True, max_order + 4, non_faskses)
+    saqg = get_or_create_question('SAQG', 'SINGLE_CHOICE', True, max_order + 5, non_faskses)
 
-    # Create SAQ8
-    saq8 = create_question('SAQ8', 'SINGLE_CHOICE', True, max_order + 2, non_faskses)
+    # Create choices only if they don't already exist
+    if not QuestionChoice.objects.filter(question=saq7).exists():
+        QuestionChoice.objects.create(question=saq7, value='SA7.1', order=1, next_question_code='SAQA')
+        QuestionChoice.objects.create(question=saq7, value='SA7.2', order=2, next_question_code='SAQA')
 
-    # Create SAQ9
-    saq9 = create_question('SAQ9', 'SINGLE_CHOICE', True, max_order + 3, non_faskses)
+    if not QuestionChoice.objects.filter(question=saq8).exists():
+        QuestionChoice.objects.create(question=saq8, value='SA8.1', order=1, next_question_code='SAQA')
+        QuestionChoice.objects.create(question=saq8, value='SA8.2', order=2, next_question_code='SAQA')
 
-    # Create SAQF
-    saqf = create_question('SAQF', 'SINGLE_CHOICE', True, max_order + 4, non_faskses)
+    if not QuestionChoice.objects.filter(question=saq9).exists():
+        QuestionChoice.objects.create(question=saq9, value='SA9.1', order=1, next_question_code='SAQA')
+        QuestionChoice.objects.create(question=saq9, value='SA9.2', order=2, next_question_code='SAQA')
 
-    # Create SAQG
-    saqg = create_question('SAQG', 'SINGLE_CHOICE', True, max_order + 5, non_faskses)
+    if not QuestionChoice.objects.filter(question=saqf).exists():
+        QuestionChoice.objects.create(question=saqf, value='SAF1', order=1, next_question_code='SAQG')
+        QuestionChoice.objects.create(question=saqf, value='SAF2', order=2, next_question_code='SAQG')
 
-    # Create choices for SAQ7 → SAQA
-    QuestionChoice.objects.create(question=saq7, value='SA7.1', order=1, next_question_code='SAQA')
-    QuestionChoice.objects.create(question=saq7, value='SA7.2', order=2, next_question_code='SAQA')
+    print('[0032] SAQ7, SAQ8, SAQ9, SAQF, SAQG ensured in NON-FASKES section')
 
-    # Create choices for SAQ8 → SAQA
-    QuestionChoice.objects.create(question=saq8, value='SA8.1', order=1, next_question_code='SAQA')
-    QuestionChoice.objects.create(question=saq8, value='SA8.2', order=2, next_question_code='SAQA')
-
-    # Create choices for SAQ9 → SAQA
-    QuestionChoice.objects.create(question=saq9, value='SA9.1', order=1, next_question_code='SAQA')
-    QuestionChoice.objects.create(question=saq9, value='SA9.2', order=2, next_question_code='SAQA')
-
-    # Create choices for SAQF (two options leading to SAQG)
-    QuestionChoice.objects.create(question=saqf, value='SAF1', order=1, next_question_code='SAQG')
-    QuestionChoice.objects.create(question=saqf, value='SAF2', order=2, next_question_code='SAQG')
-
-    # SAQG has no next (terminal question in chain)
-    print('[0032] Created SAQ7, SAQ8, SAQ9, SAQF, SAQG in NON-FASKES section')
-
-    # ── Fix 2: Fix show_condition on SAQA–SAQG (QL1 → QL2) ─────────────────
-    sa_questions = ['SAQA', 'SAQB', 'SAQC', 'SAQD', 'SAQE']
+    # ── Fix 2: Fix show_condition on SAQA–SAQG (QL1 → QL2) — use filter().update() ──
+    sa_questions = ['SAQA', 'SAQB', 'SAQC', 'SAQD', 'SAQE', 'SAQF', 'SAQG']
     for code in sa_questions:
-        try:
-            q = Question.objects.get(code=code)
-            old_cond = q.show_condition
-            q.show_condition = {'question_code': 'QL2', 'operator': 'contains', 'value': 'SA'}
-            q.save(update_fields=['show_condition'])
-            print(f'[0032] Fixed show_condition on {code}: {old_cond} → {q.show_condition}')
-        except Question.DoesNotExist:
-            print(f'[0032] {code} not found — skipping')
-
-    # Also fix SAQF and SAQG once created
-    for code in ['SAQF', 'SAQG']:
-        try:
-            q = Question.objects.get(code=code)
-            q.show_condition = {'question_code': 'QL2', 'operator': 'contains', 'value': 'SA'}
-            q.save(update_fields=['show_condition'])
-            print(f'[0032] Set show_condition on {code}: {q.show_condition}')
-        except Question.DoesNotExist:
-            print(f'[0032] {code} not found — skipping')
+        updated = Question.objects.filter(code=code).update(
+            show_condition={'question_code': 'QL2', 'operator': 'contains', 'value': 'SA'}
+        )
+        print(f'[0032] Fixed show_condition on {code} (rows: {updated})')
 
     # ── Fix 3: Update SAQ6 choices to point to SAQ7 ──────────────────────────
-    saq6 = get_next_code('SAQ6')
+    saq6 = Question.objects.filter(code='SAQ6').first()
     if saq6:
-        # Clear old choices and add one pointing to SAQ7
         QuestionChoice.objects.filter(question=saq6).delete()
         QuestionChoice.objects.create(question=saq6, value='SA6.1', order=1, next_question_code='SAQ7')
         QuestionChoice.objects.create(question=saq6, value='SA6.2', order=2, next_question_code='SAQ7')
@@ -102,8 +74,8 @@ def fix_saq_chain(apps, schema_editor):
     else:
         print('[0032] SAQ6 not found — cannot update choices')
 
-    # ── Fix 4: Update SAQ5 to point to SAQ6 ─────────────────────────────────
-    saq5 = get_next_code('SAQ5')
+    # ── Fix 4: Update SAQ5 choices to point to SAQ6 ─────────────────────────
+    saq5 = Question.objects.filter(code='SAQ5').first()
     if saq5:
         QuestionChoice.objects.filter(question=saq5).delete()
         QuestionChoice.objects.create(question=saq5, value='SA5.1', order=1, next_question_code='SAQ6')
@@ -119,34 +91,21 @@ def revert_saq_chain(apps, schema_editor):
     Question = apps.get_model('survey', 'Question')
     QuestionChoice = apps.get_model('survey', 'QuestionChoice')
 
-    # Delete SAQ7, SAQ8, SAQ9, SAQF, SAQG
     for code in ['SAQ7', 'SAQ8', 'SAQ9', 'SAQF', 'SAQG']:
-        try:
-            q = Question.objects.get(code=code)
-            q.delete()
-            print(f'[0032-revert] Deleted {code}')
-        except Question.DoesNotExist:
-            print(f'[0032-revert] {code} not found — skipping')
+        Question.objects.filter(code=code).delete()
+        print(f'[0032-revert] Deleted {code}')
 
-    # Revert SAQA–SAQE show_condition to QL1
-    sa_questions = ['SAQA', 'SAQB', 'SAQC', 'SAQD', 'SAQE', 'SAQF', 'SAQG']
-    for code in sa_questions:
-        try:
-            q = Question.objects.get(code=code)
-            q.show_condition = {'question_code': 'QL1', 'operator': 'contains', 'value': 'SA'}
-            q.save(update_fields=['show_condition'])
-            print(f'[0032-revert] Reverted show_condition on {code}')
-        except Question.DoesNotExist:
-            print(f'[0032-revert] {code} not found — skipping')
+    for code in ['SAQA', 'SAQB', 'SAQC', 'SAQD', 'SAQE', 'SAQF', 'SAQG']:
+        Question.objects.filter(code=code).update(
+            show_condition={'question_code': 'QL1', 'operator': 'contains', 'value': 'SA'}
+        )
+        print(f'[0032-revert] Reverted show_condition on {code}')
 
-    # Revert SAQ5 and SAQ6 choices to empty
     for code in ['SAQ5', 'SAQ6']:
-        try:
-            q = Question.objects.get(code=code)
+        q = Question.objects.filter(code=code).first()
+        if q:
             QuestionChoice.objects.filter(question=q).delete()
             print(f'[0032-revert] Cleared choices on {code}')
-        except Question.DoesNotExist:
-            print(f'[0032-revert] {code} not found — skipping')
 
 
 class Migration(migrations.Migration):
