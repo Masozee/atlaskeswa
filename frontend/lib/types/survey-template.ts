@@ -29,6 +29,7 @@ export type QuestionType =
   | 'DIAGNOSIS_TABLE'
   | 'REPEATING_TABLE'
   | 'INTERVENTION_MATRIX'
+  | 'OPERATING_HOURS'
   | 'LOCATION';  // Custom location input with fixed Provinsi/Kabupaten, dropdown Kecamatan, text Desa, auto-GPS
 
 // Backend SurveyTemplate.TEMPLATE_TYPES choices

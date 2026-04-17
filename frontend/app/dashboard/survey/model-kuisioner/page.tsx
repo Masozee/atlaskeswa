@@ -106,10 +106,8 @@ const ANSWER_TYPES = [
   { value: "SINGLE_CHOICE", label: "Pilihan Tunggal" },
   { value: "MULTIPLE_CHOICE", label: "Pilihan Ganda" },
   { value: "STAFF_TABLE", label: "Tabel Staff" },
-  { value: "DIAGNOSIS_TABLE", label: "Tabel Diagnosis" },
-  { value: "REPEATING_TABLE", label: "Tabel Dinamis (baris berulang)" },
   { value: "INTERVENTION_MATRIX", label: "Matriks Intervensi (baris pilih + kolom detail)" },
-  { value: "OPERATING_HOURS", label: "Jam Operasional" },
+  { value: "OPERATING_HOURS", label: "Tabel Jadwal" },
   { value: "GPS", label: "GPS" },
   { value: "FILE", label: "File Upload" },
 ];

@@ -184,8 +184,8 @@ class Question(models.Model):
         REPEATING_TABLE = 'REPEATING_TABLE', 'Tabel Dinamis (baris berulang)'
         INTERVENTION_MATRIX = 'INTERVENTION_MATRIX', 'Matriks Intervensi (baris pilih + kolom detail)'
 
-        # Operating hours type (e.g. "Minggu 09.00-22.00")
-        OPERATING_HOURS = 'OPERATING_HOURS', 'Jam Operasional'
+        # Operating hours / schedule table (e.g. "Senin 09:00-22:00")
+        OPERATING_HOURS = 'OPERATING_HOURS', 'Tabel Jadwal'
 
     section = models.ForeignKey(
         QuestionSection,

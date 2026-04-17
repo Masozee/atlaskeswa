@@ -2472,7 +2472,7 @@ export default function DynamicSurveyFormScreen({
 
   // Day picker modal state (index of row whose day is being picked)
   const [opHoursDayPicker, setOpHoursDayPicker] = useState<number | null>(null);
-  const [showTimePicker, setShowTimePicker] = useState<{ code: string; value: string; ctx: string; kegArray?: Array<{ kegiatan: string; start: string; stop: string }> } | null>(null); // {code, value, ctx, kegArray?}
+  const [showTimePicker, setShowTimePicker] = useState<{ code: string; value: string; ctx: string; kegArray?: Array<{ kegiatan: string; start: string; stop: string }>; opArray?: Array<{ day: string; open: string; close: string }> } | null>(null); // {code, value, ctx, kegArray?, opArray?}
 
   const renderOperatingHours = (question: Question, value: any, ctx: string = '') => {
     const schedule: Array<{ day: string; open: string; close: string }> =
@@ -2524,26 +2524,28 @@ export default function DynamicSurveyFormScreen({
 
               {/* Jam Buka */}
               <View style={[styles.opHoursCol, { flex: 1 }]}>
-                <TextInput
-                  style={styles.opHoursTimeInput}
-                  value={row.open}
-                  onChangeText={(text) => updateRow(idx, 'open', text)}
-                  placeholder="09.00"
-                  placeholderTextColor="#d1d5db"
-                  keyboardType="numbers-and-punctuation"
-                />
+                <TouchableOpacity
+                  style={styles.kegTimeBtn}
+                  onPress={() => setShowTimePicker({ code: question.code + '_open_' + idx, value: row.open, ctx, opArray: schedule })}
+                >
+                  <Text style={[styles.kegTimeText, !row.open && { color: '#9ca3af' }]}>
+                    {row.open || '00:00'}
+                  </Text>
+                  <MaterialIcons name="access-time" size={16} color="#6b7280" />
+                </TouchableOpacity>
               </View>
 
               {/* Jam Tutup */}
               <View style={[styles.opHoursCol, { flex: 1 }]}>
-                <TextInput
-                  style={styles.opHoursTimeInput}
-                  value={row.close}
-                  onChangeText={(text) => updateRow(idx, 'close', text)}
-                  placeholder="22.00"
-                  placeholderTextColor="#d1d5db"
-                  keyboardType="numbers-and-punctuation"
-                />
+                <TouchableOpacity
+                  style={styles.kegTimeBtn}
+                  onPress={() => setShowTimePicker({ code: question.code + '_close_' + idx, value: row.close, ctx, opArray: schedule })}
+                >
+                  <Text style={[styles.kegTimeText, !row.close && { color: '#9ca3af' }]}>
+                    {row.close || '00:00'}
+                  </Text>
+                  <MaterialIcons name="access-time" size={16} color="#6b7280" />
+                </TouchableOpacity>
               </View>
 
               {/* Delete button */}
@@ -2613,118 +2615,6 @@ export default function DynamicSurveyFormScreen({
           </View>
         )}
 
-        {/* TIME PICKER MODAL — 24-hour format */}
-        {showTimePicker && (
-          <View style={styles.pickerOverlay}>
-            <TouchableOpacity
-              style={styles.pickerBackdrop}
-              onPress={() => setShowTimePicker(null)}
-            />
-            <View style={styles.pickerModal}>
-              <View style={styles.pickerHeader}>
-                <Text style={styles.pickerHeaderText}>Pilih Jam (24 Jam)</Text>
-                <TouchableOpacity onPress={() => setShowTimePicker(null)}>
-                  <MaterialIcons name="close" size={22} color="#6b7280" />
-                </TouchableOpacity>
-              </View>
-              {/* Parse current time */}
-              {(() => {
-                const parts = (showTimePicker.value || '').split(':');
-                const initHour = parts[0] ? parseInt(parts[0], 10) : -1;
-                const initMin = parts[1] ? parseInt(parts[1], 10) : -1;
-                return (
-                  <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-start', paddingHorizontal: 16, paddingBottom: 16 }}>
-                    {/* Hours column */}
-                    <ScrollView style={{ height: 200, width: 70 }} showsVerticalScrollIndicator>
-                      {Array.from({ length: 24 }, (_, i) => i).map((h) => {
-                        const label = String(h).padStart(2, '0');
-                        const isSelected = h === initHour;
-                        return (
-                          <TouchableOpacity
-                            key={`h-${h}`}
-                            style={{ paddingVertical: 10, alignItems: 'center', backgroundColor: isSelected ? '#e6f7f7' : 'transparent', borderRadius: 8 }}
-                            onPress={() => {
-                              const min = initMin >= 0 ? String(initMin).padStart(2, '0') : '00';
-                              const newVal = `${label}:${min}`;
-                              // Intercept kegiatan table synthetic codes (e.g. "QL8A_start_0")
-                              const code = showTimePicker.code;
-                              const parts2 = code.split('_start_');
-                              if (parts2.length === 2) {
-                                const qCode = parts2[0];
-                                const rowIdx = parseInt(parts2[1], 10);
-                                const rows = showTimePicker.kegArray ?? [];
-                                const next = rows.map((r: any, i: number) => i === rowIdx ? { ...r, start: newVal } : r);
-                                handleAnswerChange(qCode, next, showTimePicker.ctx);
-                                setShowTimePicker(null);
-                                return;
-                              }
-                              const partsStop = code.split('_stop_');
-                              if (partsStop.length === 2) {
-                                const qCode = partsStop[0];
-                                const rowIdx = parseInt(partsStop[1], 10);
-                                const rows = showTimePicker.kegArray ?? [];
-                                const next = rows.map((r: any, i: number) => i === rowIdx ? { ...r, stop: newVal } : r);
-                                handleAnswerChange(qCode, next, showTimePicker.ctx);
-                                setShowTimePicker(null);
-                                return;
-                              }
-                              handleAnswerChange(code, newVal, showTimePicker.ctx);
-                              setShowTimePicker({ code, value: newVal, ctx: showTimePicker.ctx });
-                            }}
-                          >
-                            <Text style={{ fontSize: 18, color: isSelected ? c.primary : '#374151', fontWeight: isSelected ? '700' : '400' }}>{label}</Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </ScrollView>
-                    {/* Minutes column */}
-                    <ScrollView style={{ height: 200, width: 70 }} showsVerticalScrollIndicator>
-                      {[0, 15, 30, 45].map((m) => {
-                        const label = String(m).padStart(2, '0');
-                        const isSelected = m === initMin;
-                        return (
-                          <TouchableOpacity
-                            key={`m-${m}`}
-                            style={{ paddingVertical: 10, alignItems: 'center', backgroundColor: isSelected ? '#e6f7f7' : 'transparent', borderRadius: 8 }}
-                            onPress={() => {
-                              const hour = initHour >= 0 ? String(initHour).padStart(2, '0') : '00';
-                              const newVal = `${hour}:${label}`;
-                              const code = showTimePicker.code;
-                              const parts2 = code.split('_start_');
-                              if (parts2.length === 2) {
-                                const qCode = parts2[0];
-                                const rowIdx = parseInt(parts2[1], 10);
-                                const rows = showTimePicker.kegArray ?? [];
-                                const next = rows.map((r: any, i: number) => i === rowIdx ? { ...r, start: newVal } : r);
-                                handleAnswerChange(qCode, next, showTimePicker.ctx);
-                                setShowTimePicker(null);
-                                return;
-                              }
-                              const partsStop = code.split('_stop_');
-                              if (partsStop.length === 2) {
-                                const qCode = partsStop[0];
-                                const rowIdx = parseInt(partsStop[1], 10);
-                                const rows = showTimePicker.kegArray ?? [];
-                                const next = rows.map((r: any, i: number) => i === rowIdx ? { ...r, stop: newVal } : r);
-                                handleAnswerChange(qCode, next, showTimePicker.ctx);
-                                setShowTimePicker(null);
-                                return;
-                              }
-                              handleAnswerChange(code, newVal, showTimePicker.ctx);
-                              setShowTimePicker({ code, value: newVal });
-                            }}
-                          >
-                            <Text style={{ fontSize: 18, color: isSelected ? c.primary : '#374151', fontWeight: isSelected ? '700' : '400' }}>{label}</Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </ScrollView>
-                  </View>
-                );
-              })()}
-            </View>
-          </View>
-        )}
       </View>
     );
   };
@@ -3490,6 +3380,119 @@ export default function DynamicSurveyFormScreen({
           )}
         </ScrollView>
       </View>
+
+      {/* TIME PICKER MODAL — top-level so it renders for all question types */}
+      {showTimePicker && (
+        <View style={styles.pickerOverlay}>
+          <TouchableOpacity
+            style={styles.pickerBackdrop}
+            onPress={() => setShowTimePicker(null)}
+          />
+          <View style={styles.pickerModal}>
+            <View style={styles.pickerHeader}>
+              <Text style={styles.pickerHeaderText}>Pilih Jam (24 Jam)</Text>
+              <TouchableOpacity onPress={() => setShowTimePicker(null)}>
+                <MaterialIcons name="close" size={22} color="#6b7280" />
+              </TouchableOpacity>
+            </View>
+            {(() => {
+              const parts = (showTimePicker.value || '').split(':');
+              const initHour = parts[0] ? parseInt(parts[0], 10) : -1;
+              const initMin = parts[1] ? parseInt(parts[1], 10) : -1;
+
+              const handleTimeSelect = (newVal: string) => {
+                const code = showTimePicker.code;
+                // kegiatan _start_
+                const partsStart = code.split('_start_');
+                if (partsStart.length === 2) {
+                  const qCode = partsStart[0];
+                  const rowIdx = parseInt(partsStart[1], 10);
+                  const rows = showTimePicker.kegArray ?? [];
+                  handleAnswerChange(qCode, rows.map((r: any, i: number) => i === rowIdx ? { ...r, start: newVal } : r), showTimePicker.ctx);
+                  setShowTimePicker(null);
+                  return;
+                }
+                // kegiatan _stop_
+                const partsStop = code.split('_stop_');
+                if (partsStop.length === 2) {
+                  const qCode = partsStop[0];
+                  const rowIdx = parseInt(partsStop[1], 10);
+                  const rows = showTimePicker.kegArray ?? [];
+                  handleAnswerChange(qCode, rows.map((r: any, i: number) => i === rowIdx ? { ...r, stop: newVal } : r), showTimePicker.ctx);
+                  setShowTimePicker(null);
+                  return;
+                }
+                // operating hours _open_
+                const partsOpen = code.split('_open_');
+                if (partsOpen.length === 2) {
+                  const qCode = partsOpen[0];
+                  const rowIdx = parseInt(partsOpen[1], 10);
+                  const rows = showTimePicker.opArray ?? [];
+                  handleAnswerChange(qCode, rows.map((r: any, i: number) => i === rowIdx ? { ...r, open: newVal } : r), showTimePicker.ctx);
+                  setShowTimePicker(null);
+                  return;
+                }
+                // operating hours _close_
+                const partsClose = code.split('_close_');
+                if (partsClose.length === 2) {
+                  const qCode = partsClose[0];
+                  const rowIdx = parseInt(partsClose[1], 10);
+                  const rows = showTimePicker.opArray ?? [];
+                  handleAnswerChange(qCode, rows.map((r: any, i: number) => i === rowIdx ? { ...r, close: newVal } : r), showTimePicker.ctx);
+                  setShowTimePicker(null);
+                  return;
+                }
+                // plain time field
+                handleAnswerChange(code, newVal, showTimePicker.ctx);
+                setShowTimePicker({ ...showTimePicker, value: newVal });
+              };
+
+              return (
+                <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-start', paddingHorizontal: 16, paddingBottom: 16 }}>
+                  {/* Hours column */}
+                  <ScrollView style={{ height: 200, width: 70 }} showsVerticalScrollIndicator>
+                    {Array.from({ length: 24 }, (_, i) => i).map((h) => {
+                      const label = String(h).padStart(2, '0');
+                      const isSelected = h === initHour;
+                      return (
+                        <TouchableOpacity
+                          key={`h-${h}`}
+                          style={{ paddingVertical: 10, alignItems: 'center', backgroundColor: isSelected ? '#e6f7f7' : 'transparent', borderRadius: 8 }}
+                          onPress={() => {
+                            const min = initMin >= 0 ? String(initMin).padStart(2, '0') : '00';
+                            handleTimeSelect(`${label}:${min}`);
+                          }}
+                        >
+                          <Text style={{ fontSize: 18, color: isSelected ? c.primary : '#374151', fontWeight: isSelected ? '700' : '400' }}>{label}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                  {/* Minutes column */}
+                  <ScrollView style={{ height: 200, width: 70 }} showsVerticalScrollIndicator>
+                    {[0, 15, 30, 45].map((m) => {
+                      const label = String(m).padStart(2, '0');
+                      const isSelected = m === initMin;
+                      return (
+                        <TouchableOpacity
+                          key={`m-${m}`}
+                          style={{ paddingVertical: 10, alignItems: 'center', backgroundColor: isSelected ? '#e6f7f7' : 'transparent', borderRadius: 8 }}
+                          onPress={() => {
+                            const hour = initHour >= 0 ? String(initHour).padStart(2, '0') : '00';
+                            handleTimeSelect(`${hour}:${label}`);
+                          }}
+                        >
+                          <Text style={{ fontSize: 18, color: isSelected ? c.primary : '#374151', fontWeight: isSelected ? '700' : '400' }}>{label}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+              );
+            })()}
+          </View>
+        </View>
+      )}
     </KeyboardAvoidingView>
   );
 }

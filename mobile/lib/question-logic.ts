@@ -483,8 +483,15 @@ export function getFlowItems(
       // embedded inline within FASKSES via _inline_only_) from appearing as a separate
       // section that would cause looping back to RQA after RQJ completes.
       if (allSections && rawAnswers) {
+        // Only cross-section jump to inline sentinel sections (_inline_only_).
+        // Searching all sections first could find the wrong section (e.g., SAQA found
+        // in JENIS_LAYANAN instead of DETAIL). By filtering for _inline_only_ first,
+        // we ensure only actual DETAIL blocks are considered cross-section targets.
         const otherSection = allSections.find(
-          (s) => s.id !== section.id && (s.questions || []).some((q) => q.code === nextCode)
+          (s) =>
+            s.id !== section.id &&
+            (s.show_condition as Record<string, any>)?.question_code === '_inline_only_' &&
+            (s.questions || []).some((q) => q.code === nextCode)
         );
         const targetIsSentinel =
           otherSection?.show_condition != null &&

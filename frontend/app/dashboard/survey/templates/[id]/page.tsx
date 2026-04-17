@@ -69,9 +69,8 @@ const ANSWER_TYPE_OPTIONS: { value: QuestionType; label: string }[] = [
   { value: 'FILE', label: 'Upload File' },
   { value: 'GPS', label: 'Koordinat GPS' },
   { value: 'STAFF_TABLE', label: 'Tabel Data Staf' },
-  { value: 'DIAGNOSIS_TABLE', label: 'Tabel Diagnosis' },
-  { value: 'REPEATING_TABLE', label: 'Tabel Dinamis (baris berulang)' },
   { value: 'INTERVENTION_MATRIX', label: 'Matriks Intervensi (baris pilih + kolom detail)' },
+  { value: 'OPERATING_HOURS', label: 'Tabel Jadwal' },
 ];
 
 const OPERATOR_OPTIONS = [
