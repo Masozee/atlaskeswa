@@ -552,25 +552,32 @@ export function getFlowItems(
 
             if (mcQ.answer_type !== 'MULTIPLE_CHOICE') continue;
 
-            mcFound = true;
             const mcAnswer = allResponses[mcQ.code];
             if (Array.isArray(mcAnswer) && mcAnswer.length > 0) {
               const nextChoice = (mcQ.choices || []).find(
                 (c: QuestionOption) =>
                   mcAnswer.includes(c.value) &&
                   c.next_question_code &&
-                  // Only skip if the target question itself has been visited
-                  // (not if intermediate questions in the branch were visited)
                   !visited.has(c.next_question_code),
               );
               if (nextChoice?.next_question_code) {
                 nextBranchQuestion = codeMap.get(nextChoice.next_question_code);
                 if (nextBranchQuestion) {
+                  // Found a navigable in-section branch
                   console.log(`[FLOW] cross-section done → next MC branch: ${mcQ.code} choice=${nextChoice.value} → ${nextChoice.next_question_code}`);
+                  mcFound = true;
+                  break;
                 }
+                // nextChoice leads to a DETAIL section (not in codeMap) — this MC's
+                // choices all converge on a cross-section target (e.g. SIQ2→SIQA).
+                // Continue walking backward to find the outer MC that has a navigable
+                // in-section branch (e.g. SIQ1's SI2→SIQ3 after SIQ2 is exhausted).
+                continue;
               }
             }
-            break; // Always stop at the first current-section MULTIPLE_CHOICE found
+            // No unvisited selected choice found — this MC's branches are all done.
+            mcFound = true;
+            break;
           }
 
           if (nextBranchQuestion) {
@@ -580,26 +587,11 @@ export function getFlowItems(
           }
 
           if (mcFound) {
-            // MULTIPLE_CHOICE found but all matching branches have been visited
-            // Check if there are more unvisited questions in this section
-            const unvisitedInSection = visibleQuestions.filter(q => !visited.has(q.code));
-            if (unvisitedInSection.length > 0) {
-              // There are unvisited questions — fall back to sequential navigation
-              console.log(`[FLOW] cross-section done → MC branches exhausted, but ${unvisitedInSection.length} unvisited remain → continue sequentially`);
-              let nextIdx = visibleQuestions.indexOf(current) + 1;
-              while (nextIdx < visibleQuestions.length && visited.has(visibleQuestions[nextIdx].code)) {
-                nextIdx++;
-              }
-              if (nextIdx < visibleQuestions.length) {
-                current = visibleQuestions[nextIdx];
-                continue;
-              }
-              break;
-            } else {
-              // No unvisited questions — END
-              console.log(`[FLOW] cross-section done → all MC branches exhausted → END`);
-              break;
-            }
+            // All selected branches of the MULTIPLE_CHOICE ancestor have been visited.
+            // Do NOT fall back to sequential navigation — unvisited questions in
+            // visibleQuestions belong to unselected branches and must not be shown.
+            console.log(`[FLOW] cross-section done → all MC branches exhausted → END`);
+            break;
           }
 
           // No MULTIPLE_CHOICE in the chain — fall back to sequential navigation
