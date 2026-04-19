@@ -5,10 +5,8 @@ Provides additional security layer beyond Django REST Framework permissions
 
 from django.http import JsonResponse
 from django.utils.deprecation import MiddlewareMixin
-from django.core.cache import cache
 from django.utils import timezone
 import re
-import time
 
 
 class RBACValidationMiddleware(MiddlewareMixin):
@@ -157,92 +155,4 @@ class ResourceOwnershipMiddleware(MiddlewareMixin):
         Note: Primary ownership check is in DRF has_object_permission
         This middleware serves as an additional security layer
         """
-        return None
-
-
-class RateLimitByRoleMiddleware(MiddlewareMixin):
-    """
-    Middleware to implement role-based rate limiting using Django cache.
-    Different roles have different request limits per minute.
-    Unauthenticated requests are limited to protect auth endpoints.
-    """
-
-    # Requests per minute per role
-    RATE_LIMITS = {
-        'ADMIN': 300,
-        'VERIFIER': 200,
-        'SURVEYOR': 150,
-        'VIEWER': 60,
-        'anonymous': 30,  # Unauthenticated requests
-    }
-
-    # Auth endpoints get a stricter limit regardless of role
-    AUTH_ENDPOINTS = [
-        r'^/v1/accounts/auth/login/',
-        r'^/v1/accounts/auth/refresh/',
-    ]
-    AUTH_RATE_LIMIT = 10  # per minute
-
-    def _get_cache_key(self, identifier: str, endpoint_type: str = 'default') -> str:
-        """Build a per-minute sliding window cache key."""
-        minute = int(time.time() // 60)
-        return f'ratelimit:{endpoint_type}:{identifier}:{minute}'
-
-    def _get_client_ip(self, request) -> str:
-        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
-        if x_forwarded_for:
-            return x_forwarded_for.split(',')[0].strip()
-        return request.META.get('REMOTE_ADDR', 'unknown')
-
-    def _is_rate_limited(self, cache_key: str, limit: int) -> bool:
-        """Increment counter and return True if limit exceeded."""
-        count = cache.get(cache_key, 0)
-        if count >= limit:
-            return True
-        # Set with 70-second TTL to cover the current minute window
-        cache.set(cache_key, count + 1, timeout=70)
-        return False
-
-    def process_request(self, request):
-        path = request.path
-
-        # Only apply to API endpoints
-        if not path.startswith('/v1/'):
-            return None
-
-        ip = self._get_client_ip(request)
-
-        # Strict rate limit on auth endpoints (by IP)
-        for pattern in self.AUTH_ENDPOINTS:
-            if re.match(pattern, path):
-                cache_key = self._get_cache_key(ip, 'auth')
-                if self._is_rate_limited(cache_key, self.AUTH_RATE_LIMIT):
-                    return JsonResponse(
-                        {'detail': 'Too many requests. Please wait before trying again.'},
-                        status=429,
-                        headers={'Retry-After': '60'},
-                    )
-                return None
-
-        # Role-based rate limiting for authenticated users
-        if request.user and request.user.is_authenticated:
-            # Superusers are never rate limited
-            if request.user.is_superuser:
-                return None
-
-            role = getattr(request.user, 'role', 'VIEWER')
-            limit = self.RATE_LIMITS.get(role, self.RATE_LIMITS['VIEWER'])
-            identifier = str(request.user.pk)
-        else:
-            limit = self.RATE_LIMITS['anonymous']
-            identifier = ip
-
-        cache_key = self._get_cache_key(identifier)
-        if self._is_rate_limited(cache_key, limit):
-            return JsonResponse(
-                {'detail': 'Rate limit exceeded. Please slow down your requests.'},
-                status=429,
-                headers={'Retry-After': '60'},
-            )
-
         return None

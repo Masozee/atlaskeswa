@@ -42,18 +42,30 @@ class QuestionChoiceSerializer(serializers.ModelSerializer):
     """Serializer for question choices"""
 
     mtc_code_display = serializers.SerializerMethodField()
+    bsic_full_label = serializers.SerializerMethodField()
 
     def get_mtc_code_display(self, obj):
         if obj.mtc_code:
             return f"{obj.mtc_code.code} — {obj.mtc_code.name}"
         return None
 
+    def get_bsic_full_label(self, obj):
+        if obj.bsic_id:
+            return obj.bsic.full_label or obj.bsic.name or ''
+        # Fallback: look up BSIC by value (code) when bsic_id is null
+        if obj.value:
+            from apps.directory.models import BasicStableInputsOfCare
+            bsic = BasicStableInputsOfCare.objects.filter(code=obj.value).first()
+            if bsic:
+                return bsic.full_label or bsic.name or ''
+        return ''
+
     class Meta:
         model = QuestionChoice
         fields = [
             'id', 'question', 'value', 'label', 'order', 'mtc_code', 'mtc_code_display',
             'keterangan', 'next_question_code', 'has_other_input', 'other_input_label', 'other_input_type',
-            'cabang_mtc', 'kode_desde_ltc'
+            'cabang_mtc', 'kode_desde_ltc', 'bsic', 'bsic_full_label'
         ]
         read_only_fields = ['id']
 
@@ -66,7 +78,7 @@ class QuestionChoiceCreateUpdateSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'question', 'value', 'label', 'order', 'mtc_code',
             'keterangan', 'next_question_code', 'has_other_input', 'other_input_label', 'other_input_type',
-            'cabang_mtc', 'kode_desde_ltc'
+            'cabang_mtc', 'kode_desde_ltc', 'bsic'
         ]
         read_only_fields = ['id']
 
@@ -432,7 +444,7 @@ class DynamicSurveyResponseCreateSerializer(serializers.ModelSerializer):
                     answer_kwargs['table_data'] = answer_value
             elif question.answer_type == 'COVERAGE_LEVEL':
                 answer_kwargs['coverage_level'] = answer_value
-            elif question.answer_type in ['STAFF_TABLE', 'DIAGNOSIS_TABLE', 'REPEATING_TABLE', 'INTERVENTION_MATRIX', 'OPERATING_HOURS']:
+            elif question.answer_type in ['STAFF_TABLE', 'DIAGNOSIS_TABLE', 'REPEATING_TABLE', 'INTERVENTION_MATRIX', 'OPERATING_HOURS', 'KEGIATAN_TABLE']:
                 answer_kwargs['table_data'] = answer_value
             elif question.answer_type == 'GPS':
                 if isinstance(answer_value, dict):

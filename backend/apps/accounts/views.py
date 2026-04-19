@@ -170,14 +170,13 @@ from rest_framework_simplejwt.views import TokenObtainPairView as BaseTokenObtai
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 from apps.logs.models import ActivityLog
-from .throttles import LoginThrottle
 
 
 class CustomTokenObtainPairView(BaseTokenObtainPairView):
     """
-    Custom login view that logs authentication attempts and throttles by IP.
+    Custom login view that logs authentication attempts.
     """
-    throttle_classes = [LoginThrottle]
+    throttle_classes = []
 
     def post(self, request, *args, **kwargs):
         email = request.data.get('email', '')

@@ -115,11 +115,11 @@ class QuestionAdmin(admin.ModelAdmin):
 @admin.register(QuestionChoice)
 class QuestionChoiceAdmin(ImportExportModelAdmin):
     resource_classes = [QuestionChoiceResource]
-    list_display = ('question', 'value', 'label', 'mtc_code', 'order', 'has_other_input')
+    list_display = ('question', 'value', 'label', 'mtc_code', 'bsic', 'order', 'has_other_input')
     list_filter = ('has_other_input', 'question__section__template')
     search_fields = ('value', 'label', 'question__code')
     ordering = ('question', 'order')
-    raw_id_fields = ('question', 'mtc_code')
+    raw_id_fields = ('question', 'mtc_code', 'bsic')
 
 
 @admin.register(DynamicSurveyResponse)

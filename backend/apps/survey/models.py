@@ -187,6 +187,9 @@ class Question(models.Model):
         # Operating hours / schedule table (e.g. "Senin 09:00-22:00")
         OPERATING_HOURS = 'OPERATING_HOURS', 'Tabel Jadwal'
 
+        # Activity schedule table (custom kegiatan with start/end time)
+        KEGIATAN_TABLE = 'KEGIATAN_TABLE', 'Tabel Kegiatan'
+
     section = models.ForeignKey(
         QuestionSection,
         on_delete=models.CASCADE,
@@ -313,6 +316,14 @@ class QuestionChoice(models.Model):
     # DESDE-LTC classification fields
     cabang_mtc = models.CharField(max_length=50, blank=True, help_text='Cabang MTC')
     kode_desde_ltc = models.CharField(max_length=20, blank=True, help_text='Kode DESDE-LTC (e.g. R.1.1.3)')
+    bsic = models.ForeignKey(
+        'directory.BasicStableInputsOfCare',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='bsic_question_choices',
+        help_text='BSIC terkait pilihan ini'
+    )
 
     class Meta:
         db_table = 'survey_question_choices'

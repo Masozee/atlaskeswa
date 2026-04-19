@@ -26,7 +26,7 @@ class BasicStableInputsOfCareSerializer(serializers.ModelSerializer):
     class Meta:
         model = BasicStableInputsOfCare
         fields = [
-            'id', 'code', 'name',
+            'id', 'code', 'name', 'full_label',
             'kategori_layanan', 'kategori_layanan_name',
             'kategori_fasilitas', 'kategori_fasilitas_display',
             'description', 'is_active', 'created_at', 'updated_at',

@@ -89,6 +89,7 @@ class BasicStableInputsOfCare(models.Model):
         blank=True,
         default=''
     )
+    full_label = models.TextField(blank=True, help_text='Label lengkap hierarki DESDE-LTC, e.g. Layanan Rawat Inap, Akut, Rumah Sakit')
     description = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)

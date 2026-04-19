@@ -52,8 +52,6 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    # Rate limiting - must come before RBAC
-    'apps.accounts.middleware.RateLimitByRoleMiddleware',
     # RBAC validation middleware - Add after authentication
     'apps.accounts.middleware.RBACValidationMiddleware',
 ]
@@ -152,17 +150,7 @@ REST_FRAMEWORK = {
         'rest_framework.filters.SearchFilter',
         'rest_framework.filters.OrderingFilter',
     ),
-    # Throttling — enforced at the DRF layer (complements middleware rate limiting)
-    'DEFAULT_THROTTLE_CLASSES': [
-        'rest_framework.throttling.AnonRateThrottle',
-        'rest_framework.throttling.UserRateThrottle',
-    ],
-    'DEFAULT_THROTTLE_RATES': {
-        'anon': '30/min',
-        'user': '300/min',
-        'login': '10/min',      # used by LoginThrottle
-        'refresh': '20/min',    # used by RefreshThrottle
-    },
+    'DEFAULT_THROTTLE_CLASSES': [],
 }
 
 # JWT Settings

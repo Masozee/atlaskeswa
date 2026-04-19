@@ -871,8 +871,9 @@ export default function DynamicSurveyFormScreen({
         if (rawAns !== null && rawAns !== undefined && rawAns !== '') {
           const qDef = allQDefs.find(q => q.code === question.code);
           const choice = (qDef?.choices as any[])?.find((c: any) => c.value === rawAns);
-          // Store BSIC code + narrative: "R1 — Pemantauan Intensitas Tinggi"
-          ctxTracker = rawAns + (choice?.cabang_mtc ? ` — ${choice.cabang_mtc}` : (choice?.label ? ` — ${choice.label}` : ''));
+          // Store BSIC code + full label: "R1 — Layanan Rawat Inap, Akut, ..."
+          const detailLabel = choice?.bsic_full_label || choice?.cabang_mtc || choice?.label || '';
+          ctxTracker = rawAns + (detailLabel ? ` — ${detailLabel}` : '');
         } else {
           ctxTracker = '';
         }
@@ -954,8 +955,8 @@ export default function DynamicSurveyFormScreen({
 
     if (newCtx && newCtx !== currentMtcContext) {
       setCurrentMtcContext(newCtx);
-      // Use cabang_mtc (the narrative like "Pemantauan Intensitas Tinggi") instead of label
-      setCurrentMtcLabel(selectedChoice?.cabang_mtc || selectedChoice?.label || '');
+      // Use bsic_full_label → cabang_mtc → label as fallback for banner
+      setCurrentMtcLabel(selectedChoice?.bsic_full_label || selectedChoice?.cabang_mtc || selectedChoice?.label || '');
     }
     // Clear context when answering a non-detail question with no new context.
     // This prevents stale context from leaking into subsequent detail questions
@@ -1701,6 +1702,9 @@ export default function DynamicSurveyFormScreen({
       case 'OPERATING_HOURS':
         return renderOperatingHours(question, value, ctx);
 
+      case 'KEGIATAN_TABLE':
+        return renderKegiatanTable(question, value, ctx);
+
       default:
         return (
           <TextInput
@@ -2282,8 +2286,128 @@ export default function DynamicSurveyFormScreen({
   // 1. Fixed rows (config.rows set): pre-defined job positions, value is Record<rowCode, Record<colCode, string>>
   // 2. Repeating rows (no config.rows): user adds rows freely, value is Array<Record<colCode, string>>
   const renderStaffTableRepeating = (question: Question, value: any, ctx: string = '') => {
-    // ── Kegiatan table (Nomor, Kegiatan, Jam Mulai, Jam Selesai) ─────────────
-    // Always use kegiatan format for STAFF_TABLE, DIAGNOSIS_TABLE, REPEATING_TABLE
+    const config = question.table_config;
+
+    // ── Mode 1: Fixed rows from config (Jabatan / L / P) ────────────────────
+    if (config?.rows?.length) {
+      const columns: Array<{ code: string; label: string; type: string }> = config.columns ?? [
+        { code: 'LAKI_LAKI', label: 'L', type: 'number' },
+        { code: 'PEREMPUAN', label: 'P', type: 'number' },
+      ];
+      const currentValue: Record<string, Record<string, string>> =
+        value && !Array.isArray(value) ? value : {};
+
+      const updateCell = (rowCode: string, colCode: string, cellValue: string) => {
+        const next = { ...currentValue, [rowCode]: { ...currentValue[rowCode], [colCode]: cellValue } };
+        handleAnswerChange(question.code, next, ctx);
+      };
+
+      return (
+        <ScrollView horizontal showsHorizontalScrollIndicator style={{ marginTop: 4 }}>
+          <View>
+            <View style={[styles.tableRow, { backgroundColor: c.border }]}>
+              <View style={[styles.tableCell, { width: 160 }]}>
+                <Text style={styles.tableHeaderText}>Jabatan</Text>
+              </View>
+              {columns.map((col: any) => (
+                <View key={col.code} style={[styles.tableCell, { width: 70 }]}>
+                  <Text style={styles.tableHeaderText}>{col.label}</Text>
+                </View>
+              ))}
+            </View>
+            {config.rows.map((row: any) => {
+              const rowData = currentValue[row.code] ?? {};
+              return (
+                <View key={row.code} style={styles.tableRow}>
+                  <View style={[styles.tableCell, { width: 160 }]}>
+                    <Text style={[styles.tableCellLabel, { fontSize: fs(12) }]}>{row.label}</Text>
+                  </View>
+                  {columns.map((col: any) => (
+                    <View key={col.code} style={[styles.tableCell, { width: 70, padding: 2 }]}>
+                      <TextInput
+                        style={[styles.tableCellInput, { fontSize: fs(12) }]}
+                        value={String(rowData[col.code] ?? '')}
+                        onChangeText={(t) => updateCell(row.code, col.code, t)}
+                        keyboardType="number-pad"
+                        placeholder="0"
+                        placeholderTextColor="#d1d5db"
+                      />
+                    </View>
+                  ))}
+                </View>
+              );
+            })}
+          </View>
+        </ScrollView>
+      );
+    }
+
+    // ── Mode 2: STAFF_TABLE without config → repeating Jabatan / L / P rows ──
+    if (question.answer_type === 'STAFF_TABLE') {
+      const staffRows: Array<{ jabatan: string; laki: string; perempuan: string }> =
+        Array.isArray(value) && value.length > 0 ? value : [{ jabatan: '', laki: '', perempuan: '' }];
+
+      const updateStaffCell = (idx: number, field: 'jabatan' | 'laki' | 'perempuan', val: string) => {
+        const next = staffRows.map((r, i) => i === idx ? { ...r, [field]: val } : r);
+        handleAnswerChange(question.code, next, ctx);
+      };
+      const addStaffRow = () => handleAnswerChange(question.code, [...staffRows, { jabatan: '', laki: '', perempuan: '' }], ctx);
+      const removeStaffRow = (idx: number) => {
+        if (staffRows.length <= 1) return;
+        handleAnswerChange(question.code, staffRows.filter((_, i) => i !== idx), ctx);
+      };
+
+      return (
+        <View>
+          <View style={[styles.tableRow, { backgroundColor: c.border }]}>
+            <Text style={[styles.tableHeaderText, { flex: 3 }]}>Jabatan</Text>
+            <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'center' }]}>L</Text>
+            <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'center' }]}>P</Text>
+            <View style={{ width: 40 }} />
+          </View>
+          {staffRows.map((row, idx) => (
+            <View key={idx} style={styles.tableRow}>
+              <TextInput
+                style={[styles.tableCellInput, { flex: 3 }]}
+                value={row.jabatan}
+                onChangeText={(t) => updateStaffCell(idx, 'jabatan', t)}
+                placeholder="Nama jabatan"
+                placeholderTextColor="#d1d5db"
+              />
+              <TextInput
+                style={[styles.tableCellInput, { flex: 1, textAlign: 'center' }]}
+                value={row.laki}
+                onChangeText={(t) => updateStaffCell(idx, 'laki', t)}
+                keyboardType="number-pad"
+                placeholder="0"
+                placeholderTextColor="#d1d5db"
+              />
+              <TextInput
+                style={[styles.tableCellInput, { flex: 1, textAlign: 'center' }]}
+                value={row.perempuan}
+                onChangeText={(t) => updateStaffCell(idx, 'perempuan', t)}
+                keyboardType="number-pad"
+                placeholder="0"
+                placeholderTextColor="#d1d5db"
+              />
+              <TouchableOpacity
+                style={{ width: 40, alignItems: 'center', justifyContent: 'center' }}
+                onPress={() => removeStaffRow(idx)}
+                disabled={staffRows.length <= 1}
+              >
+                <MaterialIcons name="delete-outline" size={20} color={staffRows.length <= 1 ? '#d1d5db' : '#ef4444'} />
+              </TouchableOpacity>
+            </View>
+          ))}
+          <TouchableOpacity style={styles.opHoursAddButton} onPress={addStaffRow}>
+            <MaterialIcons name="add" size={18} color={c.primary} />
+            <Text style={styles.opHoursAddButtonText}>Tambah Jabatan</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    // ── Mode 3: Kegiatan table (DIAGNOSIS_TABLE / REPEATING_TABLE) ───────────
     const kegRows: Array<{ kegiatan: string; start: string; stop: string }> =
       Array.isArray(value) && value.length > 0 ? value : [{ kegiatan: '', start: '', stop: '' }];
 
@@ -2615,6 +2739,104 @@ export default function DynamicSurveyFormScreen({
           </View>
         )}
 
+      </View>
+    );
+  };
+
+  // --- KEGIATAN TABLE (custom activity schedule) ---
+  const renderKegiatanTable = (question: Question, value: any, ctx: string = '') => {
+    const kegiatans: Array<{ kegiatan: string; start: string; stop: string }> =
+      Array.isArray(value) && value.length > 0 ? value : [{ kegiatan: '', start: '', stop: '' }];
+
+    const updateRow = (index: number, field: 'kegiatan' | 'start' | 'stop', val: string) => {
+      const next = kegiatans.map((r, i) => i === index ? { ...r, [field]: val } : r);
+      handleAnswerChange(question.code, next, ctx);
+    };
+
+    const addRow = () => handleAnswerChange(question.code, [...kegiatans, { kegiatan: '', start: '', stop: '' }], ctx);
+
+    const removeRow = (index: number) => {
+      if (kegiatans.length <= 1) return;
+      handleAnswerChange(question.code, kegiatans.filter((_, i) => i !== index), ctx);
+    };
+
+    return (
+      <View>
+        {/* Header */}
+        <View style={styles.sectionHeaderContainer}>
+          <Text style={styles.sectionHeader}>TABEL KEGIATAN</Text>
+          <Text style={styles.sectionSubtitle}>ISILAH KEGIATAN BESERTA JAM MULAI DAN SELESAI</Text>
+        </View>
+
+        {/* Table */}
+        <View style={[styles.opHoursContainer]}>
+          {/* Table header */}
+          <View style={[styles.opHoursRow, { backgroundColor: '#f3f4f6' }]}>
+            <Text style={[styles.opHoursColLabel, { flex: 2 }]}>Kegiatan</Text>
+            <Text style={[styles.opHoursColLabel, { flex: 1 }]}>Mulai</Text>
+            <Text style={[styles.opHoursColLabel, { flex: 1 }]}>Selesai</Text>
+            <View style={{ width: 40 }} />
+          </View>
+
+          {/* Rows */}
+          {kegiatans.map((row, idx) => (
+            <View key={idx} style={[styles.opHoursRow, { borderBottomWidth: 1, borderBottomColor: '#f3f4f6' }]}>
+              {/* Kegiatan text input */}
+              <TextInput
+                style={[styles.opHoursCol, { flex: 2, backgroundColor: '#fff', borderRadius: 6, marginRight: 6, paddingHorizontal: 8, paddingVertical: 8, fontSize: 14 }]}
+                value={row.kegiatan}
+                onChangeText={(text) => updateRow(idx, 'kegiatan', text)}
+                placeholder="Nama kegiatan"
+                placeholderTextColor="#9ca3af"
+              />
+
+              {/* Jam Mulai */}
+              <View style={[styles.opHoursCol, { flex: 1 }]}>
+                <TouchableOpacity
+                  style={styles.kegTimeBtn}
+                  onPress={() => setShowTimePicker({ code: question.code + '_start_' + idx, value: row.start, ctx, kegArray: kegiatans })}
+                >
+                  <Text style={[styles.kegTimeText, !row.start && { color: '#9ca3af' }]}>
+                    {row.start || '00:00'}
+                  </Text>
+                  <MaterialIcons name="access-time" size={16} color="#6b7280" />
+                </TouchableOpacity>
+              </View>
+
+              {/* Jam Selesai */}
+              <View style={[styles.opHoursCol, { flex: 1 }]}>
+                <TouchableOpacity
+                  style={styles.kegTimeBtn}
+                  onPress={() => setShowTimePicker({ code: question.code + '_stop_' + idx, value: row.stop, ctx, kegArray: kegiatans })}
+                >
+                  <Text style={[styles.kegTimeText, !row.stop && { color: '#9ca3af' }]}>
+                    {row.stop || '00:00'}
+                  </Text>
+                  <MaterialIcons name="access-time" size={16} color="#6b7280" />
+                </TouchableOpacity>
+              </View>
+
+              {/* Delete button */}
+              <TouchableOpacity
+                style={{ width: 40, alignItems: 'center', justifyContent: 'center' }}
+                onPress={() => removeRow(idx)}
+                disabled={kegiatans.length <= 1}
+              >
+                <MaterialIcons
+                  name="delete-outline"
+                  size={20}
+                  color={kegiatans.length <= 1 ? '#d1d5db' : '#ef4444'}
+                />
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
+
+        {/* Add row button */}
+        <TouchableOpacity style={styles.opHoursAddButton} onPress={addRow}>
+          <MaterialIcons name="add" size={18} color={c.primary} />
+          <Text style={styles.opHoursAddButtonText}>Tambah Baris</Text>
+        </TouchableOpacity>
       </View>
     );
   };

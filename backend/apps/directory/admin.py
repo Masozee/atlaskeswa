@@ -32,10 +32,11 @@ class MainTypeOfCareAdmin(ImportExportModelAdmin):
 @admin.register(BasicStableInputsOfCare)
 class BasicStableInputsOfCareAdmin(ImportExportModelAdmin):
     resource_class = BSICResource
-    list_display = ('code', 'name', 'is_active', 'created_at')
+    list_display = ('code', 'name', 'full_label', 'is_active', 'created_at')
     list_filter = ('is_active', 'created_at')
-    search_fields = ('code', 'name', 'description')
+    search_fields = ('code', 'name', 'full_label', 'description')
     ordering = ('code',)
+    fields = ('code', 'name', 'full_label', 'kategori_layanan', 'kategori_fasilitas', 'description', 'is_active')
 
 
 @admin.register(TargetPopulation)

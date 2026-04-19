@@ -19,8 +19,14 @@ export async function proxy(request: NextRequest) {
                    process.env.API_URL ||
                    'https://api.atlaskeswa.id';
 
-    // Ensure trailing slash for Django (Django APPEND_SLASH setting)
+    // Strip /api prefix since Django URLs are at /v1/* not /api/v1/*
+    // pathname = /api/v1/accounts/auth/login/ → backendPath = /v1/accounts/auth/login/
     let backendPath = pathname;
+    if (backendPath.startsWith('/api')) {
+      backendPath = backendPath.replace(/^\/api/, '');
+    }
+
+    // Ensure trailing slash for Django (Django APPEND_SLASH setting)
     if (!backendPath.endsWith('/')) {
       backendPath += '/';
     }
