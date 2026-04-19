@@ -871,9 +871,8 @@ export default function DynamicSurveyFormScreen({
         if (rawAns !== null && rawAns !== undefined && rawAns !== '') {
           const qDef = allQDefs.find(q => q.code === question.code);
           const choice = (qDef?.choices as any[])?.find((c: any) => c.value === rawAns);
-          // Store BSIC code + full label: "R1 — Layanan Rawat Inap, Akut, ..."
-          const detailLabel = choice?.bsic_full_label || choice?.cabang_mtc || choice?.label || '';
-          ctxTracker = rawAns + (detailLabel ? ` — ${detailLabel}` : '');
+          // Store raw BSIC code as context (label is shown separately in banner via currentMtcLabel)
+          ctxTracker = rawAns;
         } else {
           ctxTracker = '';
         }
