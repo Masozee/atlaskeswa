@@ -872,10 +872,19 @@ export default function DynamicSurveyFormScreen({
   const questionContexts = useMemo<string[]>(() => {
     const allQDefs = template?.sections?.flatMap(s => s.questions || []) ?? [];
     let ctxTracker = '';
+    let prevSectionCode = '';
     return activeFlowItems.map((item) => {
       if (item.kind === 'hint' || item.kind === 'end_survey') return ctxTracker;
       const question = item.question;
       const isDetail = /[A-Z]$/.test(question.code);
+      const itemSectionCode = item.question.section?.code ?? '';
+
+      // Reset context tracker when entering a different section
+      // This prevents context from RQ section bleeding into DQ section and vice versa
+      if (itemSectionCode && itemSectionCode !== prevSectionCode) {
+        ctxTracker = '';
+      }
+      prevSectionCode = itemSectionCode;
 
       // For non-detail questions, update context tracker if answer has cabang_mtc
       if (!isDetail) {
