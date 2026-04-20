@@ -48,6 +48,18 @@ const toUpper = (text: string): string => {
   return text.toUpperCase();
 };
 
+// Format number with dot as thousands separator (Indonesian style): 10000 → "10.000"
+const formatThousands = (val: number | string | null | undefined): string => {
+  if (val === '' || val === null || val === undefined) return '';
+  const str = String(val);
+  const [intPart, decPart] = str.split('.');
+  const formatted = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return decPart !== undefined ? `${formatted}.${decPart}` : formatted;
+};
+
+// Strip dot thousand separators before parsing
+const stripThousands = (text: string): string => text.replace(/\./g, '');
+
 // Check if GPS coordinates are valid (not null, undefined, or NaN)
 const isValidGps = (gps: { latitude: number; longitude: number; accuracy: number | null } | null): boolean => {
   if (!gps) return false;
@@ -376,6 +388,7 @@ export default function DynamicSurveyFormScreen({
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [currentMtcContext, setCurrentMtcContext] = useState<string>('');
   const [currentMtcLabel, setCurrentMtcLabel] = useState<string>('');
+  const [currentMtcCode, setCurrentMtcCode] = useState<string>('');
   const [currentUserName, setCurrentUserName] = useState<string>('');
 
   // Service selection
@@ -954,8 +967,16 @@ export default function DynamicSurveyFormScreen({
 
     if (newCtx && newCtx !== currentMtcContext) {
       setCurrentMtcContext(newCtx);
-      // Use bsic_full_label → cabang_mtc → label as fallback for banner
-      setCurrentMtcLabel(selectedChoice?.bsic_full_label || selectedChoice?.cabang_mtc || selectedChoice?.label || '');
+      // Prefer mtc_code_display ("R.3.1.1 — Name") for accurate banner; split into code + label
+      const display = selectedChoice?.mtc_code_display;
+      if (display) {
+        const dashIdx = display.indexOf(' — ');
+        setCurrentMtcCode(dashIdx >= 0 ? display.slice(0, dashIdx) : display);
+        setCurrentMtcLabel(dashIdx >= 0 ? display.slice(dashIdx + 3) : '');
+      } else {
+        setCurrentMtcCode('');
+        setCurrentMtcLabel(selectedChoice?.bsic_full_label || selectedChoice?.cabang_mtc || selectedChoice?.label || '');
+      }
     }
     // Clear context when answering a non-detail question with no new context.
     // This prevents stale context from leaking into subsequent detail questions
@@ -963,6 +984,7 @@ export default function DynamicSurveyFormScreen({
     if (!isDetailQuestion(questionCode) && !newCtx) {
       setCurrentMtcContext('');
       setCurrentMtcLabel('');
+      setCurrentMtcCode('');
     }
 
     if (errors[storageKey]) {
@@ -1531,9 +1553,10 @@ export default function DynamicSurveyFormScreen({
               borderWidth: 1,
               borderColor: c.border,
             }}
-            value={value !== null && value !== undefined ? String(value) : ''}
+            value={formatThousands(value)}
             onChangeText={(text) => {
-              const num = type === 'INTEGER' ? parseInt(text) || '' : parseFloat(text) || '';
+              const cleaned = stripThousands(text);
+              const num = type === 'INTEGER' ? parseInt(cleaned) || '' : parseFloat(cleaned) || '';
               handleAnswerChange(question.code, num === '' ? '' : num, ctx);
             }}
             placeholder="0"
@@ -3486,7 +3509,7 @@ export default function DynamicSurveyFormScreen({
           {/* MTC context banner — shown only for detail questions (RQA..RQJ, IQA..IQC, etc.) */}
           {currentQCtx && isDetailQuestion(currentQ?.code ?? '') && (
             <View style={[styles.mtcBanner, { backgroundColor: isDark ? '#1a2e2e' : '#e6f7f7', borderColor: c.primary }]}>
-              <Text style={[styles.mtcBannerCode, { color: c.primary, fontSize: fs(15), fontWeight: '700' }]}>{currentQCtx}</Text>
+              <Text style={[styles.mtcBannerCode, { color: c.primary, fontSize: fs(15), fontWeight: '700' }]}>{currentMtcCode || currentQCtx.split(' — ')[0]}</Text>
               {currentMtcLabel ? (
                 <Text style={[styles.mtcBannerLabel, { color: c.textSecondary, marginLeft: 4 }]} numberOfLines={2}>— {toUpper(currentMtcLabel)}</Text>
               ) : null}

@@ -410,14 +410,16 @@ export default function SurveyDetailPage({
                 ) : answers.length > 0 ? (
                   <div className="space-y-4">
                     {(() => {
-                      // Build cabang_mtc → trigger question code map from template
+                      // Build context_key → trigger question code map from template.
+                      // Mobile stores detail answers under raw-value prefix (e.g. "R4|RQA"),
+                      // frontend stores under cabang_mtc prefix — index both so either works.
                       const cabangMtcToTrigger = new Map<string, string>();
                       (template?.sections || []).forEach((section: any) => {
                         (section.questions || []).forEach((q: any) => {
                           (q.choices || []).forEach((c: any) => {
-                            if (c.cabang_mtc && c.next_question_code) {
-                              cabangMtcToTrigger.set(c.cabang_mtc, q.code);
-                            }
+                            if (!c.next_question_code) return;
+                            if (c.cabang_mtc) cabangMtcToTrigger.set(c.cabang_mtc, q.code);
+                            if (c.value) cabangMtcToTrigger.set(c.value, q.code);
                           });
                         });
                       });

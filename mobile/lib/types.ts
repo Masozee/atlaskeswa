@@ -46,6 +46,8 @@ export interface QuestionOption {
   other_input_type?: string;
   cabang_mtc?: string;
   kode_desde_ltc?: string;
+  bsic_full_label?: string;
+  mtc_code_display?: string;
 }
 
 export interface TableRow {

@@ -445,6 +445,20 @@ export function getFlowItems(
         // If IQ1=I2, default choice-based next (IQF or IQG) is correct
       }
 
+      // Special case: RQH/SRQH (payment method, MULTIPLE_CHOICE) — show tariff question
+      // RQI/SRQI only when PEMBAYARAN MANDIRI is among the selected values, else skip to RQJ/SRQJ.
+      // This must be code-driven (not show_condition) because show_condition is evaluated once
+      // at the start of the detail block flow, before RQH may have been answered.
+      const MANDIRI_VALUE = 'PEMBAYARAN MANDIRI OLEH KLIEN/PASIEN/KELUARGA';
+      if (current.code === 'RQH' && Array.isArray(answer)) {
+        nextCode = answer.includes(MANDIRI_VALUE) ? 'RQI' : 'RQJ';
+        console.log(`[FLOW]   RQH mandiri=${answer.includes(MANDIRI_VALUE)} → ${nextCode}`);
+      }
+      if (current.code === 'SRQH' && Array.isArray(answer)) {
+        nextCode = answer.includes(MANDIRI_VALUE) ? 'SRQI' : 'SRQJ';
+        console.log(`[FLOW]   SRQH mandiri=${answer.includes(MANDIRI_VALUE)} → ${nextCode}`);
+      }
+
       if (!nextCode) {
         const idx = visibleQuestions.indexOf(current);
         // Only break as terminal if this is the LAST question AND it has choices
@@ -502,10 +516,19 @@ export function getFlowItems(
           const newVisited = new Set(sectionVisited);
           newVisited.add(section.id);
 
-          const cabangMtc = triggeringChoice?.cabang_mtc ?? '';
-          const ctxAnswers: SurveyAnswers = { ...allResponses };
-          if (cabangMtc) {
-            const prefix = `${cabangMtc}|`;
+          // Mobile storage prefixes detail answers with the raw choice VALUE
+          // (e.g. "R4|RQA"), NOT cabang_mtc. Use the raw value so the prefix
+          // lookup actually finds this cycle's answers and the second detail
+          // loop doesn't inherit the first loop's answers via resolvedAnswers.
+          const ctxValue = triggeringChoice?.value ?? '';
+          const ctxAnswers: SurveyAnswers = {};
+          // Carry over only non-detail answers (QL1, Q4, etc.) so show_condition
+          // still evaluates; detail answers must come from this cycle's prefix.
+          for (const [k, v] of Object.entries(allResponses)) {
+            if (!/[A-Z]$/.test(k)) ctxAnswers[k] = v;
+          }
+          if (ctxValue) {
+            const prefix = `${ctxValue}|`;
             for (const [k, v] of Object.entries(rawAnswers)) {
               if (k.startsWith(prefix)) {
                 ctxAnswers[k.slice(prefix.length)] = v;
