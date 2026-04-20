@@ -94,7 +94,9 @@ export default function SurveyDetailScreen({ surveyId, onBack, onEdit }: SurveyD
       };
       setSurvey(normalized);
 
-      // Load cached template to build cabang_mtc → trigger question map
+      // Load cached template to build context_key → trigger question map
+      // context_key stores the raw choice VALUE (e.g. "R2", "R13"), NOT cabang_mtc (which is human-readable)
+      // We need to map these back to the question that triggered the detail block
       try {
         const tplId = typeof data.template === 'object' ? data.template?.id : data.template;
         const tpl = tplId ? await database.getTemplate(tplId) : await database.getLatestTemplate();
@@ -102,9 +104,13 @@ export default function SurveyDetailScreen({ surveyId, onBack, onEdit }: SurveyD
           const map = new Map<string, string>();
           (tpl.sections || []).forEach((section: any) => {
             (section.questions || []).forEach((q: any) => {
+              // Skip detail questions (ending in letter A-Z)
+              if (/[A-Z]$/.test(q.code)) return;
               (q.choices || []).forEach((c: any) => {
-                if (c.cabang_mtc && c.next_question_code) {
-                  map.set(c.cabang_mtc, q.code);
+                // Only map choices that lead to detail questions (next_question_code ends in letter)
+                if (c.next_question_code && /[A-Z]$/.test(c.next_question_code)) {
+                  // Use choice VALUE as key (context_key stores the value, not cabang_mtc)
+                  if (c.value) map.set(c.value, q.code);
                 }
               });
             });

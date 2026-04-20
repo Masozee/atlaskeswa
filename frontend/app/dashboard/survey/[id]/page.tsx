@@ -416,10 +416,15 @@ export default function SurveyDetailPage({
                       const cabangMtcToTrigger = new Map<string, string>();
                       (template?.sections || []).forEach((section: any) => {
                         (section.questions || []).forEach((q: any) => {
+                          // Skip detail questions (ending in letter A-Z)
+                          if (/[A-Z]$/.test(q.code)) return;
                           (q.choices || []).forEach((c: any) => {
-                            if (!c.next_question_code) return;
-                            if (c.cabang_mtc) cabangMtcToTrigger.set(c.cabang_mtc, q.code);
-                            if (c.value) cabangMtcToTrigger.set(c.value, q.code);
+                            // Only map choices that lead to detail questions (next_question_code ends in letter)
+                            if (c.next_question_code && /[A-Z]$/.test(c.next_question_code)) {
+                              // Use choice VALUE as key (context_key stores the value, not cabang_mtc)
+                              // cabang_mtc is human-readable label which won't match context_key
+                              if (c.value) cabangMtcToTrigger.set(c.value, q.code);
+                            }
                           });
                         });
                       });
