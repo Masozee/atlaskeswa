@@ -1337,13 +1337,18 @@ export default function DynamicSurveyFormScreen({
           }
 
           if (responseId) {
-            // When submitting an existing draft, explicitly set SUBMITTED status
+            // When submitting an existing draft, use the dedicated submit endpoint
+            if (submit) {
+              await apiClient.post(`/surveys/responses/${responseId}/submit/`);
+            } else {
+              await apiClient.patch(`/surveys/responses/${responseId}/`, payload);
+            }
+            await database.markSurveySynced(currentLocalId);
+          } else {
+            // No responseId means we're creating new - send with SUBMITTED status if submitting
             if (submit) {
               payload.verification_status = 'SUBMITTED';
             }
-            await apiClient.patch(`/surveys/responses/${responseId}/`, payload);
-            await database.markSurveySynced(currentLocalId);
-          } else {
             const created = await apiClient.post('/surveys/responses/', payload) as any;
             if (currentLocalId) {
               await database.markSurveySynced(currentLocalId, created?.id);
