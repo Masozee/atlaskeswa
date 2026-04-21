@@ -190,6 +190,9 @@ class Question(models.Model):
         # Activity schedule table (custom kegiatan with start/end time)
         KEGIATAN_TABLE = 'KEGIATAN_TABLE', 'Tabel Kegiatan'
 
+        # Matrix kegiatan: table with activity name and day(s) multi-select
+        MATRIX_KEGIATAN = 'MATRIX_KEGIATAN', 'Matrix Kegiatan'
+
     section = models.ForeignKey(
         QuestionSection,
         on_delete=models.CASCADE,

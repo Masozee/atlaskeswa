@@ -569,7 +569,13 @@ export default function DynamicSurveyFormScreen({
       // ── Load existing survey service IDs (for duplicate disable) ─────────
       if (isOnline) {
         try {
-          const responses = await apiClient.get<any>('/surveys/responses/', { page_size: 100 });
+          // Use X-Show-All header to get ALL surveys globally (bypass RBAC)
+          // so we can disable facilities that ANY user has surveyed
+          const responses = await apiClient.get<any>(
+            '/surveys/responses/',
+            { page_size: 1000 },
+            { 'X-Show-All': 'true' }
+          );
           const ids = new Set<number>();
           (responses.results || []).forEach((r: any) => {
             if (r.service && typeof r.service === 'object') ids.add(r.service.id);
@@ -1741,6 +1747,9 @@ export default function DynamicSurveyFormScreen({
       case 'KEGIATAN_TABLE':
         return renderKegiatanTable(question, value, ctx);
 
+      case 'MATRIX_KEGIATAN':
+        return renderMatrixKegiatan(question, value, ctx);
+
       default:
         return (
           <TextInput
@@ -2862,6 +2871,113 @@ export default function DynamicSurveyFormScreen({
                   name="delete-outline"
                   size={20}
                   color={kegiatans.length <= 1 ? '#d1d5db' : '#ef4444'}
+                />
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
+
+        {/* Add row button */}
+        <TouchableOpacity style={styles.opHoursAddButton} onPress={addRow}>
+          <MaterialIcons name="add" size={18} color={c.primary} />
+          <Text style={styles.opHoursAddButtonText}>Tambah Baris</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
+  // --- MATRIX KEGIATAN (activity name + day multi-select) ---
+  const DAY_OPTIONS = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
+
+  const renderMatrixKegiatan = (question: Question, value: any, ctx: string = '') => {
+    // Structure: Array<{ nama_kegiatan: string; hari: string[] }>
+    const rows: Array<{ nama_kegiatan: string; hari: string[] }> =
+      Array.isArray(value) && value.length > 0 ? value : [{ nama_kegiatan: '', hari: [] }];
+
+    const updateRow = (index: number, field: 'nama_kegiatan' | 'hari', val: any) => {
+      const next = rows.map((r, i) => i === index ? { ...r, [field]: val } : r);
+      handleAnswerChange(question.code, next, ctx);
+    };
+
+    const toggleDay = (rowIndex: number, day: string) => {
+      const currentDays = rows[rowIndex].hari || [];
+      const newDays = currentDays.includes(day)
+        ? currentDays.filter((d: string) => d !== day)
+        : [...currentDays, day];
+      updateRow(rowIndex, 'hari', newDays);
+    };
+
+    const addRow = () => handleAnswerChange(question.code, [...rows, { nama_kegiatan: '', hari: [] }], ctx);
+
+    const removeRow = (index: number) => {
+      if (rows.length <= 1) return;
+      handleAnswerChange(question.code, rows.filter((_, i) => i !== index), ctx);
+    };
+
+    return (
+      <View>
+        {/* Header */}
+        <View style={styles.sectionHeaderContainer}>
+          <Text style={styles.sectionHeader}>MATRIX KEGIATAN</Text>
+          <Text style={styles.sectionSubtitle}>ISILAH NAMA KEGIATAN DAN HARI BEKERJA</Text>
+        </View>
+
+        {/* Table */}
+        <View style={[styles.opHoursContainer]}>
+          {/* Table header */}
+          <View style={[styles.opHoursRow, { backgroundColor: '#f3f4f6' }]}>
+            <Text style={[styles.opHoursColLabel, { flex: 2 }]}>Kegiatan</Text>
+            <Text style={[styles.opHoursColLabel, { flex: 2.5 }]}>Hari</Text>
+            <View style={{ width: 40 }} />
+          </View>
+
+          {/* Rows */}
+          {rows.map((row, idx) => (
+            <View key={idx} style={[styles.opHoursRow, { borderBottomWidth: 1, borderBottomColor: '#f3f4f6', alignItems: 'flex-start', paddingVertical: 8 }]}>
+              {/* Nama Kegiatan text input */}
+              <TextInput
+                style={[styles.opHoursCol, { flex: 2, backgroundColor: '#fff', borderRadius: 6, marginRight: 6, paddingHorizontal: 8, paddingVertical: 8, fontSize: 14 }]}
+                value={row.nama_kegiatan}
+                onChangeText={(text) => updateRow(idx, 'nama_kegiatan', text)}
+                placeholder="Nama kegiatan"
+                placeholderTextColor="#9ca3af"
+              />
+
+              {/* Hari multi-select */}
+              <View style={[styles.opHoursCol, { flex: 2.5, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' }]}>
+                {DAY_OPTIONS.map((day) => {
+                  const isSelected = (row.hari || []).includes(day);
+                  return (
+                    <TouchableOpacity
+                      key={day}
+                      onPress={() => toggleDay(idx, day)}
+                      style={{
+                        paddingHorizontal: 8,
+                        paddingVertical: 4,
+                        borderRadius: 4,
+                        backgroundColor: isSelected ? c.primary : '#e5e7eb',
+                        marginRight: 4,
+                        marginBottom: 4,
+                      }}
+                    >
+                      <Text style={{ fontSize: 11, color: isSelected ? '#fff' : '#374151' }}>
+                        {day.substring(0, 3)}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* Delete button */}
+              <TouchableOpacity
+                style={{ width: 40, alignItems: 'center', justifyContent: 'center' }}
+                onPress={() => removeRow(idx)}
+                disabled={rows.length <= 1}
+              >
+                <MaterialIcons
+                  name="delete-outline"
+                  size={20}
+                  color={rows.length <= 1 ? '#d1d5db' : '#ef4444'}
                 />
               </TouchableOpacity>
             </View>

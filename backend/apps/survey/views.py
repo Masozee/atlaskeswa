@@ -719,12 +719,36 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
             return DynamicSurveyResponseCreateSerializer
         return DynamicSurveyResponseDetailSerializer
 
+    def _is_mobile_request(self):
+        """Check if request comes from mobile app based on User-Agent."""
+        user_agent = self.request.META.get('HTTP_USER_AGENT', '')
+        return 'Expo' in user_agent or 'ReactNative' in user_agent
+
+    def _show_all_surveys(self):
+        """Check if request should see all surveys (bypass RBAC), e.g. for duplicate checking."""
+        return self.request.META.get('HTTP_X_SHOW_ALL', '').lower() in ('true', '1', 'yes')
+
     def apply_rbac_filter(self, queryset, user):
         """
-        Override: all users — regardless of role — see only their own surveys.
-        Mobile UX requirement: every user only sees surveys they submitted.
+        Mobile app (Expo/ReactNative): all users see only their own surveys.
+        Frontend web dashboard: admins see all, other roles use standard RBAC.
+        X-Show-All header: bypasses RBAC for duplicate checking across all users.
         """
-        return queryset.filter(surveyor=user)
+        # Allow bypass for duplicate checking (mobile app checks which services already have surveys)
+        if self._show_all_surveys():
+            return queryset
+
+        if self._is_mobile_request():
+            # Mobile UX: every user only sees surveys they submitted
+            return queryset.filter(surveyor=user)
+
+        # Frontend web dashboard
+        # Admins see all surveys
+        if user.role == 'ADMIN':
+            return queryset
+
+        # Other roles: use standard RBAC from mixin
+        return super().apply_rbac_filter(queryset, user)
 
     def perform_create(self, serializer):
         """Create survey response with current user as surveyor"""

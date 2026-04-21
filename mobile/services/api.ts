@@ -222,7 +222,7 @@ class ApiClient {
   }
 
   // HTTP methods
-  async get<T>(endpoint: string, params?: Record<string, any>): Promise<T> {
+  async get<T>(endpoint: string, params?: Record<string, any>, headers?: Record<string, string>): Promise<T> {
     const filteredParams = params
       ? Object.fromEntries(
           Object.entries(params).filter(([_, v]) => v !== undefined && v !== null && v !== '')
@@ -231,7 +231,7 @@ class ApiClient {
     const queryString = Object.keys(filteredParams).length > 0
       ? `?${new URLSearchParams(filteredParams).toString()}`
       : '';
-    return this.request<T>(`${endpoint}${queryString}`, { method: 'GET' });
+    return this.request<T>(`${endpoint}${queryString}`, { method: 'GET', headers });
   }
 
   async post<T>(endpoint: string, data?: any): Promise<T> {

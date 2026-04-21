@@ -235,6 +235,9 @@ export function DynamicQuestion({ question, value, onChange, onOtherTextChange, 
       case 'REPEATING_TABLE':
         return <KegiatanTableInput question={question} value={value} onChange={onChange} error={error} />;
 
+      case 'MATRIX_KEGIATAN':
+        return <MatrixKegiatanInput question={question} value={value} onChange={onChange} error={error} />;
+
       case 'INTERVENTION_MATRIX':
         return <InterventionMatrixInput question={question} value={value} onChange={onChange} error={error} />;
 
@@ -564,6 +567,126 @@ function KegiatanTableInput({ question, value, onChange, error }: KegiatanTableI
                     onChange={(e) => handleCellChange(idx, 'stop', e.target.value)}
                     className="h-8 border-0 focus-visible:ring-1 text-center"
                   />
+                </td>
+                <td className="border p-1 text-center">
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveRow(idx)}
+                    disabled={rows.length <= 1}
+                    className="text-destructive hover:text-destructive/80 disabled:opacity-30 text-lg leading-none px-1"
+                    aria-label="Hapus baris"
+                  >
+                    ×
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <button
+        type="button"
+        onClick={handleAddRow}
+        className="text-sm text-primary hover:underline flex items-center gap-1"
+      >
+        + Tambah baris
+      </button>
+
+      {error && <p className="text-sm text-destructive">{error}</p>}
+    </div>
+  );
+}
+
+/**
+ * MatrixKegiatanInput — table with activity name and day multi-select
+ * Structure: Array<{ nama_kegiatan: string; hari: string[] }>
+ */
+interface MatrixKegiatanInputProps {
+  question: Question;
+  value: any;
+  onChange: (value: any) => void;
+  error?: string;
+}
+
+const DAY_OPTIONS = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
+
+function MatrixKegiatanInput({ question, value, onChange, error }: MatrixKegiatanInputProps) {
+  const rows: Array<{ nama_kegiatan: string; hari: string[] }> =
+    Array.isArray(value) && value.length > 0
+      ? value.map((r: any) => ({ nama_kegiatan: r.nama_kegiatan ?? '', hari: r.hari ?? [] }))
+      : [{ nama_kegiatan: '', hari: [] }];
+
+  const handleCellChange = (idx: number, field: 'nama_kegiatan' | 'hari', val: any) => {
+    const next = rows.map((r, i) => i === idx ? { ...r, [field]: val } : r);
+    onChange(next);
+  };
+
+  const toggleDay = (rowIdx: number, day: string) => {
+    const currentDays = rows[rowIdx].hari || [];
+    const newDays = currentDays.includes(day)
+      ? currentDays.filter((d: string) => d !== day)
+      : [...currentDays, day];
+    handleCellChange(rowIdx, 'hari', newDays);
+  };
+
+  const handleAddRow = () => onChange([...rows, { nama_kegiatan: '', hari: [] }]);
+
+  const handleRemoveRow = (idx: number) => {
+    if (rows.length <= 1) return;
+    onChange(rows.filter((_: any, i: number) => i !== idx));
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse border text-sm">
+          <thead>
+            <tr>
+              <th className="border p-2 bg-muted text-center font-medium w-10">No</th>
+              <th className="border p-2 bg-muted text-left font-medium">KEGIATAN</th>
+              <th className="border p-2 bg-muted text-left font-medium">HARI</th>
+              <th className="border p-2 bg-muted w-10" />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, idx) => (
+              <tr key={idx}>
+                <td className="border p-2 text-center text-muted-foreground">{idx + 1}</td>
+                {/* Nama Kegiatan — text input */}
+                <td className="border p-1">
+                  <Input
+                    value={row.nama_kegiatan}
+                    onChange={(e) => handleCellChange(idx, 'nama_kegiatan', e.target.value)}
+                    placeholder="Nama kegiatan"
+                    className="h-8 border-0 focus-visible:ring-1"
+                  />
+                </td>
+                {/* Hari — multi-select checkboxes */}
+                <td className="border p-2">
+                  <div className="flex flex-wrap gap-1">
+                    {DAY_OPTIONS.map((day) => {
+                      const isSelected = (row.hari || []).includes(day);
+                      return (
+                        <label
+                          key={day}
+                          className={cn(
+                            'inline-flex items-center gap-1 px-2 py-1 rounded text-xs cursor-pointer transition-colors',
+                            isSelected
+                              ? 'bg-primary text-white'
+                              : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                          )}
+                        >
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => toggleDay(idx, day)}
+                            className="sr-only"
+                          />
+                          {day.substring(0, 3)}
+                        </label>
+                      );
+                    })}
+                  </div>
                 </td>
                 <td className="border p-1 text-center">
                   <button

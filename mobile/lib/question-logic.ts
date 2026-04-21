@@ -522,10 +522,12 @@ export function getFlowItems(
           // loop doesn't inherit the first loop's answers via resolvedAnswers.
           const ctxValue = triggeringChoice?.value ?? '';
           const ctxAnswers: SurveyAnswers = {};
-          // Carry over only non-detail answers (QL1, Q4, etc.) so show_condition
+          // Collect ctxAnswers: carry over non-detail answers (QL1, Q4, etc.) so show_condition
           // still evaluates; detail answers must come from this cycle's prefix.
+          // Only filter out keys that are detail answers: those containing '|' (mobile
+          // prefixes detail answers as "prefix|answer_key", e.g. "SO|SOQA").
           for (const [k, v] of Object.entries(allResponses)) {
-            if (!/[A-Z]$/.test(k)) ctxAnswers[k] = v;
+            if (!k.includes('|')) ctxAnswers[k] = v;
           }
           if (ctxValue) {
             const prefix = `${ctxValue}|`;
@@ -564,6 +566,20 @@ export function getFlowItems(
           let mcFound = false;
           let nextBranchQuestion: Question | undefined;
 
+          // Add cross-section items to current section's visited set so the
+          // backward-walking algorithm knows which questions were traversed
+          // during the cross-section call. This includes both current-section
+          // questions (SOQ1, SOQ6, SOQ8) and cross-section detail questions
+          // (SOQA, SOQB, SOQC, SOQD) that were added to result.
+          for (const item of crossItems) {
+            if (item.kind === 'question') {
+              visited.add(item.question.code);
+            }
+          }
+
+          // Walk backward through result to find the nearest MULTIPLE_CHOICE ancestor
+          // that has an unvisited in-section branch to jump to.
+
           for (let ri = result.length - 1; ri >= 0; ri--) {
             const item = result[ri];
             if (item.kind !== 'question') continue;
@@ -575,35 +591,47 @@ export function getFlowItems(
 
             if (mcQ.answer_type !== 'MULTIPLE_CHOICE') continue;
 
-            const mcAnswer = allResponses[mcQ.code];
-            if (Array.isArray(mcAnswer) && mcAnswer.length > 0) {
-              const nextChoice = (mcQ.choices || []).find(
+            // Normalize answer to array — MULTIPLE_CHOICE stores array but some
+            // storage layers may normalize to scalar; handle both to ensure the
+            // backward-walking algorithm finds all selected-choice branches.
+            const rawMcAnswer = allResponses[mcQ.code];
+            const mcAnswer = Array.isArray(rawMcAnswer)
+              ? rawMcAnswer
+              : rawMcAnswer != null && rawMcAnswer !== ''
+              ? [rawMcAnswer]
+              : [];
+            console.log(`[FLOW]   backward MC q=${mcQ.code} mcAnswer=${JSON.stringify(mcAnswer)} visited=${[...visited]}`);
+            if (mcAnswer.length > 0) {
+              // Find all selected choices that have a next_question_code
+              const selectedChoicesWithNext = (mcQ.choices || []).filter(
                 (c: QuestionOption) =>
-                  mcAnswer.includes(c.value) &&
-                  c.next_question_code &&
-                  !visited.has(c.next_question_code),
+                  mcAnswer.includes(c.value) && c.next_question_code,
               );
-              if (nextChoice?.next_question_code) {
-                nextBranchQuestion = codeMap.get(nextChoice.next_question_code);
-                if (nextBranchQuestion) {
-                  // Found a navigable in-section branch
-                  console.log(`[FLOW] cross-section done → next MC branch: ${mcQ.code} choice=${nextChoice.value} → ${nextChoice.next_question_code}`);
-                  mcFound = true;
-                  break;
-                }
-                // nextChoice leads to a DETAIL section (not in codeMap) — this MC's
-                // choices all converge on a cross-section target (e.g. SIQ2→SIQA).
-                // Continue walking backward to find the outer MC that has a navigable
-                // in-section branch (e.g. SIQ1's SI2→SIQ3 after SIQ2 is exhausted).
-                continue;
+              // Check if ANY selected choice leads to an unvisited in-section question
+              const hasUnvisitedBranch = selectedChoicesWithNext.some(c => {
+                const target = codeMap.get(c.next_question_code!);
+                return target && !visited.has(target.code);
+              });
+              if (hasUnvisitedBranch) {
+                // At least one selected branch hasn't been visited — find the first one
+                const nextChoice = selectedChoicesWithNext.find(c => {
+                  const target = codeMap.get(c.next_question_code!);
+                  return target && !visited.has(target.code);
+                })!;
+                nextBranchQuestion = codeMap.get(nextChoice.next_question_code!);
+                mcFound = true;
+                break;
+              } else {
+                // All selected branches either:
+                // a) Lead to cross-section targets (not in codeMap)
+                // b) Have already been visited
+                // Either way, this MC is exhausted for this flow
+                mcFound = true;
               }
             }
-            // No unvisited selected choice found — this MC's branches are all done.
-            mcFound = true;
-            break;
           }
 
-          if (nextBranchQuestion) {
+          if (nextBranchQuestion && !visited.has(nextBranchQuestion.code)) {
             // More MULTIPLE_CHOICE branches remain — navigate to the next entry point
             current = nextBranchQuestion;
             continue;
