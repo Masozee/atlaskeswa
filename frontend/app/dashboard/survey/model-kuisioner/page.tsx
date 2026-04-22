@@ -108,6 +108,8 @@ const ANSWER_TYPES = [
   { value: "STAFF_TABLE", label: "Tabel Staff" },
   { value: "INTERVENTION_MATRIX", label: "Matriks Intervensi (baris pilih + kolom detail)" },
   { value: "OPERATING_HOURS", label: "Tabel Jadwal" },
+  { value: "KEGIATAN_TABLE", label: "Tabel Kegiatan" },
+  { value: "MATRIX_KEGIATAN", label: "Matrix Kegiatan" },
   { value: "GPS", label: "GPS" },
   { value: "FILE", label: "File Upload" },
 ];

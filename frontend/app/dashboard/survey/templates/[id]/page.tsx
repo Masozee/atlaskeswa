@@ -71,6 +71,8 @@ const ANSWER_TYPE_OPTIONS: { value: QuestionType; label: string }[] = [
   { value: 'STAFF_TABLE', label: 'Tabel Data Staf' },
   { value: 'INTERVENTION_MATRIX', label: 'Matriks Intervensi (baris pilih + kolom detail)' },
   { value: 'OPERATING_HOURS', label: 'Tabel Jadwal' },
+  { value: 'KEGIATAN_TABLE', label: 'Tabel Kegiatan' },
+  { value: 'MATRIX_KEGIATAN', label: 'Matrix Kegiatan' },
 ];
 
 const OPERATOR_OPTIONS = [

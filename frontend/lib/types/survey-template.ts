@@ -30,6 +30,8 @@ export type QuestionType =
   | 'REPEATING_TABLE'
   | 'INTERVENTION_MATRIX'
   | 'OPERATING_HOURS'
+  | 'KEGIATAN_TABLE'
+  | 'MATRIX_KEGIATAN'
   | 'LOCATION';  // Custom location input with fixed Provinsi/Kabupaten, dropdown Kecamatan, text Desa, auto-GPS
 
 // Backend SurveyTemplate.TEMPLATE_TYPES choices
@@ -84,6 +86,11 @@ export interface InterventionSubQuestion {
 export interface TableConfig {
   rows?: TableRow[];
   columns?: TableColumn[];
+  matrix_variant?: 'custom' | 'kesehatan' | 'pendidikan' | 'sosial_budaya';
+  activity_options?: string[];
+  allow_custom?: boolean;
+  custom_add_label?: string;
+  day_options?: string[];
   sub_questions?: InterventionSubQuestion[];
   default_rows?: string[];
 }
