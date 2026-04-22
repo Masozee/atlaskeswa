@@ -3639,7 +3639,7 @@ export default function DynamicSurveyFormScreen({
           {/* MTC context banner — shown only for detail questions (RQA..RQJ, IQA..IQC, etc.) */}
           {currentQCtx && isDetailQuestion(currentQ?.code ?? '') && (
             <View style={[styles.mtcBanner, { backgroundColor: isDark ? '#1a2e2e' : '#e6f7f7', borderColor: c.primary }]}>
-              <Text style={[styles.mtcBannerCode, { color: c.primary, fontSize: fs(15), fontWeight: '700' }]}>{currentMtcCode || currentQCtx.split(' — ')[0]}</Text>
+              <Text style={[styles.mtcBannerCode, { color: c.primary, fontSize: fs(15), fontWeight: '700' }]}>{currentMtcCode || (currentQCtx.split(' — ')[0] ?? '')}</Text>
               {currentMtcLabel ? (
                 <Text style={[styles.mtcBannerLabel, { color: c.textSecondary, marginLeft: 4 }]} numberOfLines={2}>— {toUpper(currentMtcLabel)}</Text>
               ) : null}

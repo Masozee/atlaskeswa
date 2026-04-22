@@ -90,6 +90,7 @@ export interface Question {
   parent_question?: number;
   show_if_value?: string | string[];
   table_config?: TableConfig;
+  section?: { code: string; name: string };
 }
 
 export interface QuestionSection {
