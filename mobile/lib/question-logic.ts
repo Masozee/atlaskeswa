@@ -12,8 +12,8 @@ export type { Question, QuestionSection, SurveyAnswers };
 
 /** A single page in the survey navigation sequence. */
 export type FlowItem =
-  | { kind: 'question'; question: Question }
-  | { kind: 'hint'; questionCode: string; hintText: string; prevAnswerLabel: string | null }
+  | { kind: 'question'; question: Question; contextKey?: string }
+  | { kind: 'hint'; questionCode: string; hintText: string; prevAnswerLabel: string | null; contextKey?: string }
   | { kind: 'end_survey' };
 
 export function evaluateCondition(answerValue: any, expectedValue: any): boolean {
@@ -268,6 +268,7 @@ export function getFlowItems(
   rawAnswers: SurveyAnswers | undefined,
   _visitedSectionIds?: Set<number>,
   _forcedStartCode?: string,
+  _contextKey?: string,
 ): FlowItem[] {
   if (!section.questions || section.questions.length === 0) return [];
 
@@ -382,10 +383,11 @@ export function getFlowItems(
           questionCode: current.code,
           hintText: current.introduction_text.trim(),
           prevAnswerLabel: prevLabel,
+          contextKey: _contextKey,
         });
       }
 
-      result.push({ kind: 'question', question: current });
+      result.push({ kind: 'question', question: current, contextKey: _contextKey });
 
       const answer = allResponses[current.code];
       const isAnswered = answer !== null && answer !== undefined && answer !== '';
@@ -549,6 +551,7 @@ export function getFlowItems(
             rawAnswers,
             newVisited,
             nextCode,
+            ctxValue,
           );
 
           result.push(...crossItems);
@@ -565,6 +568,7 @@ export function getFlowItems(
           //     (backward compat for non-MC-driven cross-sections)
           let mcFound = false;
           let nextBranchQuestion: Question | undefined;
+          let allSelectedBranchesWereCrossSection = false;
 
           // Add cross-section items to current section's visited set so the
           // backward-walking algorithm knows which questions were traversed
@@ -625,7 +629,14 @@ export function getFlowItems(
                 // All selected branches either:
                 // a) Lead to cross-section targets (not in codeMap)
                 // b) Have already been visited
-                // Either way, this MC is exhausted for this flow
+                // Check: were ALL selected choices cross-section jumps?
+                const anySelectedChoice = mcAnswer.length > 0;
+                const anyWithNextQuestionCode = selectedChoicesWithNext.length > 0;
+                const allWereCrossSectionOrVisited = !anyWithNextQuestionCode ||
+                  (selectedChoicesWithNext.every(c => !codeMap.has(c.next_question_code!)));
+                if (allWereCrossSectionOrVisited) {
+                  allSelectedBranchesWereCrossSection = true;
+                }
                 mcFound = true;
               }
             }
@@ -641,8 +652,14 @@ export function getFlowItems(
             // All selected branches of the MULTIPLE_CHOICE ancestor have been visited.
             // Do NOT fall back to sequential navigation — unvisited questions in
             // visibleQuestions belong to unselected branches and must not be shown.
-            console.log(`[FLOW] cross-section done → all MC branches exhausted → END`);
-            break;
+            // BUT: if all selected branches led to cross-section jumps (not in-section
+            // questions), there may still be unvisited in-section branches. Fall through
+            // to sequential navigation so every branch gets shown.
+            if (!allSelectedBranchesWereCrossSection) {
+              console.log(`[FLOW] cross-section done → all MC branches exhausted → END`);
+              break;
+            }
+            console.log(`[FLOW] cross-section done → all selected were cross-section → sequential fallback`);
           }
 
           // No MULTIPLE_CHOICE in the chain — fall back to sequential navigation

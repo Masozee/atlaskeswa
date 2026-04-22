@@ -451,6 +451,9 @@ export default function DynamicSurveyFormScreen({
 
   // Local SQLite row id for this survey (set after first local save)
   const [localSurveyId, setLocalSurveyId] = useState<number | null>(null);
+  // Server response id for this survey. This is updated after a draft is synced so
+  // submit can promote the same record instead of creating a second one.
+  const [serverResponseId, setServerResponseId] = useState<number | null>(responseId ?? null);
 
   // Survey duration tracking - started_at captured when surveyor begins questions
   const [startedAt, setStartedAt] = useState<string | null>(null);
@@ -461,6 +464,10 @@ export default function DynamicSurveyFormScreen({
   useEffect(() => {
     loadData();
     return () => { Speech.stop(); };
+  }, [responseId]);
+
+  useEffect(() => {
+    setServerResponseId(responseId ?? null);
   }, [responseId]);
 
   // Reset question index when section changes — but not on initial resume from edit
@@ -622,6 +629,7 @@ export default function DynamicSurveyFormScreen({
       let savedService: { id: number; name: string; city: string } | null = null;
 
       if (responseId) {
+        setServerResponseId(responseId);
         if (isOnline) {
           try {
             const resp = await apiClient.get<any>(`/surveys/responses/${responseId}/`);
@@ -812,8 +820,9 @@ export default function DynamicSurveyFormScreen({
     }
   };
 
-  // Detect if a question code is a "detail" question (ends with uppercase letter, no trailing digit)
-  const isDetailQuestion = (code: string) => /[A-Z]$/.test(code);
+  // Detect detail questions. Most detail codes end with a letter (RQA, RQF, IQM),
+  // but some follow-up detail questions use a digit suffix (RQF1, DQB1, SRQF1).
+  const isDetailQuestion = (code: string) => /[A-Z]$/.test(code) || /Q[A-Z]\d+$/.test(code);
 
   // Build questions map
   const questionsMap = useMemo(() => {
@@ -871,46 +880,14 @@ export default function DynamicSurveyFormScreen({
     return items;
   }, [currentSection, resolvedAnswers, questionsMap, template?.sections, answers]);
 
-  // Per-question MTC context: parallel array to activeFlowItems with the correct MTC context
-  // per question. Non-detail questions get '' (no prefix). Detail questions get the context
-  // from the most recent FASKSES question whose answer had a cabang_mtc.
-  // IMPORTANT: derived entirely from the flow and current answers — no stale state.
+  // Each flow item carries its exact loop context from the flow builder. This avoids
+  // re-deriving context from answer keys, which breaks when the same question code
+  // appears in multiple loops.
   const questionContexts = useMemo<string[]>(() => {
-    const allQDefs = template?.sections?.flatMap(s => s.questions || []) ?? [];
-    let ctxTracker = '';
-    let prevSectionCode = '';
-    return activeFlowItems.map((item) => {
-      if (item.kind === 'hint' || item.kind === 'end_survey') return ctxTracker;
-      const question = item.question;
-      const isDetail = /[A-Z]$/.test(question.code);
-      const itemSectionCode = item.question.section?.code ?? '';
-
-      // Reset context tracker when entering a different section
-      // This prevents context from RQ section bleeding into DQ section and vice versa
-      if (itemSectionCode && itemSectionCode !== prevSectionCode) {
-        ctxTracker = '';
-      }
-      prevSectionCode = itemSectionCode;
-
-      // For non-detail questions, update context tracker if answer has cabang_mtc
-      if (!isDetail) {
-        // Look up answer: plain key first, then any prefixed variant (e.g. "R11|RQA")
-        const rawAns = answers[question.code] ?? Object.entries(answers).find(([k]) => k.endsWith(`|${question.code}`))?.[1];
-        if (rawAns !== null && rawAns !== undefined && rawAns !== '') {
-          const qDef = allQDefs.find(q => q.code === question.code);
-          const choice = (qDef?.choices as any[])?.find((c: any) => c.value === rawAns);
-          // Store raw BSIC code as context (label is shown separately in banner via currentMtcLabel)
-          ctxTracker = rawAns;
-        } else {
-          ctxTracker = '';
-        }
-        return '';
-      }
-
-      // For detail questions, return current context tracker
-      return ctxTracker;
-    });
-  }, [activeFlowItems, answers, template?.sections]);
+    return activeFlowItems.map((item) =>
+      item.kind === 'end_survey' ? '' : item.contextKey ?? ''
+    );
+  }, [activeFlowItems]);
 
   // Calculate progress
   const progress = useMemo(() => {
@@ -922,10 +899,15 @@ export default function DynamicSurveyFormScreen({
   const totalItemsInSection = activeFlowItems.length;
   const currentFlowItem = activeFlowItems[currentQuestionIndex] ?? null;
 
-  // DEBUG: Detailed flow item logging
-  if (activeFlowItems.length > 0) {
+  // DEBUG: detailed flow item logging
+  useEffect(() => {
     console.log(`[FLOW ITEMS] total=${activeFlowItems.length} currentIdx=${currentQuestionIndex}`, activeFlowItems.map((item, i) => `${i}:${item?.kind ?? 'null'}${item?.kind === 'question' ? ':' + item.question.code : item?.kind === 'hint' ? ':' + item.questionCode : item?.kind === 'end_survey' ? ':END' : ''}`));
-  }
+    if (currentQuestionIndex >= activeFlowItems.length) {
+      console.warn(`[FLOW ITEMS] WARNING: currentQuestionIndex=${currentQuestionIndex} >= activeFlowItems.length=${activeFlowItems.length}`);
+    }
+    // Also log questionContexts at the same time
+    console.log(`[CTX] contexts for index ${currentQuestionIndex}: currentQCtx="${questionContexts[currentQuestionIndex] ?? ''}"`);
+  }, [currentQuestionIndex, activeFlowItems.length]);
 
   // The active Question (null when current item is a hint page)
   const currentQ =
@@ -1091,7 +1073,7 @@ export default function DynamicSurveyFormScreen({
   };
 
   const handleNext = () => {
-    console.log(`[NAV] handleNext sectionIdx=${currentSectionIndex}/${activeSections.length} qIdx=${currentQuestionIndex}/${activeFlowItems.length} section=${currentSection?.code}`);
+    console.log(`[NAV] handleNext sectionIdx=${currentSectionIndex}/${activeSections.length} qIdx=${currentQuestionIndex}/${activeFlowItems.length} section=${currentSection?.code} currentFlowItem=${currentFlowItem ? currentFlowItem.kind : 'null'}`);
     // Push current position to history before advancing
     const currentPos = { sectionId: currentSectionId, questionIndex: currentQuestionIndex };
 
@@ -1141,7 +1123,11 @@ export default function DynamicSurveyFormScreen({
     }
 
     // Current is a QUESTION — validate before advancing
-    if (!validateQuestion(currentQ!, currentQCtx)) {
+    if (!currentQ) {
+      console.warn('[NAV] handleNext: currentQ is null, skipping');
+      return;
+    }
+    if (!validateQuestion(currentQ, currentQCtx)) {
       Alert.alert('Validasi', 'Pertanyaan ini wajib diisi');
       return;
     }
@@ -1203,21 +1189,21 @@ export default function DynamicSurveyFormScreen({
       return;
     }
 
-    // ── Duplicate check: prevent same service + template ───────────────────
-    // Skip duplicate check when: silent auto-save, editing existing, or already have local draft
-    if (!responseId && !silent && !localSurveyId) {
-      // Only check when creating a NEW survey (not editing) and user-initiated save
+    // ── Duplicate draft handling ───────────────────────────────────────────
+    // If a local draft already exists for the same service/template, reuse that
+    // row instead of blocking save. This avoids "Sudah ada" when the draft only
+    // exists locally and is not visible in admin/server lists yet.
+    let reusedExistingLocalDraftId: number | null = null;
+    if (!responseId && !localSurveyId) {
       const existing = await database.getExistingSurveyForService(selectedService.id, template!.id);
       if (existing) {
-        Alert.alert(
-          'Duplikat',
-          `Survei untuk "${selectedService.name}" sudah ada.\n\nBuka yang tersimpan atau buat baru?`,
-          [
-            { text: 'Batal', style: 'cancel' },
-            { text: 'Lihat Tersimpan', onPress: () => { onSave(); } },
-          ]
-        );
-        return;
+        reusedExistingLocalDraftId = Number((existing as any).id);
+        setLocalSurveyId(reusedExistingLocalDraftId);
+        const existingServerId =
+          typeof (existing as any).server_id === 'number' ? (existing as any).server_id : null;
+        if (existingServerId) {
+          setServerResponseId(existingServerId);
+        }
       }
     }
 
@@ -1279,7 +1265,7 @@ export default function DynamicSurveyFormScreen({
       const answersJson = JSON.stringify(answersWithOther);
 
       // ── 1. Always save to local SQLite first ────────────────────────────
-      let currentLocalId = localSurveyId;
+      let currentLocalId = localSurveyId ?? reusedExistingLocalDraftId;
       const dbStatus = submit ? 'SUBMITTED' : 'DRAFT';
       if (currentLocalId) {
         await database.updateSurveyLocal(currentLocalId, {
@@ -1309,6 +1295,19 @@ export default function DynamicSurveyFormScreen({
         });
         setLocalSurveyId(newLocalId);
         currentLocalId = newLocalId;
+      }
+
+      let effectiveResponseId = serverResponseId;
+      if (!effectiveResponseId && currentLocalId) {
+        const localSurvey = await database.getSurvey(currentLocalId);
+        const localServerId =
+          localSurvey && typeof (localSurvey as any).server_id === 'number'
+            ? (localSurvey as any).server_id
+            : null;
+        if (localServerId) {
+          effectiveResponseId = localServerId;
+          setServerResponseId(localServerId);
+        }
       }
 
       // ── 2. Try to sync to server if online ─────
@@ -1342,12 +1341,12 @@ export default function DynamicSurveyFormScreen({
             payload.verification_status = 'DRAFT';
           }
 
-          if (responseId) {
+          if (effectiveResponseId) {
             // When submitting an existing draft, use the dedicated submit endpoint
             if (submit) {
-              await apiClient.post(`/surveys/responses/${responseId}/submit/`);
+              await apiClient.post(`/surveys/responses/${effectiveResponseId}/submit/`);
             } else {
-              await apiClient.patch(`/surveys/responses/${responseId}/`, payload);
+              await apiClient.patch(`/surveys/responses/${effectiveResponseId}/`, payload);
             }
             await database.markSurveySynced(currentLocalId);
           } else {
@@ -1356,6 +1355,9 @@ export default function DynamicSurveyFormScreen({
               payload.verification_status = 'SUBMITTED';
             }
             const created = await apiClient.post('/surveys/responses/', payload) as any;
+            if (created?.id) {
+              setServerResponseId(created.id);
+            }
             if (currentLocalId) {
               await database.markSurveySynced(currentLocalId, created?.id);
             }
@@ -2404,23 +2406,29 @@ export default function DynamicSurveyFormScreen({
 
       return (
         <View>
-          <View style={[styles.tableRow, { backgroundColor: c.border }]}>
-            <Text style={[styles.tableHeaderText, { flex: 3 }]}>Jabatan</Text>
-            <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'center' }]}>L</Text>
-            <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'center' }]}>P</Text>
-            <View style={{ width: 40 }} />
+          <View style={[styles.tableRow, styles.staffHeaderRow, { backgroundColor: c.border }]}>
+            <View style={[styles.staffHeaderCell, styles.staffHeaderCellWide]}>
+              <Text style={[styles.tableHeaderText, styles.staffHeaderTextLeft]}>Jabatan</Text>
+            </View>
+            <View style={styles.staffHeaderCell}>
+              <Text style={styles.tableHeaderText}>L</Text>
+            </View>
+            <View style={styles.staffHeaderCell}>
+              <Text style={styles.tableHeaderText}>P</Text>
+            </View>
+            <View style={styles.staffActionCell} />
           </View>
           {staffRows.map((row, idx) => (
-            <View key={idx} style={styles.tableRow}>
+            <View key={idx} style={[styles.tableRow, styles.staffDataRow]}>
               <TextInput
-                style={[styles.tableCellInput, { flex: 3 }]}
+                style={[styles.tableCellInput, styles.staffRepeatingInput, styles.staffRepeatingInputWide]}
                 value={row.jabatan}
                 onChangeText={(t) => updateStaffCell(idx, 'jabatan', t)}
                 placeholder="Nama jabatan"
                 placeholderTextColor="#d1d5db"
               />
               <TextInput
-                style={[styles.tableCellInput, { flex: 1, textAlign: 'center' }]}
+                style={[styles.tableCellInput, styles.staffRepeatingInput]}
                 value={row.laki}
                 onChangeText={(t) => updateStaffCell(idx, 'laki', t)}
                 keyboardType="number-pad"
@@ -2428,7 +2436,7 @@ export default function DynamicSurveyFormScreen({
                 placeholderTextColor="#d1d5db"
               />
               <TextInput
-                style={[styles.tableCellInput, { flex: 1, textAlign: 'center' }]}
+                style={[styles.tableCellInput, styles.staffRepeatingInput]}
                 value={row.perempuan}
                 onChangeText={(t) => updateStaffCell(idx, 'perempuan', t)}
                 keyboardType="number-pad"
@@ -2436,7 +2444,7 @@ export default function DynamicSurveyFormScreen({
                 placeholderTextColor="#d1d5db"
               />
               <TouchableOpacity
-                style={{ width: 40, alignItems: 'center', justifyContent: 'center' }}
+                style={styles.staffActionCell}
                 onPress={() => removeStaffRow(idx)}
                 disabled={staffRows.length <= 1}
               >
@@ -2470,59 +2478,58 @@ export default function DynamicSurveyFormScreen({
     return (
       <View>
         <View style={styles.kegTableContainer}>
-          {/* Header */}
-          <View style={styles.kegHeaderRow}>
-            <Text style={[styles.kegColLabel, { width: 40 }]}>No</Text>
-            <Text style={[styles.kegColLabel, { flex: 2 }]}>KEGIATAN</Text>
-            <Text style={[styles.kegColLabel, { flex: 1 }]}>MULAI</Text>
-            <Text style={[styles.kegColLabel, { flex: 1 }]}>SELESAI</Text>
-            <View style={{ width: 40 }} />
-          </View>
-
-          {/* Rows */}
           {kegRows.map((row, idx) => (
-            <View key={idx} style={styles.kegRow}>
-              <Text style={styles.kegNumText}>{idx + 1}</Text>
+            <View key={idx} style={styles.kegCard}>
+              <View style={styles.kegCardTopRow}>
+                <View style={styles.kegCardNumber}>
+                  <Text style={styles.kegNumText}>{idx + 1}</Text>
+                </View>
+                <View style={styles.kegCardMain}>
+                  <Text style={styles.kegFieldLabel}>Nama Kegiatan</Text>
+                  <TextInput
+                    style={styles.kegTextInput}
+                    value={row.kegiatan}
+                    onChangeText={(t) => updateKegCell(idx, 'kegiatan', t)}
+                    placeholder="Nama kegiatan"
+                    placeholderTextColor="#d1d5db"
+                  />
+                </View>
+                <TouchableOpacity
+                  style={styles.kegActionCell}
+                  onPress={() => removeKegRow(idx)}
+                  disabled={kegRows.length <= 1}
+                >
+                  <MaterialIcons name="delete-outline" size={20} color={kegRows.length <= 1 ? '#d1d5db' : '#ef4444'} />
+                </TouchableOpacity>
+              </View>
 
-              {/* Kegiatan — text input */}
-              <TextInput
-                style={styles.kegTextInput}
-                value={row.kegiatan}
-                onChangeText={(t) => updateKegCell(idx, 'kegiatan', t)}
-                placeholder="Nama kegiatan"
-                placeholderTextColor="#d1d5db"
-              />
+              <View style={styles.kegCardBottomRow}>
+                <View style={styles.kegTimeField}>
+                  <Text style={styles.kegFieldLabel}>Mulai</Text>
+                  <TouchableOpacity
+                    style={styles.kegTimeBtn}
+                    onPress={() => setShowTimePicker({ code: question.code + '_start_' + idx, value: row.start, ctx, kegArray: kegRows })}
+                  >
+                    <Text style={[styles.kegTimeText, !row.start && { color: '#9ca3af' }]}>
+                      {row.start || '00:00'}
+                    </Text>
+                    <MaterialIcons name="access-time" size={16} color="#6b7280" />
+                  </TouchableOpacity>
+                </View>
 
-              {/* Jam Mulai — time picker */}
-              <TouchableOpacity
-                style={styles.kegTimeBtn}
-                onPress={() => setShowTimePicker({ code: question.code + '_start_' + idx, value: row.start, ctx, kegArray: kegRows })}
-              >
-                <Text style={[styles.kegTimeText, !row.start && { color: '#9ca3af' }]}>
-                  {row.start || '00:00'}
-                </Text>
-                <MaterialIcons name="access-time" size={16} color="#6b7280" />
-              </TouchableOpacity>
-
-              {/* Jam Selesai — time picker */}
-              <TouchableOpacity
-                style={styles.kegTimeBtn}
-                onPress={() => setShowTimePicker({ code: question.code + '_stop_' + idx, value: row.stop, ctx, kegArray: kegRows })}
-              >
-                <Text style={[styles.kegTimeText, !row.stop && { color: '#9ca3af' }]}>
-                  {row.stop || '00:00'}
-                </Text>
-                <MaterialIcons name="access-time" size={16} color="#6b7280" />
-              </TouchableOpacity>
-
-              {/* Delete */}
-              <TouchableOpacity
-                style={{ width: 40, alignItems: 'center', justifyContent: 'center' }}
-                onPress={() => removeKegRow(idx)}
-                disabled={kegRows.length <= 1}
-              >
-                <MaterialIcons name="delete-outline" size={20} color={kegRows.length <= 1 ? '#d1d5db' : '#ef4444'} />
-              </TouchableOpacity>
+                <View style={styles.kegTimeField}>
+                  <Text style={styles.kegFieldLabel}>Selesai</Text>
+                  <TouchableOpacity
+                    style={styles.kegTimeBtn}
+                    onPress={() => setShowTimePicker({ code: question.code + '_stop_' + idx, value: row.stop, ctx, kegArray: kegRows })}
+                  >
+                    <Text style={[styles.kegTimeText, !row.stop && { color: '#9ca3af' }]}>
+                      {row.stop || '00:00'}
+                    </Text>
+                    <MaterialIcons name="access-time" size={16} color="#6b7280" />
+                  </TouchableOpacity>
+                </View>
+              </View>
             </View>
           ))}
         </View>
@@ -2672,9 +2679,13 @@ export default function DynamicSurveyFormScreen({
           {/* Table header */}
           <View style={[styles.opHoursRow, { backgroundColor: '#f3f4f6' }]}>
             <Text style={[styles.opHoursColLabel, { flex: 1.2 }]}>Hari</Text>
-            <Text style={[styles.opHoursColLabel, { flex: 1 }]}>Jam Buka</Text>
-            <Text style={[styles.opHoursColLabel, { flex: 1 }]}>Jam Tutup</Text>
-            <View style={{ width: 40 }} />
+            <View style={styles.kegTimeColHeader}>
+              <Text style={styles.opHoursColLabel}>Jam Buka</Text>
+            </View>
+            <View style={styles.kegTimeColHeader}>
+              <Text style={styles.opHoursColLabel}>Jam Tutup</Text>
+            </View>
+            <View style={styles.kegActionCell} />
           </View>
 
           {/* Rows */}
@@ -2694,7 +2705,7 @@ export default function DynamicSurveyFormScreen({
               {/* Jam Buka */}
               <View style={[styles.opHoursCol, { flex: 1 }]}>
                 <TouchableOpacity
-                  style={styles.kegTimeBtn}
+                  style={[styles.kegTimeBtn, styles.kegTimeCol]}
                   onPress={() => setShowTimePicker({ code: question.code + '_open_' + idx, value: row.open, ctx, opArray: schedule })}
                 >
                   <Text style={[styles.kegTimeText, !row.open && { color: '#9ca3af' }]}>
@@ -2707,7 +2718,7 @@ export default function DynamicSurveyFormScreen({
               {/* Jam Tutup */}
               <View style={[styles.opHoursCol, { flex: 1 }]}>
                 <TouchableOpacity
-                  style={styles.kegTimeBtn}
+                  style={[styles.kegTimeBtn, styles.kegTimeCol]}
                   onPress={() => setShowTimePicker({ code: question.code + '_close_' + idx, value: row.close, ctx, opArray: schedule })}
                 >
                   <Text style={[styles.kegTimeText, !row.close && { color: '#9ca3af' }]}>
@@ -2719,7 +2730,7 @@ export default function DynamicSurveyFormScreen({
 
               {/* Delete button */}
               <TouchableOpacity
-                style={{ width: 40, alignItems: 'center', justifyContent: 'center' }}
+                style={styles.kegActionCell}
                 onPress={() => removeRow(idx)}
                 disabled={schedule.length <= 1}
               >
@@ -2813,66 +2824,63 @@ export default function DynamicSurveyFormScreen({
           <Text style={styles.sectionSubtitle}>ISILAH KEGIATAN BESERTA JAM MULAI DAN SELESAI</Text>
         </View>
 
-        {/* Table */}
         <View style={[styles.opHoursContainer]}>
-          {/* Table header */}
-          <View style={[styles.opHoursRow, { backgroundColor: '#f3f4f6' }]}>
-            <Text style={[styles.opHoursColLabel, { flex: 2 }]}>Kegiatan</Text>
-            <Text style={[styles.opHoursColLabel, { flex: 1 }]}>Mulai</Text>
-            <Text style={[styles.opHoursColLabel, { flex: 1 }]}>Selesai</Text>
-            <View style={{ width: 40 }} />
-          </View>
-
-          {/* Rows */}
           {kegiatans.map((row, idx) => (
-            <View key={idx} style={[styles.opHoursRow, { borderBottomWidth: 1, borderBottomColor: '#f3f4f6' }]}>
-              {/* Kegiatan text input */}
-              <TextInput
-                style={[styles.opHoursCol, { flex: 2, backgroundColor: '#fff', borderRadius: 6, marginRight: 6, paddingHorizontal: 8, paddingVertical: 8, fontSize: 14 }]}
-                value={row.kegiatan}
-                onChangeText={(text) => updateRow(idx, 'kegiatan', text)}
-                placeholder="Nama kegiatan"
-                placeholderTextColor="#9ca3af"
-              />
-
-              {/* Jam Mulai */}
-              <View style={[styles.opHoursCol, { flex: 1 }]}>
+            <View key={idx} style={styles.kegCard}>
+              <View style={styles.kegCardTopRow}>
+                <View style={styles.kegCardNumber}>
+                  <Text style={styles.kegNumText}>{idx + 1}</Text>
+                </View>
+                <View style={styles.kegCardMain}>
+                  <Text style={styles.kegFieldLabel}>Nama Kegiatan</Text>
+                  <TextInput
+                    style={styles.kegTextInput}
+                    value={row.kegiatan}
+                    onChangeText={(text) => updateRow(idx, 'kegiatan', text)}
+                    placeholder="Nama kegiatan"
+                    placeholderTextColor="#9ca3af"
+                  />
+                </View>
                 <TouchableOpacity
-                  style={styles.kegTimeBtn}
-                  onPress={() => setShowTimePicker({ code: question.code + '_start_' + idx, value: row.start, ctx, kegArray: kegiatans })}
+                  style={styles.kegActionCell}
+                  onPress={() => removeRow(idx)}
+                  disabled={kegiatans.length <= 1}
                 >
-                  <Text style={[styles.kegTimeText, !row.start && { color: '#9ca3af' }]}>
-                    {row.start || '00:00'}
-                  </Text>
-                  <MaterialIcons name="access-time" size={16} color="#6b7280" />
+                  <MaterialIcons
+                    name="delete-outline"
+                    size={20}
+                    color={kegiatans.length <= 1 ? '#d1d5db' : '#ef4444'}
+                  />
                 </TouchableOpacity>
               </View>
 
-              {/* Jam Selesai */}
-              <View style={[styles.opHoursCol, { flex: 1 }]}>
-                <TouchableOpacity
-                  style={styles.kegTimeBtn}
-                  onPress={() => setShowTimePicker({ code: question.code + '_stop_' + idx, value: row.stop, ctx, kegArray: kegiatans })}
-                >
-                  <Text style={[styles.kegTimeText, !row.stop && { color: '#9ca3af' }]}>
-                    {row.stop || '00:00'}
-                  </Text>
-                  <MaterialIcons name="access-time" size={16} color="#6b7280" />
-                </TouchableOpacity>
-              </View>
+              <View style={styles.kegCardBottomRow}>
+                <View style={styles.kegTimeField}>
+                  <Text style={styles.kegFieldLabel}>Mulai</Text>
+                  <TouchableOpacity
+                    style={styles.kegTimeBtn}
+                    onPress={() => setShowTimePicker({ code: question.code + '_start_' + idx, value: row.start, ctx, kegArray: kegiatans })}
+                  >
+                    <Text style={[styles.kegTimeText, !row.start && { color: '#9ca3af' }]}>
+                      {row.start || '00:00'}
+                    </Text>
+                    <MaterialIcons name="access-time" size={16} color="#6b7280" />
+                  </TouchableOpacity>
+                </View>
 
-              {/* Delete button */}
-              <TouchableOpacity
-                style={{ width: 40, alignItems: 'center', justifyContent: 'center' }}
-                onPress={() => removeRow(idx)}
-                disabled={kegiatans.length <= 1}
-              >
-                <MaterialIcons
-                  name="delete-outline"
-                  size={20}
-                  color={kegiatans.length <= 1 ? '#d1d5db' : '#ef4444'}
-                />
-              </TouchableOpacity>
+                <View style={styles.kegTimeField}>
+                  <Text style={styles.kegFieldLabel}>Selesai</Text>
+                  <TouchableOpacity
+                    style={styles.kegTimeBtn}
+                    onPress={() => setShowTimePicker({ code: question.code + '_stop_' + idx, value: row.stop, ctx, kegArray: kegiatans })}
+                  >
+                    <Text style={[styles.kegTimeText, !row.stop && { color: '#9ca3af' }]}>
+                      {row.stop || '00:00'}
+                    </Text>
+                    <MaterialIcons name="access-time" size={16} color="#6b7280" />
+                  </TouchableOpacity>
+                </View>
+              </View>
             </View>
           ))}
         </View>
@@ -2890,28 +2898,81 @@ export default function DynamicSurveyFormScreen({
   const DAY_OPTIONS = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
 
   const renderMatrixKegiatan = (question: Question, value: any, ctx: string = '') => {
-    // Structure: Array<{ nama_kegiatan: string; hari: string[] }>
-    const rows: Array<{ nama_kegiatan: string; hari: string[] }> =
-      Array.isArray(value) && value.length > 0 ? value : [{ nama_kegiatan: '', hari: [] }];
+    type MatrixRow = { nama_kegiatan: string; hari: string[] };
+    const config = question.table_config ?? {};
+    const presetActivities: Record<string, string[]> = {
+      kesehatan: [
+        'PSIKOTERAPI',
+        'KONSELING',
+        'TERAPI KELOMPOK',
+        'PEMANTAUAN PENGGUNAAN OBAT',
+        'EDUKASI KESEHATAN JIWA',
+      ],
+      pendidikan: [
+        'PELATIHAN MENJAHIT',
+        'PELATIHAN MEMASAK',
+        'PELATIHAN KERAJINAN',
+        'PELATIHAN KESIAPAN KERJA',
+        'PENDIDIKAN NON FORMAL',
+      ],
+      sosial_budaya: [
+        'KELOMPOK DUKUNGAN SEBAYA',
+        'KEGIATAN REKREASI',
+        'OLAHRAGA',
+        'KEGIATAN KOMUNITAS',
+        'KEGIATAN KEAGAMAAN/SPIRITUAL',
+      ],
+    };
+    const dayOptions = config.day_options?.length ? config.day_options : DAY_OPTIONS;
+    const predefinedOptions = config.activity_options?.length
+      ? config.activity_options
+      : (config.matrix_variant ? presetActivities[config.matrix_variant] ?? [] : []);
+    const allowCustom = config.allow_custom !== false;
+    const usesPredefinedActivities = predefinedOptions.length > 0;
+    const storedRows: MatrixRow[] = Array.isArray(value) ? value : [];
+    const rows: MatrixRow[] = !usesPredefinedActivities && storedRows.length === 0
+      ? [{ nama_kegiatan: '', hari: [] }]
+      : storedRows;
+    const customRows = rows.filter((row) => !predefinedOptions.includes(row.nama_kegiatan));
 
-    const updateRow = (index: number, field: 'nama_kegiatan' | 'hari', val: any) => {
-      const next = rows.map((r, i) => i === index ? { ...r, [field]: val } : r);
-      handleAnswerChange(question.code, next, ctx);
+    const updateRows = (next: MatrixRow[]) => handleAnswerChange(question.code, next, ctx);
+
+    const updateCustomRow = (index: number, patch: Partial<MatrixRow>) => {
+      const nextCustomRows = customRows.map((row, i) => (i === index ? { ...row, ...patch } : row));
+      const predefinedRows = rows.filter((row) => predefinedOptions.includes(row.nama_kegiatan));
+      updateRows([...predefinedRows, ...nextCustomRows]);
     };
 
-    const toggleDay = (rowIndex: number, day: string) => {
-      const currentDays = rows[rowIndex].hari || [];
-      const newDays = currentDays.includes(day)
-        ? currentDays.filter((d: string) => d !== day)
+    const toggleDays = (currentDays: string[], day: string) =>
+      currentDays.includes(day)
+        ? currentDays.filter((item) => item !== day)
         : [...currentDays, day];
-      updateRow(rowIndex, 'hari', newDays);
+
+    const togglePredefinedActivity = (activity: string) => {
+      const exists = rows.some((row) => row.nama_kegiatan === activity);
+      if (exists) {
+        updateRows(rows.filter((row) => row.nama_kegiatan !== activity));
+        return;
+      }
+      updateRows([...rows, { nama_kegiatan: activity, hari: [] }]);
     };
 
-    const addRow = () => handleAnswerChange(question.code, [...rows, { nama_kegiatan: '', hari: [] }], ctx);
+    const togglePredefinedDay = (activity: string, day: string) => {
+      updateRows(
+        rows.map((row) =>
+          row.nama_kegiatan === activity
+            ? { ...row, hari: toggleDays(row.hari || [], day) }
+            : row
+        )
+      );
+    };
 
-    const removeRow = (index: number) => {
-      if (rows.length <= 1) return;
-      handleAnswerChange(question.code, rows.filter((_, i) => i !== index), ctx);
+    const addCustomRow = () => updateRows([...rows, { nama_kegiatan: '', hari: [] }]);
+
+    const removeCustomRow = (index: number) => {
+      const nextCustomRows = customRows.filter((_, i) => i !== index);
+      const predefinedRows = rows.filter((row) => predefinedOptions.includes(row.nama_kegiatan));
+      updateRows([...predefinedRows, ...nextCustomRows]);
     };
 
     return (
@@ -2922,73 +2983,112 @@ export default function DynamicSurveyFormScreen({
           <Text style={styles.sectionSubtitle}>ISILAH NAMA KEGIATAN DAN HARI BEKERJA</Text>
         </View>
 
-        {/* Table */}
         <View style={[styles.opHoursContainer]}>
-          {/* Table header */}
-          <View style={[styles.opHoursRow, { backgroundColor: '#f3f4f6' }]}>
-            <Text style={[styles.opHoursColLabel, { flex: 2 }]}>Kegiatan</Text>
-            <Text style={[styles.opHoursColLabel, { flex: 2.5 }]}>Hari</Text>
-            <View style={{ width: 40 }} />
-          </View>
-
-          {/* Rows */}
-          {rows.map((row, idx) => (
-            <View key={idx} style={[styles.opHoursRow, { borderBottomWidth: 1, borderBottomColor: '#f3f4f6', alignItems: 'flex-start', paddingVertical: 8 }]}>
-              {/* Nama Kegiatan text input */}
-              <TextInput
-                style={[styles.opHoursCol, { flex: 2, backgroundColor: '#fff', borderRadius: 6, marginRight: 6, paddingHorizontal: 8, paddingVertical: 8, fontSize: 14 }]}
-                value={row.nama_kegiatan}
-                onChangeText={(text) => updateRow(idx, 'nama_kegiatan', text)}
-                placeholder="Nama kegiatan"
-                placeholderTextColor="#9ca3af"
-              />
-
-              {/* Hari multi-select */}
-              <View style={[styles.opHoursCol, { flex: 2.5, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' }]}>
-                {DAY_OPTIONS.map((day) => {
-                  const isSelected = (row.hari || []).includes(day);
-                  return (
+          {usesPredefinedActivities ? (
+            <View style={styles.matrixSection}>
+              <Text style={styles.matrixSectionTitle}>Daftar Kegiatan</Text>
+              {predefinedOptions.map((activity) => {
+                const selectedRow = rows.find((row) => row.nama_kegiatan === activity);
+                const isSelected = !!selectedRow;
+                return (
+                  <View key={activity} style={styles.matrixOptionCard}>
                     <TouchableOpacity
-                      key={day}
-                      onPress={() => toggleDay(idx, day)}
-                      style={{
-                        paddingHorizontal: 8,
-                        paddingVertical: 4,
-                        borderRadius: 4,
-                        backgroundColor: isSelected ? c.primary : '#e5e7eb',
-                        marginRight: 4,
-                        marginBottom: 4,
-                      }}
+                      onPress={() => togglePredefinedActivity(activity)}
+                      style={styles.matrixOptionHeader}
                     >
-                      <Text style={{ fontSize: 11, color: isSelected ? '#fff' : '#374151' }}>
-                        {day.substring(0, 3)}
-                      </Text>
+                      <View style={[styles.matrixCheckbox, isSelected && styles.matrixCheckboxSelected]}>
+                        {isSelected && <MaterialIcons name="check" size={14} color="#fff" />}
+                      </View>
+                      <Text style={styles.matrixOptionLabel}>{activity}</Text>
                     </TouchableOpacity>
-                  );
-                })}
-              </View>
 
-              {/* Delete button */}
-              <TouchableOpacity
-                style={{ width: 40, alignItems: 'center', justifyContent: 'center' }}
-                onPress={() => removeRow(idx)}
-                disabled={rows.length <= 1}
-              >
-                <MaterialIcons
-                  name="delete-outline"
-                  size={20}
-                  color={rows.length <= 1 ? '#d1d5db' : '#ef4444'}
-                />
-              </TouchableOpacity>
+                    {isSelected && (
+                      <View style={styles.matrixDaysWrap}>
+                        {dayOptions.map((day) => {
+                          const daySelected = (selectedRow.hari || []).includes(day);
+                          return (
+                            <TouchableOpacity
+                              key={`${activity}-${day}`}
+                              onPress={() => togglePredefinedDay(activity, day)}
+                              style={[
+                                styles.matrixDayChip,
+                                daySelected && { backgroundColor: c.primary, borderColor: c.primary },
+                              ]}
+                            >
+                              <Text style={[styles.matrixDayChipText, daySelected && { color: '#fff' }]}>
+                                {day.substring(0, 3)}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
             </View>
-          ))}
+          ) : null}
+
+          {allowCustom ? (
+            <View style={styles.matrixSection}>
+              <Text style={styles.matrixSectionTitle}>
+                {usesPredefinedActivities ? 'Kegiatan Tambahan' : 'Kegiatan'}
+              </Text>
+              {customRows.length === 0 && !usesPredefinedActivities ? (
+                <View style={styles.matrixOptionCard}>
+                  <Text style={styles.sectionSubtitle}>Tambahkan kegiatan dan pilih hari pelaksanaannya.</Text>
+                </View>
+              ) : null}
+              {customRows.map((row, idx) => (
+                <View key={`custom-${idx}`} style={styles.matrixCustomCard}>
+                  <View style={styles.matrixCustomHeader}>
+                    <TextInput
+                      style={styles.matrixActivityInput}
+                      value={row.nama_kegiatan}
+                      onChangeText={(text) => updateCustomRow(idx, { nama_kegiatan: text })}
+                      placeholder="Nama kegiatan"
+                      placeholderTextColor="#9ca3af"
+                    />
+                    <TouchableOpacity
+                      style={styles.matrixDeleteButton}
+                      onPress={() => removeCustomRow(idx)}
+                    >
+                      <MaterialIcons name="delete-outline" size={20} color="#ef4444" />
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={styles.matrixDaysWrap}>
+                    {dayOptions.map((day) => {
+                      const isSelected = (row.hari || []).includes(day);
+                      return (
+                        <TouchableOpacity
+                          key={`custom-${idx}-${day}`}
+                          onPress={() => updateCustomRow(idx, { hari: toggleDays(row.hari || [], day) })}
+                          style={[
+                            styles.matrixDayChip,
+                            isSelected && { backgroundColor: c.primary, borderColor: c.primary },
+                          ]}
+                        >
+                          <Text style={[styles.matrixDayChipText, isSelected && { color: '#fff' }]}>
+                            {day.substring(0, 3)}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              ))}
+            </View>
+          ) : null}
         </View>
 
         {/* Add row button */}
-        <TouchableOpacity style={styles.opHoursAddButton} onPress={addRow}>
-          <MaterialIcons name="add" size={18} color={c.primary} />
-          <Text style={styles.opHoursAddButtonText}>Tambah Baris</Text>
-        </TouchableOpacity>
+        {allowCustom && (
+          <TouchableOpacity style={styles.opHoursAddButton} onPress={addCustomRow}>
+            <MaterialIcons name="add" size={18} color={c.primary} />
+            <Text style={styles.opHoursAddButtonText}>{config.custom_add_label || 'Tambah Kegiatan'}</Text>
+          </TouchableOpacity>
+        )}
       </View>
     );
   };
@@ -3639,9 +3739,9 @@ export default function DynamicSurveyFormScreen({
           {/* MTC context banner — shown only for detail questions (RQA..RQJ, IQA..IQC, etc.) */}
           {currentQCtx && isDetailQuestion(currentQ?.code ?? '') && (
             <View style={[styles.mtcBanner, { backgroundColor: isDark ? '#1a2e2e' : '#e6f7f7', borderColor: c.primary }]}>
-              <Text style={[styles.mtcBannerCode, { color: c.primary, fontSize: fs(15), fontWeight: '700' }]}>{currentMtcCode || (currentQCtx.split(' — ')[0] ?? '')}</Text>
+              <Text style={[styles.mtcBannerCode, { color: c.primary, fontSize: fs(15), fontWeight: '700' }]}>{currentMtcCode || String(currentQCtx || '').split(' — ')[0]}</Text>
               {currentMtcLabel ? (
-                <Text style={[styles.mtcBannerLabel, { color: c.textSecondary, marginLeft: 4 }]} numberOfLines={2}>— {toUpper(currentMtcLabel)}</Text>
+                <Text style={[styles.mtcBannerLabel, { color: c.textSecondary, marginLeft: 4 }]}>— {toUpper(currentMtcLabel)}</Text>
               ) : null}
             </View>
           )}
@@ -3739,7 +3839,10 @@ export default function DynamicSurveyFormScreen({
             >
               <Text style={[styles.draftButtonText, { color: c.textSecondary }]}>Simpan Draft</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.nextButton, { backgroundColor: c.primary }]} onPress={handleNext}>
+            <TouchableOpacity style={[styles.nextButton, { backgroundColor: c.primary }]} onPress={() => {
+              console.log(`[BUTTON] Next pressed: currentQ=${currentQ?.code ?? 'null'}, currentFlowItem=${currentFlowItem ? currentFlowItem.kind : 'null'}, currentQuestionIndex=${currentQuestionIndex}, totalItems=${totalItemsInSection}`);
+              handleNext();
+            }}>
               <Text style={[styles.nextButtonText, { color: '#fff' }]}>
                 {currentFlowItem?.kind === 'end_survey'
                   ? 'Selesai'
@@ -3914,8 +4017,8 @@ const styles = StyleSheet.create({
   hintBannerContent: { flex: 1 },
   hintBannerPrevAnswer: { fontSize: 12, fontWeight: '700', color: '#03979D', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.3 },
   hintBannerText: { fontSize: 14, color: '#374151', lineHeight: 20 },
-  mtcBanner: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', marginTop: 8, padding: 10, backgroundColor: '#e6f7f7', borderRadius: 6, borderWidth: 1, borderColor: '#b2e0e1' },
-  mtcBannerLabel: { fontSize: 15, color: '#4b5563' },
+  mtcBanner: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', marginTop: 8, padding: 10, backgroundColor: '#e6f7f7', borderRadius: 6, borderWidth: 1, borderColor: '#b2e0e1' },
+  mtcBannerLabel: { flexShrink: 1, fontSize: 15, color: '#4b5563' },
   mtcBannerCode: { fontSize: 15, fontWeight: '700', color: '#03979D' },
 
   // Detail group header (shown above each RQA-RQJ block)
@@ -4016,6 +4119,14 @@ const styles = StyleSheet.create({
   tableHeaderText: { fontSize: 13, fontWeight: '700', color: '#6b7280' },
   tableCellLabel: { fontSize: 16, color: '#374151' },
   tableCellInput: { fontSize: 14, color: '#374151', textAlign: 'center', padding: 6, width: '100%' },
+  staffHeaderRow: { alignItems: 'stretch' },
+  staffHeaderCell: { flex: 1, paddingHorizontal: 10, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' },
+  staffHeaderCellWide: { flex: 3, alignItems: 'flex-start' },
+  staffHeaderTextLeft: { textAlign: 'left' },
+  staffDataRow: { alignItems: 'center', paddingHorizontal: 6, paddingVertical: 4 },
+  staffRepeatingInput: { flex: 1, minHeight: 40, backgroundColor: '#f9fafb', borderRadius: 6, borderWidth: 1, borderColor: '#e5e7eb', marginHorizontal: 4, paddingHorizontal: 10, textAlign: 'center' },
+  staffRepeatingInputWide: { flex: 3, textAlign: 'left' },
+  staffActionCell: { width: 44, alignItems: 'center', justifyContent: 'center' },
 
   // Service picker
   serviceList: { flex: 1, padding: 16 },
@@ -4078,7 +4189,31 @@ const styles = StyleSheet.create({
   kegRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#f3f4f6' },
   kegColLabel: { fontSize: 12, fontWeight: '700', color: '#6b7280', textAlign: 'center' },
   kegNumText: { width: 40, fontSize: 13, color: '#6b7280', textAlign: 'center', fontWeight: '600' },
-  kegTextInput: { flex: 2, fontSize: 14, color: '#374151', backgroundColor: '#f9fafb', borderRadius: 6, paddingVertical: 8, paddingHorizontal: 10, borderWidth: 1, borderColor: '#e5e7eb', marginHorizontal: 4 },
-  kegTimeBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, backgroundColor: '#f9fafb', borderRadius: 6, paddingVertical: 8, paddingHorizontal: 8, borderWidth: 1, borderColor: '#e5e7eb', marginHorizontal: 2 },
-  kegTimeText: { fontSize: 14, color: '#374151', textAlign: 'center' },
+  kegTextInput: { fontSize: 14, color: '#374151', backgroundColor: '#f9fafb', borderRadius: 6, paddingVertical: 10, paddingHorizontal: 10, borderWidth: 1, borderColor: '#e5e7eb', width: '100%' },
+  kegCard: { paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f3f4f6', gap: 10 },
+  kegCardTopRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  kegCardBottomRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingLeft: 40 },
+  kegCardNumber: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center', marginTop: 18 },
+  kegCardMain: { flex: 1, gap: 6 },
+  kegFieldLabel: { fontSize: 12, fontWeight: '700', color: '#6b7280' },
+  kegTimeField: { flex: 1, gap: 6 },
+  kegTimeColHeader: { width: 92, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+  kegActionCell: { width: 44, alignItems: 'center', justifyContent: 'center' },
+  kegTimeCol: { width: 92, flexGrow: 0, flexShrink: 0 },
+  kegTimeBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6, backgroundColor: '#f9fafb', borderRadius: 6, paddingVertical: 10, paddingHorizontal: 10, borderWidth: 1, borderColor: '#e5e7eb', width: '100%' },
+  kegTimeText: { fontSize: 14, color: '#374151', textAlign: 'center', flexShrink: 0, includeFontPadding: false },
+  matrixSection: { padding: 12, gap: 10 },
+  matrixSectionTitle: { fontSize: 13, fontWeight: '700', color: '#374151' },
+  matrixOptionCard: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, padding: 12, gap: 10 },
+  matrixOptionHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  matrixCheckbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: '#9ca3af', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
+  matrixCheckboxSelected: { backgroundColor: '#03979D', borderColor: '#03979D' },
+  matrixOptionLabel: { flex: 1, fontSize: 14, fontWeight: '600', color: '#374151' },
+  matrixDaysWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  matrixDayChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: '#f3f4f6', borderWidth: 1, borderColor: '#e5e7eb' },
+  matrixDayChipText: { fontSize: 12, fontWeight: '600', color: '#4b5563' },
+  matrixCustomCard: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, padding: 12, gap: 10 },
+  matrixCustomHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  matrixActivityInput: { flex: 1, fontSize: 14, color: '#374151', backgroundColor: '#f9fafb', borderRadius: 6, paddingVertical: 10, paddingHorizontal: 10, borderWidth: 1, borderColor: '#e5e7eb' },
+  matrixDeleteButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
 });

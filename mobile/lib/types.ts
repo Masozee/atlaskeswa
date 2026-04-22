@@ -28,6 +28,9 @@ export type QuestionType =
   | 'DIAGNOSIS_TABLE'
   | 'REPEATING_TABLE'
   | 'INTERVENTION_MATRIX'
+  | 'OPERATING_HOURS'
+  | 'KEGIATAN_TABLE'
+  | 'MATRIX_KEGIATAN'
   | 'LOCATION';
 
 export type SurveyStatus = 'DRAFT' | 'SUBMITTED' | 'VERIFIED' | 'REJECTED';
@@ -65,6 +68,11 @@ export interface TableColumn {
 export interface TableConfig {
   rows?: TableRow[];
   columns?: TableColumn[];
+  matrix_variant?: 'custom' | 'kesehatan' | 'pendidikan' | 'sosial_budaya';
+  activity_options?: string[];
+  allow_custom?: boolean;
+  custom_add_label?: string;
+  day_options?: string[];
   sub_questions?: Array<{
     code: string;
     label: string;

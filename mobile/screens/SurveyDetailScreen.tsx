@@ -44,6 +44,7 @@ interface AnswerItem {
   selected_choice_values?: string[];
   selected_choice_labels?: string[];
   geographic_unit_name?: string;
+  geographic_unit_display?: string;
   coverage_level?: string;
   table_data?: any;
   gps_latitude?: number;
@@ -62,6 +63,17 @@ interface SurveyDetailScreenProps {
   onBack: () => void;
   onEdit: (surveyId: number) => void;
 }
+
+const formatNumberDisplay = (value: number | string): string => {
+  const raw = String(value).trim();
+  if (!raw) return raw;
+
+  const numeric = Number(raw);
+  if (!Number.isFinite(numeric)) return raw;
+  if (Number.isInteger(numeric)) return String(numeric);
+
+  return raw.replace(/(\.\d*?[1-9])0+$/, '$1').replace(/\.0+$/, '');
+};
 
 export default function SurveyDetailScreen({ surveyId, onBack, onEdit }: SurveyDetailScreenProps) {
   const theme = useTheme();
@@ -193,6 +205,7 @@ export default function SurveyDetailScreen({ surveyId, onBack, onEdit }: SurveyD
 
     try {
       // Upload directly to server
+      console.log('Uploading photo for survey:', surveyId, 'uri:', pendingImageUri);
       const serverPhoto = await apiClient.uploadSurveyPhoto(surveyId, pendingImageUri, captionText);
       console.log('Upload success:', serverPhoto);
 
@@ -200,7 +213,7 @@ export default function SurveyDetailScreen({ surveyId, onBack, onEdit }: SurveyD
       const newPhoto: SurveyPhoto = {
         id: serverPhoto.id,
         survey: surveyId,
-        image_url: serverPhoto.image_url,
+        image_url: serverPhoto.image_url || serverPhoto.image,
         caption: captionText,
         uploaded_by_name: null,
         uploaded_at: new Date().toISOString(),
@@ -209,8 +222,22 @@ export default function SurveyDetailScreen({ surveyId, onBack, onEdit }: SurveyD
       setPhotos(prev => [newPhoto, ...prev]);
       Alert.alert('Berhasil', 'Foto berhasil diunggah');
     } catch (uploadErr: any) {
-      console.error('Upload error:', uploadErr);
-      const errorMsg = uploadErr?.message || 'Unknown error';
+      console.error('Upload error details:', uploadErr);
+      let errorMsg = 'Gagal mengunggah foto';
+      if (uploadErr?.message) {
+        // Try to parse JSON error message
+        const msgMatch = uploadErr.message.match(/\{.*\}/);
+        if (msgMatch) {
+          try {
+            const errObj = JSON.parse(msgMatch[0]);
+            errorMsg = errObj.detail || errObj.message || uploadErr.message;
+          } catch {
+            errorMsg = uploadErr.message;
+          }
+        } else {
+          errorMsg = uploadErr.message;
+        }
+      }
       Alert.alert(
         'Gagal Unggah',
         errorMsg,
@@ -220,6 +247,36 @@ export default function SurveyDetailScreen({ surveyId, onBack, onEdit }: SurveyD
       setUploading(false);
       setPendingImageUri(null);
     }
+  };
+
+  const handleDeleteSurvey = () => {
+    Alert.alert(
+      'Hapus Survei',
+      'Apakah Anda yakin ingin menghapus survei ini? Survei yang dihapus tidak dapat dikembalikan.',
+      [
+        { text: 'Batal', style: 'cancel' },
+        {
+          text: 'Hapus',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // Delete from server if not local-only draft
+              if (!survey?.is_local) {
+                await apiClient.delete(`/surveys/responses/${surveyId}/`);
+              } else {
+                // Delete from local database for local drafts
+                await database.deleteSurvey(surveyId);
+              }
+              Alert.alert('Berhasil', 'Survei berhasil dihapus');
+              onBack();
+            } catch (err) {
+              console.error('Failed to delete survey:', err);
+              Alert.alert('Error', 'Gagal menghapus survei');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleDeletePhoto = async (photo: SurveyPhoto) => {
@@ -267,11 +324,12 @@ export default function SurveyDetailScreen({ surveyId, onBack, onEdit }: SurveyD
       return ans.boolean_value ? 'Ya' : 'Tidak';
     }
     if (ans.number_value !== null && ans.number_value !== undefined) {
-      return String(ans.number_value);
+      return formatNumberDisplay(ans.number_value);
     }
     if (ans.date_value) return ans.date_value;
     if (ans.time_value) return ans.time_value;
     if (ans.coverage_level) return ans.coverage_level;
+    if (ans.geographic_unit_display) return ans.geographic_unit_display;
     if (ans.geographic_unit_name) return ans.geographic_unit_name;
     if (ans.gps_latitude !== null && ans.gps_latitude !== undefined) {
       return `GPS: ${ans.gps_latitude.toFixed(6)}, ${ans.gps_longitude?.toFixed(6)}`;
@@ -325,6 +383,11 @@ export default function SurveyDetailScreen({ surveyId, onBack, onEdit }: SurveyD
           <TouchableOpacity onPress={() => onEdit(surveyId)} style={[styles.editButton, { backgroundColor: c.primary }]}>
             <Text style={styles.editButtonText}>Edit</Text>
           </TouchableOpacity>
+          {(survey?.verification_status === 'DRAFT' || survey?.verification_status === 'draft' || survey?.is_local) && (
+            <TouchableOpacity onPress={handleDeleteSurvey} style={[styles.deleteButton, { backgroundColor: '#ef4444' }]}>
+              <MaterialIcons name="delete" size={18} color="#fff" />
+            </TouchableOpacity>
+          )}
         </View>
 
         <ScrollView style={[styles.content, { backgroundColor: c.background }]}>
@@ -333,6 +396,11 @@ export default function SurveyDetailScreen({ surveyId, onBack, onEdit }: SurveyD
 
           {/* Info Cards */}
           <View style={[styles.infoCard, { backgroundColor: c.surface, borderColor: c.border }]}>
+            <View style={styles.infoRow}>
+              <Text style={[styles.infoLabel, { color: c.textMuted }]}>ID Survei</Text>
+              <Text style={[styles.infoValue, { color: c.text }]}>#{survey.id}</Text>
+            </View>
+            <View style={[styles.divider, { backgroundColor: c.border }]} />
             <View style={styles.infoRow}>
               <Text style={[styles.infoLabel, { color: c.textMuted }]}>Tanggal Survei</Text>
               <Text style={[styles.infoValue, { color: c.text }]}>
@@ -360,22 +428,21 @@ export default function SurveyDetailScreen({ surveyId, onBack, onEdit }: SurveyD
                 </Text>
               </View>
             </View>
-            {/* Add Image Button */}
-            <View style={[styles.addImageRow, { borderTopColor: c.border }]}>
-              {uploading ? (
-                <ActivityIndicator size="small" color={c.primary} />
-              ) : (
-                <TouchableOpacity style={[styles.addImageButton, { borderColor: c.primary }]} onPress={pickImage}>
-                  <MaterialIcons name="add-a-photo" size={18} color={c.primary} />
-                  <Text style={[styles.addImageText, { color: c.primary }]}>Tambah Foto</Text>
-                </TouchableOpacity>
-              )}
-            </View>
           </View>
 
           {/* Photos Section */}
           <View style={styles.photosSection}>
-            <Text style={[styles.sectionTitle, { color: c.textMuted }]}>Foto Fasilitas</Text>
+            <View style={styles.photosSectionHeader}>
+              <Text style={[styles.sectionTitle, { color: c.textMuted }]}>Foto Fasilitas</Text>
+              {uploading ? (
+                <ActivityIndicator size="small" color={c.primary} />
+              ) : (
+                <TouchableOpacity style={[styles.addImageButton, { borderColor: c.primary }]} onPress={pickImage}>
+                  <MaterialIcons name="add-a-photo" size={16} color={c.primary} />
+                  <Text style={[styles.addImageText, { color: c.primary }]}>Tambah Foto</Text>
+                </TouchableOpacity>
+              )}
+            </View>
             {photos.length > 0 ? (
               <>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photosScroll}>
@@ -414,14 +481,6 @@ export default function SurveyDetailScreen({ surveyId, onBack, onEdit }: SurveyD
                   style={styles.photoPlaceholderImageLarge}
                   resizeMode="contain"
                 />
-                <TouchableOpacity
-                  style={[styles.photoPlaceholderButton, { backgroundColor: c.primary }]}
-                  onPress={pickImage}
-                  disabled={uploading}
-                >
-                  <MaterialIcons name="add-a-photo" size={20} color="#fff" />
-                  <Text style={styles.photoPlaceholderButtonText}>Tambah Foto</Text>
-                </TouchableOpacity>
               </View>
             )}
           </View>
@@ -453,6 +512,7 @@ export default function SurveyDetailScreen({ surveyId, onBack, onEdit }: SurveyD
                     nodes.push(
                       <View key={ans.question_code} style={styles.answerRow}>
                         <View style={styles.answerTextContainer}>
+                          <Text style={[styles.answerCode, { color: c.primary }]}>{ans.question_code}</Text>
                           <Text style={[styles.answerQuestion, { color: c.text }]}>{ans.question_text}</Text>
                           <Text style={[styles.answerValue, { color: c.textMuted }]}>{formatAnswerValue(ans)}</Text>
                         </View>
@@ -480,6 +540,7 @@ export default function SurveyDetailScreen({ surveyId, onBack, onEdit }: SurveyD
                           nodes.push(
                             <View key={`${dAns.question_code}-${ctx}-${di}`} style={styles.detailAnswerRow}>
                               <View style={styles.answerTextContainer}>
+                                <Text style={[styles.answerCode, { color: c.primary }]}>{dAns.question_code}</Text>
                                 <Text style={[styles.answerQuestion, { color: c.text }]}>{dAns.question_text}</Text>
                                 <Text style={[styles.answerValue, { color: c.textMuted }]}>{formatAnswerValue(dAns)}</Text>
                               </View>
@@ -563,6 +624,7 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 16, fontWeight: '600' },
   editButton: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, gap: 6 },
   editButtonText: { fontSize: 13, fontWeight: '600', color: '#ffffff' },
+  deleteButton: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
   content: { flex: 1, paddingHorizontal: 20, paddingTop: 4 },
   statusBadge: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, marginTop: 12 },
   statusDot: { width: 6, height: 6, borderRadius: 3 },
@@ -578,6 +640,7 @@ const styles = StyleSheet.create({
   answerRow: { paddingVertical: 10 },
   answerTextContainer: { flex: 1 },
   detailAnswerRow: { paddingVertical: 10, paddingLeft: 12, borderLeftWidth: 2 },
+  answerCode: { fontSize: 11, fontWeight: '700', marginBottom: 2 },
   answerQuestion: { fontSize: 13, fontWeight: '500', marginBottom: 2 },
   answerValue: { fontSize: 11 },
   detailGroupHeader: { flexDirection: 'row', alignItems: 'stretch', marginTop: 12, marginBottom: 4 },
@@ -589,6 +652,7 @@ const styles = StyleSheet.create({
   notesTitle: { fontSize: 13, fontWeight: '600', marginBottom: 6 },
   notesText: { fontSize: 12, lineHeight: 18 },
   photosSection: { marginBottom: 12 },
+  photosSectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   photosScroll: { marginHorizontal: -20, paddingHorizontal: 20 },
   photosRow: { flexDirection: 'row', gap: 12 },
   photoContainer: { width: 160 },

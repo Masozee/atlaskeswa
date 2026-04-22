@@ -186,6 +186,7 @@ class QuestionAnswerSerializer(serializers.ModelSerializer):
     selected_choice_values = serializers.SerializerMethodField()
     selected_choice_labels = serializers.SerializerMethodField()
     geographic_unit_name = serializers.CharField(source='geographic_unit.get_full_path', read_only=True)
+    geographic_unit_display = serializers.SerializerMethodField()
 
     class Meta:
         model = QuestionAnswer
@@ -193,7 +194,7 @@ class QuestionAnswerSerializer(serializers.ModelSerializer):
             'id', 'question', 'question_code', 'question_text',
             'text_value', 'number_value', 'date_value', 'time_value', 'boolean_value',
             'selected_choices', 'selected_choice_values', 'selected_choice_labels', 'other_text',
-            'geographic_unit', 'geographic_unit_name', 'coverage_level',
+            'geographic_unit', 'geographic_unit_name', 'geographic_unit_display', 'coverage_level',
             'file', 'gps_latitude', 'gps_longitude', 'table_data',
             'context_key', 'derived_mtc', 'created_at', 'updated_at'
         ]
@@ -204,6 +205,14 @@ class QuestionAnswerSerializer(serializers.ModelSerializer):
 
     def get_selected_choice_labels(self, obj):
         return list(obj.selected_choices.values_list('label', flat=True))
+
+    def get_geographic_unit_display(self, obj):
+        """Return geographic unit name - from FK if available, else from text_value"""
+        if obj.geographic_unit:
+            return obj.geographic_unit.get_full_path()
+        if obj.text_value:
+            return obj.text_value
+        return None
 
 
 class DynamicSurveyResponseListSerializer(serializers.ModelSerializer):
@@ -407,6 +416,9 @@ class DynamicSurveyResponseCreateSerializer(serializers.ModelSerializer):
         choice_assignments = []  # (answer_index, question, answer_value) for M2M
 
         for raw_code, answer_value in answers_data.items():
+            if _is_effectively_empty_answer(answer_value):
+                continue
+
             # Parse MTC context prefix: "R2|RQA" → context_key="R2", code="RQA"
             if '|' in raw_code:
                 context_key, question_code = raw_code.split('|', 1)
@@ -438,13 +450,17 @@ class DynamicSurveyResponseCreateSerializer(serializers.ModelSerializer):
                     else:
                         answer_kwargs['text_value'] = str(answer_value)
             elif question.answer_type == 'GEO_DESA':
-                answer_kwargs['text_value'] = str(answer_value) if answer_value else ''
+                # Support both integer FK IDs and string names - store ID as FK when numeric
+                if isinstance(answer_value, int) or (isinstance(answer_value, str) and answer_value.isdigit()):
+                    answer_kwargs['geographic_unit_id'] = int(answer_value)
+                else:
+                    answer_kwargs['text_value'] = str(answer_value) if answer_value else ''
             elif question.answer_type in ['GEO_FULL', 'LOCATION']:
                 if answer_value:
                     answer_kwargs['table_data'] = answer_value
             elif question.answer_type == 'COVERAGE_LEVEL':
                 answer_kwargs['coverage_level'] = answer_value
-            elif question.answer_type in ['STAFF_TABLE', 'DIAGNOSIS_TABLE', 'REPEATING_TABLE', 'INTERVENTION_MATRIX', 'OPERATING_HOURS', 'KEGIATAN_TABLE']:
+            elif question.answer_type in ['STAFF_TABLE', 'DIAGNOSIS_TABLE', 'REPEATING_TABLE', 'INTERVENTION_MATRIX', 'OPERATING_HOURS', 'KEGIATAN_TABLE', 'MATRIX_KEGIATAN']:
                 answer_kwargs['table_data'] = answer_value
             elif question.answer_type == 'GPS':
                 if isinstance(answer_value, dict):
@@ -452,7 +468,9 @@ class DynamicSurveyResponseCreateSerializer(serializers.ModelSerializer):
                     answer_kwargs['gps_longitude'] = answer_value.get('longitude')
 
             # Set other_text if provided (keyed by plain question code)
-            if question_code in other_texts:
+            if raw_code in other_texts:
+                answer_kwargs['other_text'] = other_texts[raw_code]
+            elif question_code in other_texts:
                 answer_kwargs['other_text'] = other_texts[question_code]
 
             answer_obj = QuestionAnswer(**answer_kwargs)
@@ -657,3 +675,15 @@ class SurveyPhotoSerializer(serializers.ModelSerializer):
                 return request.build_absolute_uri(obj.image.url)
             return obj.image.url
         return None
+# Treat blank branch payloads as absent answers so we don't persist empty rows
+# when the mobile flow briefly traverses a path the user didn't actually fill.
+def _is_effectively_empty_answer(value):
+    if value is None:
+        return True
+    if isinstance(value, str):
+        return value == ''
+    if isinstance(value, (list, tuple, set)):
+        return len(value) == 0
+    if isinstance(value, dict):
+        return len(value) == 0
+    return False

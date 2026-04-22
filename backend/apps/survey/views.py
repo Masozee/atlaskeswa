@@ -40,6 +40,18 @@ from apps.logs.utils import (
 )
 
 
+def _is_effectively_empty_answer(value):
+    if value is None:
+        return True
+    if isinstance(value, str):
+        return value == ''
+    if isinstance(value, (list, tuple, set)):
+        return len(value) == 0
+    if isinstance(value, dict):
+        return len(value) == 0
+    return False
+
+
 class SurveyViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
     """
     ViewSet for Survey with verification workflow
@@ -952,7 +964,7 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
 
         # Pre-fetch existing answers for this response
         existing_answers = {
-            a.question_id: a
+            (a.question_id, a.context_key or ''): a
             for a in QuestionAnswer.objects.filter(response=response)
         }
 
@@ -976,16 +988,26 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
             'table_data', 'gps_latitude', 'gps_longitude', 'other_text',
         ]
 
-        for question_code, answer_value in answers_data.items():
+        for raw_code, answer_value in answers_data.items():
+            if _is_effectively_empty_answer(answer_value):
+                continue
+
+            if '|' in raw_code:
+                context_key, question_code = raw_code.split('|', 1)
+            else:
+                context_key, question_code = '', raw_code
+
             question = question_map.get(question_code)
             if not question:
                 continue
 
             # Get existing or create new answer
-            answer = existing_answers.get(question.id)
+            answer = existing_answers.get((question.id, context_key))
             is_new = answer is None
             if is_new:
-                answer = QuestionAnswer(response=response, question=question)
+                answer = QuestionAnswer(response=response, question=question, context_key=context_key)
+            else:
+                answer.context_key = context_key
 
             # Clear existing values
             answer.text_value = ''
@@ -998,7 +1020,7 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
             answer.table_data = None
             answer.gps_latitude = None
             answer.gps_longitude = None
-            answer.other_text = other_texts.get(question_code, '')
+            answer.other_text = other_texts.get(raw_code, other_texts.get(question_code, ''))
 
             # Set the appropriate field based on answer type
             if question.answer_type in ['TEXT', 'TEXTAREA', 'PHONE', 'EMAIL', 'URL']:
@@ -1029,13 +1051,16 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
                         answer.geographic_unit_id = geo.id if geo else None
                         answer.text_value = str(answer_value)
             elif question.answer_type == 'GEO_DESA':
-                answer.text_value = str(answer_value) if answer_value else ''
-            elif question.answer_type == 'GEO_FULL':
+                if isinstance(answer_value, int) or (isinstance(answer_value, str) and answer_value.isdigit()):
+                    answer.geographic_unit_id = int(answer_value)
+                else:
+                    answer.text_value = str(answer_value) if answer_value else ''
+            elif question.answer_type in ['GEO_FULL', 'LOCATION']:
                 if answer_value:
                     answer.table_data = answer_value
             elif question.answer_type == 'COVERAGE_LEVEL':
                 answer.coverage_level = answer_value
-            elif question.answer_type in ['STAFF_TABLE', 'DIAGNOSIS_TABLE', 'REPEATING_TABLE', 'INTERVENTION_MATRIX']:
+            elif question.answer_type in ['STAFF_TABLE', 'DIAGNOSIS_TABLE', 'REPEATING_TABLE', 'INTERVENTION_MATRIX', 'OPERATING_HOURS', 'KEGIATAN_TABLE', 'MATRIX_KEGIATAN']:
                 answer.table_data = answer_value
             elif question.answer_type == 'GPS':
                 if isinstance(answer_value, dict):
