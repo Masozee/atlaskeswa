@@ -13,7 +13,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { apiClient, ENV_CONFIGURED_URL } from '../services/api';
+import { apiClient, normalizeApiBaseUrl } from '../services/api';
 import { database } from '../services/database';
 
 interface LoginScreenProps {
@@ -50,7 +50,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   };
 
   const handleSaveServerUrl = async () => {
-    const trimmed = serverUrl.trim().replace(/\/+$/, '');
+    const trimmed = normalizeApiBaseUrl(serverUrl);
     if (!trimmed) {
       Alert.alert('Error', 'Please enter a valid server URL');
       return;
@@ -101,7 +101,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     }
   };
 
-  const canSaveServerUrl = !isSavedInDb || serverUrl.trim().replace(/\/+$/, '') !== apiClient.getBaseURL();
+  const canSaveServerUrl = !isSavedInDb || normalizeApiBaseUrl(serverUrl) !== apiClient.getBaseURL();
 
   return (
     <KeyboardAvoidingView
@@ -116,7 +116,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         <View style={styles.logoContainer}>
           <Image source={require('../assets/logo.png')} style={styles.logoImage} resizeMode="contain" />
           <Text style={styles.logoText}>OMMHA</Text>
-          <Text style={styles.logoSubtitle}>Klasifikasi Jenis-jenis{'\n'}Layanan Kesehatan Jiwa{'\n'}di Indonesia</Text>
+          <Text style={styles.logoSubtitle}>One Map for Mental Health Atlas</Text>
         </View>
 
         {/* Login Form */}

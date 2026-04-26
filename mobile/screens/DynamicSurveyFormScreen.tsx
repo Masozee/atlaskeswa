@@ -12,11 +12,14 @@ import {
   BackHandler,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { ArrowUp01Icon, ArrowDown01Icon } from 'hugeicons-react-native';
+import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import * as Speech from 'expo-speech';
+import DatePicker from 'react-native-date-picker';
 import { apiClient } from '../services/api';
 import { database } from '../services/database';
 import NetInfo from '@react-native-community/netinfo';
@@ -102,6 +105,81 @@ interface DynamicSurveyFormScreenProps {
   onBack: () => void;
   onSave: () => void;
 }
+
+interface FileAnswerValue {
+  uri?: string;
+  file_url?: string;
+  file?: string;
+  name?: string;
+  type?: string;
+  uploaded?: boolean;
+}
+
+const getFileAnswerObject = (value: any): FileAnswerValue | null => {
+  if (!value) return null;
+  if (typeof value === 'string') {
+    return value.startsWith('http') ? { file_url: value, uploaded: true } : null;
+  }
+  if (typeof value === 'object') {
+    return value as FileAnswerValue;
+  }
+  return null;
+};
+
+const getFilePreviewUri = (value: any): string | null => {
+  const file = getFileAnswerObject(value);
+  return file?.uri || file?.file_url || file?.file || null;
+};
+
+const isPendingLocalFile = (value: any): boolean => {
+  const file = getFileAnswerObject(value);
+  return !!file?.uri && !file.uri.startsWith('http');
+};
+
+const getFileDisplayName = (value: any): string => {
+  const file = getFileAnswerObject(value);
+  if (!file) return '';
+  if (file.name) return file.name;
+  const uri = file.uri || file.file_url || file.file || '';
+  if (!uri) return '';
+  const cleanUri = uri.split('?')[0];
+  return cleanUri.split('/').pop() || '';
+};
+
+const getOtherInputType = (questionCode: string, choice: QuestionOption): string => {
+  if (questionCode === 'Q15' && choice.value === 'TANGGAL') return 'date';
+  if (questionCode === 'Q15' && choice.value === 'TIDAK_DIKETAHUI') return 'integer';
+  return choice.other_input_type || 'text';
+};
+
+const getOtherInputPlaceholder = (questionCode: string, choice: QuestionOption): string => {
+  if (questionCode === 'Q15' && choice.value === 'TANGGAL') return 'YYYY-MM-DD';
+  if (questionCode === 'Q15' && choice.value === 'TIDAK_DIKETAHUI') return 'YYYY';
+  return choice.other_input_label || 'Sebutkan';
+};
+
+const getOtherInputKeyboardType = (otherInputType: string) => (
+  otherInputType === 'integer' ? 'number-pad' :
+  otherInputType === 'decimal' ? 'decimal-pad' :
+  otherInputType === 'phone' ? 'phone-pad' :
+  otherInputType === 'email' ? 'email-address' :
+  'default'
+);
+
+const formatDateInputValue = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const parseDateInputValue = (value?: string): Date => {
+  if (value && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [year, month, day] = value.split('-').map((part) => parseInt(part, 10));
+    return new Date(year, month - 1, day);
+  }
+  return new Date();
+};
 
 // ── InterventionMatrixNewFormat ───────────────────────────────────────────────
 // Extracted as a proper React component so that useState is always called
@@ -282,7 +360,7 @@ function InterventionMatrixNewFormat({ questionCode, ctx, value, config, onAnswe
               <View style={{ width: fs(16), height: fs(16), borderRadius: 8, borderWidth: 2, borderColor: isYaActive ? c.primary : '#9ca3af', alignItems: 'center', justifyContent: 'center', backgroundColor: 'white' }}>
                 {isYaActive && <View style={{ width: fs(8), height: fs(8), borderRadius: 4, backgroundColor: c.primary }} />}
               </View>
-              <Text style={{ fontSize: fs(14), color: isYaActive ? c.primary : '#374151', fontWeight: isYaActive ? '600' : '400' }}>Ya</Text>
+              <Text style={{ fontSize: fs(14), color: isYaActive ? c.primary : '#374151', fontWeight: isYaActive ? '600' : '400' }}>YA</Text>
             </TouchableOpacity>
             {/* Tidak button */}
             <TouchableOpacity
@@ -292,7 +370,7 @@ function InterventionMatrixNewFormat({ questionCode, ctx, value, config, onAnswe
               <View style={{ width: fs(16), height: fs(16), borderRadius: 8, borderWidth: 2, borderColor: isTidakActive ? c.primary : '#9ca3af', alignItems: 'center', justifyContent: 'center', backgroundColor: 'white' }}>
                 {isTidakActive && <View style={{ width: fs(8), height: fs(8), borderRadius: 4, backgroundColor: c.primary }} />}
               </View>
-              <Text style={{ fontSize: fs(14), color: isTidakActive ? c.primary : '#374151', fontWeight: isTidakActive ? '600' : '400' }}>Tidak</Text>
+              <Text style={{ fontSize: fs(14), color: isTidakActive ? c.primary : '#374151', fontWeight: isTidakActive ? '600' : '400' }}>TIDAK</Text>
             </TouchableOpacity>
           </View>
           {/* Extra text field when Ya is selected (question 9: keterkaitan) */}
@@ -383,6 +461,7 @@ export default function DynamicSurveyFormScreen({
   const [template, setTemplate] = useState<SurveyTemplate | null>(null);
   const [answers, setAnswers] = useState<SurveyAnswers>({});
   const [otherTexts, setOtherTexts] = useState<Record<string, string>>({});
+  const [showOtherDatePicker, setShowOtherDatePicker] = useState<{ key: string; value: string } | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [currentSectionId, setCurrentSectionId] = useState<number | null>(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -429,10 +508,6 @@ export default function DynamicSurveyFormScreen({
   const [capturingLocation, setCapturingLocation] = useState(false);
   const [finalGps, setFinalGps] = useState<{ latitude: number; longitude: number; accuracy: number | null } | null>(null);
 
-  // Debug: log GPS state changes
-  useEffect(() => {
-    console.log(`[GPS] finalGps changed: ${isValidGps(finalGps) ? `${finalGps!.latitude}, ${finalGps!.longitude}` : 'null/undefined'}`);
-  }, [finalGps]);
   // Simple confirmation screen before final submit
   const [showConfirmScreen, setShowConfirmScreen] = useState(false);
 
@@ -541,96 +616,158 @@ export default function DynamicSurveyFormScreen({
     const isOnline = !!(netState.isConnected && netState.isInternetReachable);
 
     try {
-      // ── Services ──────────────────────────────────────────────────────────
-      if (isOnline) {
-        try {
-          const servicesData = await apiClient.get<PaginatedResponse<Service>>(
-            '/directory/services/',
-            { page_size: 100, ordering: 'name' }
-          );
-          setServices(servicesData.results);
-          await database.saveServices(servicesData.results);
-        } catch {
-          const cached = await database.getServices();
-          setServices(cached);
+      const loadServices = async () => {
+        if (isOnline) {
+          try {
+            const servicesData = await apiClient.get<PaginatedResponse<Service>>(
+              '/directory/services/',
+              { page_size: 100, ordering: 'name' }
+            );
+            const serviceResults = Array.isArray(servicesData?.results) ? servicesData.results : [];
+            setServices(serviceResults);
+            await database.saveServices(serviceResults);
+            return;
+          } catch {
+            // Fall back to cache below.
+          }
         }
-      } else {
         const cached = await database.getServices();
         setServices(cached);
-      }
+      };
 
-      // ── Current user ──────────────────────────────────────────────────────
-      if (isOnline) {
+      const loadCurrentUser = async () => {
+        if (!isOnline) return;
         try {
           const userData = await apiClient.get<any>('/accounts/users/me/');
           const fullName = userData.full_name
             || (userData.first_name || userData.last_name
-              ? `${userData.first_name} ${userData.last_name}`.trim()
+              ? `${userData.first_name || ''} ${userData.last_name || ''}`.trim()
               : userData.email?.split('@')[0] || '');
           setCurrentUserName(fullName);
         } catch {
           // user name unavailable
         }
-      }
+      };
 
-      // ── Load existing survey service IDs (for duplicate disable) ─────────
-      if (isOnline) {
-        try {
-          // Use X-Show-All header to get ALL surveys globally (bypass RBAC)
-          // so we can disable facilities that ANY user has surveyed
-          const responses = await apiClient.get<any>(
-            '/surveys/responses/',
-            { page_size: 1000 },
-            { 'X-Show-All': 'true' }
-          );
-          const ids = new Set<number>();
-          (responses.results || []).forEach((r: any) => {
-            if (r.service && typeof r.service === 'object') ids.add(r.service.id);
-            else if (r.service) ids.add(r.service);
-          });
-          setUsedServiceIds(ids);
-        } catch {
-          // skip — not critical
+      const loadUsedServiceIds = async () => {
+        if (isOnline) {
+          try {
+            const responses = await apiClient.get<any>(
+              '/surveys/responses/',
+              { page_size: 1000 },
+              { 'X-Show-All': 'true' }
+            );
+            const rows = Array.isArray(responses) ? responses : (responses?.results || []);
+            const ids = new Set<number>();
+            rows.forEach((r: any) => {
+              if (r.service && typeof r.service === 'object') ids.add(r.service.id);
+              else if (r.service) ids.add(r.service);
+            });
+            setUsedServiceIds(ids);
+            return;
+          } catch {
+            // Fall back to local data below.
+          }
         }
-      } else {
         try {
           const localSurveys = await database.getSurveys();
           setUsedServiceIds(new Set(localSurveys.map((s: any) => s.service_id)));
         } catch {
           // skip
         }
-      }
+      };
 
-      // ── Kecamatan (Kebumen, parent=2) ──────────────────────────────────
-      if (isOnline) {
-        try {
-          const kecData = await apiClient.get<PaginatedResponse<{ id: number; name: string }>>(
-            '/surveys/geographic-units/',
-            { level: 'KECAMATAN', parent: 2, page_size: 100 }
-          );
-          setKecamatanList(kecData.results);
-          await database.saveGeographicUnits('KECAMATAN', 2, kecData.results);
-        } catch {
-          const cached = await database.getGeographicUnits('KECAMATAN', 2);
-          setKecamatanList(cached);
+      const loadKecamatan = async () => {
+        if (isOnline) {
+          try {
+            const kecData = await apiClient.get<PaginatedResponse<{ id: number; name: string }>>(
+              '/surveys/geographic-units/',
+              { level: 'KECAMATAN', parent: 2, page_size: 100 }
+            );
+            const kecResults = Array.isArray(kecData?.results) ? kecData.results : [];
+            setKecamatanList(kecResults);
+            await database.saveGeographicUnits('KECAMATAN', 2, kecResults);
+            return;
+          } catch {
+            // Fall back to cache below.
+          }
         }
-      } else {
         const cached = await database.getGeographicUnits('KECAMATAN', 2);
         setKecamatanList(cached);
-      }
+      };
+
+      await Promise.all([loadServices(), loadCurrentUser(), loadKecamatan()]);
+      void loadUsedServiceIds();
 
       // ── Existing response (edit mode) ──────────────────────────────────
       let tplId = templateId;
       const loadedAnswers: SurveyAnswers = {};
+      const loadedOtherTexts: Record<string, string> = {};
       // Hoist GPS/service fields so they're accessible in outer scope for resume
       let savedLatitude: number | null = null;
       let savedLongitude: number | null = null;
       let savedAccuracy: number | null = null;
       let savedService: { id: number; name: string; city: string } | null = null;
+      const mergeOtherText = (storageKey: string, otherText: string) => {
+        if (!otherText) return;
+        try {
+          const parsed = JSON.parse(otherText);
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            Object.entries(parsed).forEach(([choiceValue, choiceText]) => {
+              if (typeof choiceText === 'string') {
+                loadedOtherTexts[`${storageKey}__choice_${choiceValue}`] = choiceText;
+              }
+            });
+            return;
+          }
+        } catch {
+          // Plain other_text from older drafts.
+        }
+        loadedOtherTexts[storageKey] = otherText;
+      };
+
+      const loadLocalDraft = async (localId: number) => {
+        const local = await database.getSurvey(localId);
+        if (!local) return false;
+
+        setLocalSurveyId(Number(local.id));
+        if (typeof local.server_id === 'number') {
+          setServerResponseId(local.server_id);
+        }
+        if (local.template_id) tplId = local.template_id;
+        if (local.survey_date) setSurveyDate(local.survey_date);
+        savedLatitude = typeof local.gps_latitude === 'number' && !isNaN(local.gps_latitude) ? local.gps_latitude : null;
+        savedLongitude = typeof local.gps_longitude === 'number' && !isNaN(local.gps_longitude) ? local.gps_longitude : null;
+        savedService = {
+          id: Number(local.service_id),
+          name: local.service_name || '',
+          city: local.service_city || '',
+        };
+        setSelectedService(savedService);
+
+        if (local.answers_json) {
+          const parsedAnswers = JSON.parse(local.answers_json);
+          Object.entries(parsedAnswers).forEach(([key, val]) => {
+            if (key.endsWith('__other_text')) {
+              mergeOtherText(key.replace('__other_text', ''), String(val ?? ''));
+            } else {
+              loadedAnswers[key] = val;
+            }
+          });
+          setAnswers(loadedAnswers);
+          setOtherTexts(loadedOtherTexts);
+        }
+        return true;
+      };
 
       if (responseId) {
-        setServerResponseId(responseId);
-        if (isOnline) {
+        const localOnlyId = responseId < 0 ? Math.abs(responseId) : null;
+        if (localOnlyId) {
+          await loadLocalDraft(localOnlyId);
+        } else {
+          setServerResponseId(responseId);
+        }
+        if (isOnline && !localOnlyId) {
           try {
             const resp = await apiClient.get<any>(`/surveys/responses/${responseId}/`);
             // Handle template - can be object, number, or null
@@ -649,7 +786,7 @@ export default function DynamicSurveyFormScreen({
 
                 // Detail questions (code ends with uppercase letter) are stored
                 // under "context_key|code" so each MTC loop is kept separate.
-                const isDetailCode = /[A-Z]$/.test(code);
+                const isDetailCode = /[A-Z]$/.test(code) || /Q[A-Z]\d+$/.test(code);
                 const storageKey = isDetailCode && ans.context_key
                   ? `${ans.context_key}|${code}`
                   : code;
@@ -673,14 +810,28 @@ export default function DynamicSurveyFormScreen({
                   val = ans.geographic_unit;
                 } else if (ans.coverage_level) {
                   val = ans.coverage_level;
-                } else if (ans.gps_latitude !== null && ans.gps_longitude !== null) {
+                } else if (ans.file_url || ans.file) {
+                  val = {
+                    file_url: ans.file_url || ans.file,
+                    file: ans.file,
+                    name: getFileDisplayName(ans.file_url || ans.file),
+                    uploaded: true,
+                  };
+                } else if (
+                  typeof ans.gps_latitude === 'number' &&
+                  typeof ans.gps_longitude === 'number' &&
+                  !isNaN(ans.gps_latitude) &&
+                  !isNaN(ans.gps_longitude)
+                ) {
                   val = { latitude: ans.gps_latitude, longitude: ans.gps_longitude };
                 } else if (ans.text_value) {
                   val = ans.text_value;
                 }
                 if (val !== undefined) loadedAnswers[storageKey] = val;
+                if (ans.other_text) mergeOtherText(storageKey, ans.other_text);
               }
               setAnswers(loadedAnswers);
+              setOtherTexts(loadedOtherTexts);
             }
 
             if (resp.service) {
@@ -695,8 +846,9 @@ export default function DynamicSurveyFormScreen({
             if (resp.started_at) {
               setStartedAt(resp.started_at);
             }
-          } catch (err) {
-            console.warn('Failed to load remote response, trying local:', err);
+          } catch {
+            const local = await database.getSurveyByServerId(responseId);
+            if (local?.id) await loadLocalDraft(Number(local.id));
           }
         }
         // Don't call setSetupComplete here — let the resume block below do it
@@ -752,13 +904,17 @@ export default function DynamicSurveyFormScreen({
         if (responseId && Object.keys(loadedAnswers).length > 0) {
           const allQuestions = tpl.sections?.flatMap((s) => s.questions || []) ?? [];
           for (const q of allQuestions) {
-            const key = q.code;
-            if (loadedAnswers[key] !== undefined && Array.isArray(loadedAnswers[key])) {
-              if (q.answer_type === 'SINGLE_CHOICE') {
-                // Collapse to scalar (first element)
-                loadedAnswers[key] = loadedAnswers[key][0] ?? '';
+            const matchingKeys = Object.keys(loadedAnswers).filter((key) => (
+              key === q.code || key.endsWith(`|${q.code}`)
+            ));
+            for (const key of matchingKeys) {
+              if (loadedAnswers[key] !== undefined && Array.isArray(loadedAnswers[key])) {
+                if (q.answer_type === 'SINGLE_CHOICE') {
+                  // Collapse to scalar (first element)
+                  loadedAnswers[key] = loadedAnswers[key][0] ?? '';
+                }
+                // MULTIPLE_CHOICE stays as array — no change needed
               }
-              // MULTIPLE_CHOICE stays as array — no change needed
             }
           }
           // Re-apply normalized answers so state reflects the correct types
@@ -768,39 +924,51 @@ export default function DynamicSurveyFormScreen({
         Alert.alert('Offline', 'Tidak ada template tersimpan. Sambungkan ke internet untuk pertama kali.');
       }
 
-      // ── Edit mode: resume from first unanswered question ──────────────────
+      // ── Edit mode: resume from the next unanswered question after progress ─
       // Template must be loaded first (done above) so we can build questionsMap
       if (responseId && tpl) {
         const questionsMapForResume = buildQuestionsMap(tpl.sections ?? []);
         const activeSectionsForResume = getActiveSections(tpl.sections ?? [], loadedAnswers, questionsMapForResume);
         let resumeSectionIdx = 0;
         let resumeItemIdx = 0;
-        outer: for (let si = 0; si < activeSectionsForResume.length; si++) {
+        let lastAnsweredSectionIdx = -1;
+        let lastAnsweredItemIdx = -1;
+        let firstUnansweredAfterProgress: { sectionIdx: number; itemIdx: number } | null = null;
+
+        for (let si = 0; si < activeSectionsForResume.length; si++) {
           const section = activeSectionsForResume[si];
           const flowItems = getFlowItems(section, loadedAnswers, questionsMapForResume, tpl.sections, loadedAnswers);
           for (let fi = 0; fi < flowItems.length; fi++) {
             const item = flowItems[fi];
             if (item.kind === 'question') {
-              const answer = loadedAnswers[item.question.code];
-              if (answer === null || answer === undefined || answer === '' || (Array.isArray(answer) && answer.length === 0)) {
-                // First unanswered question — resume here
-                resumeSectionIdx = si;
-                resumeItemIdx = fi;
-                break outer;
+              const ctx = item.contextKey ?? '';
+              const storageKey = isDetailQuestion(item.question.code) && ctx
+                ? `${ctx}|${item.question.code}`
+                : item.question.code;
+              const answer = loadedAnswers[storageKey];
+              const answered = !(answer === null || answer === undefined || answer === '' || (Array.isArray(answer) && answer.length === 0));
+              if (answered) {
+                lastAnsweredSectionIdx = si;
+                lastAnsweredItemIdx = fi;
+              } else if (lastAnsweredSectionIdx >= 0 && !firstUnansweredAfterProgress) {
+                firstUnansweredAfterProgress = { sectionIdx: si, itemIdx: fi };
               }
             }
           }
-          // All questions in this section are answered — try next section
+        }
+        if (firstUnansweredAfterProgress) {
+          resumeSectionIdx = firstUnansweredAfterProgress.sectionIdx;
+          resumeItemIdx = firstUnansweredAfterProgress.itemIdx;
+        } else if (lastAnsweredSectionIdx >= 0) {
+          resumeSectionIdx = lastAnsweredSectionIdx;
+          resumeItemIdx = lastAnsweredItemIdx;
         }
         isResumingFromEdit.current = true;
         const resumeSectionId = activeSectionsForResume[resumeSectionIdx]?.id ?? null;
         setCurrentSectionId(resumeSectionId);
         setCurrentQuestionIndex(resumeItemIdx);
         setSetupComplete(true);
-        // Auto-capture GPS from saved response
-        console.log(`[GPS] Loading from saved response: savedLatitude=${savedLatitude}, savedLongitude=${savedLongitude}, savedAccuracy=${savedAccuracy}`);
         if (savedLatitude != null && savedLongitude != null && !isNaN(savedLatitude) && !isNaN(savedLongitude)) {
-          console.log(`[GPS] Setting finalGps from saved data`);
           setFinalGps({
             latitude: savedLatitude,
             longitude: savedLongitude,
@@ -812,8 +980,7 @@ export default function DynamicSurveyFormScreen({
         setSetupComplete(false);
       }
       return; // done loading
-    } catch (err: any) {
-      console.error('Failed to load data:', err);
+    } catch {
       Alert.alert('Error', 'Gagal memuat data survei');
     } finally {
       setLoading(false);
@@ -828,6 +995,18 @@ export default function DynamicSurveyFormScreen({
   const questionsMap = useMemo(() => {
     if (!template?.sections) return new Map<number, Question>();
     return buildQuestionsMap(template.sections);
+  }, [template?.sections]);
+
+  const fileQuestionCodes = useMemo(() => {
+    const codes = new Set<string>();
+    template?.sections?.forEach((section) => {
+      section.questions?.forEach((question) => {
+        if (question.answer_type === 'FILE') {
+          codes.add(question.code);
+        }
+      });
+    });
+    return codes;
   }, [template?.sections]);
 
   // Resolved answers: map all "ctx|code" prefixed keys → "code" so flow conditions work
@@ -853,12 +1032,9 @@ export default function DynamicSurveyFormScreen({
   // Get active sections
   const activeSections = useMemo(() => {
     if (!template?.sections) {
-      console.log('[FLOW] activeSections: template.sections is empty/undefined');
       return [];
     }
-    const result = getActiveSections(template.sections, resolvedAnswers, questionsMap);
-    console.log(`[FLOW] activeSections computed: ${result.map(s => s.code).join(',')} (total ${result.length})`);
-    return result;
+    return getActiveSections(template.sections, resolvedAnswers, questionsMap);
   }, [template?.sections, resolvedAnswers, questionsMap]);
 
   // Derive currentSectionIndex from currentSectionId — this survives activeSections recomputation
@@ -875,9 +1051,7 @@ export default function DynamicSurveyFormScreen({
   // Hint pages (introduction_text) appear as SEPARATE screens before the question they introduce.
   const activeFlowItems = useMemo(() => {
     if (!currentSection) return [];
-    const items = getFlowItems(currentSection, resolvedAnswers, questionsMap, template?.sections, answers);
-    console.log(`[FLOW DEBUG] section=${currentSection.code} count=${items.length}`, items.map(i => i.kind === 'question' ? i.question.code : i.kind === 'hint' ? `HINT:${i.questionCode}` : 'END'));
-    return items;
+    return getFlowItems(currentSection, resolvedAnswers, questionsMap, template?.sections, answers);
   }, [currentSection, resolvedAnswers, questionsMap, template?.sections, answers]);
 
   // Each flow item carries its exact loop context from the flow builder. This avoids
@@ -899,21 +1073,39 @@ export default function DynamicSurveyFormScreen({
   const totalItemsInSection = activeFlowItems.length;
   const currentFlowItem = activeFlowItems[currentQuestionIndex] ?? null;
 
-  // DEBUG: detailed flow item logging
-  useEffect(() => {
-    console.log(`[FLOW ITEMS] total=${activeFlowItems.length} currentIdx=${currentQuestionIndex}`, activeFlowItems.map((item, i) => `${i}:${item?.kind ?? 'null'}${item?.kind === 'question' ? ':' + item.question.code : item?.kind === 'hint' ? ':' + item.questionCode : item?.kind === 'end_survey' ? ':END' : ''}`));
-    if (currentQuestionIndex >= activeFlowItems.length) {
-      console.warn(`[FLOW ITEMS] WARNING: currentQuestionIndex=${currentQuestionIndex} >= activeFlowItems.length=${activeFlowItems.length}`);
-    }
-    // Also log questionContexts at the same time
-    console.log(`[CTX] contexts for index ${currentQuestionIndex}: currentQCtx="${questionContexts[currentQuestionIndex] ?? ''}"`);
-  }, [currentQuestionIndex, activeFlowItems.length]);
-
   // The active Question (null when current item is a hint page)
   const currentQ =
     currentFlowItem?.kind === 'question' ? currentFlowItem.question : null;
 
   const currentQCtx = questionContexts[currentQuestionIndex] ?? '';
+
+  const detailBannerMeta = useMemo(() => {
+    if (!currentQCtx || !isDetailQuestion(currentQ?.code ?? '')) {
+      return { code: currentMtcCode, label: currentMtcLabel };
+    }
+
+    const allChoices = template?.sections?.flatMap((section) =>
+      (section.questions || []).flatMap((question) => question.choices || [])
+    ) || [];
+    const matchedChoice = allChoices.find((choice) => choice.value === currentQCtx);
+
+    if (matchedChoice?.mtc_code_display) {
+      const dashIdx = matchedChoice.mtc_code_display.indexOf(' — ');
+      return {
+        code: dashIdx >= 0
+          ? matchedChoice.mtc_code_display.slice(0, dashIdx)
+          : matchedChoice.mtc_code_display,
+        label: dashIdx >= 0
+          ? matchedChoice.mtc_code_display.slice(dashIdx + 3)
+          : (matchedChoice.bsic_full_label || matchedChoice.cabang_mtc || matchedChoice.label || currentMtcLabel),
+      };
+    }
+
+    return {
+      code: currentMtcCode || String(currentQCtx).split(' — ')[0],
+      label: matchedChoice?.bsic_full_label || matchedChoice?.cabang_mtc || matchedChoice?.label || currentMtcLabel,
+    };
+  }, [currentMtcCode, currentMtcLabel, currentQ?.code, currentQCtx, template?.sections]);
 
   // Auto-play TTS for the first question when section changes
   useEffect(() => {
@@ -936,16 +1128,9 @@ export default function DynamicSurveyFormScreen({
     }
   }, [showConfirmScreen]);
 
-  // DEBUG: log navigation state changes
-  useEffect(() => {
-    console.log(`[NAV DEBUG] qIdx=${currentQuestionIndex}/${activeFlowItems.length} secIdx=${currentSectionIndex}/${activeSections.length} currentQ=${currentQ?.code ?? 'null'} totalSections=${activeSections.length} showIntro=${showIntroScreen}`);
-  }, [currentQuestionIndex, currentSectionIndex, activeFlowItems.length, showIntroScreen]);
-
   // ctxOverride: the per-question MTC context (from questionContexts). Falls back to
   // currentMtcContext when not provided. Answers always accumulate — no context clearing.
   const handleAnswerChange = (questionCode: string, value: any, ctxOverride?: string) => {
-    // DEBUG: log current section state when answer changes
-    console.log(`[ANSWER] changing ${questionCode} to ${JSON.stringify(value)}, currentSectionId=${currentSectionId}, currentSectionIndex=${currentSectionIndex}, activeSections.length=${activeSections.length}`);
     // Detect MTC context change from the selected choice's cabang_mtc
     const allQuestions = template?.sections?.flatMap(s => s.questions || []) || [];
     const q = allQuestions.find(q => q.code === questionCode);
@@ -961,6 +1146,30 @@ export default function DynamicSurveyFormScreen({
 
     // Always accumulate — each context uses a different prefixed key, no collisions
     setAnswers((prev) => ({ ...prev, [storageKey]: value }));
+
+    const choiceOtherTextKeys = Object.keys(otherTexts).filter((key) => key.startsWith(`${storageKey}__choice_`));
+    if ((otherTexts[storageKey] || choiceOtherTextKeys.length > 0) && q?.choices) {
+      setOtherTexts((prev) => {
+        const next = { ...prev };
+        q.choices?.forEach((choice: QuestionOption) => {
+          if (!choice.has_other_input) return;
+          const stillSelected = Array.isArray(value)
+            ? value.includes(choice.value)
+            : value === choice.value;
+          if (!stillSelected) {
+            delete next[`${storageKey}__choice_${choice.value}`];
+          }
+        });
+        const firstOtherChoice = q.choices?.find((choice: QuestionOption) => choice.has_other_input);
+        if (firstOtherChoice) {
+          const stillSelected = Array.isArray(value)
+            ? value.includes(firstOtherChoice.value)
+            : value === firstOtherChoice.value;
+          if (!stillSelected) delete next[storageKey];
+        }
+        return next;
+      });
+    }
 
     if (newCtx && newCtx !== currentMtcContext) {
       setCurrentMtcContext(newCtx);
@@ -993,6 +1202,71 @@ export default function DynamicSurveyFormScreen({
     }
   };
 
+  const selectedOtherInputChoices = (question: Question, answer: any): QuestionOption[] => {
+    const choices = question.choices || [];
+    return choices.filter((choice: QuestionOption) => {
+      if (!choice.has_other_input) return false;
+      return Array.isArray(answer)
+        ? answer.includes(choice.value)
+        : answer === choice.value;
+    });
+  };
+
+  const resolveAnswersForFlow = (sourceAnswers: SurveyAnswers): SurveyAnswers => {
+    const resolved: SurveyAnswers = { ...sourceAnswers };
+    for (const [key, val] of Object.entries(sourceAnswers)) {
+      if (!key.includes('|')) continue;
+      const plainKey = key.split('|')[1];
+      if (plainKey && !resolved[plainKey]) {
+        resolved[plainKey] = val;
+      }
+    }
+    return resolved;
+  };
+
+  const getReachableAnswerKeys = (sourceAnswers: SurveyAnswers): Set<string> => {
+    if (!template?.sections) {
+      return new Set(Object.keys(sourceAnswers));
+    }
+
+    const reachable = new Set<string>();
+    const flowAnswers = resolveAnswersForFlow(sourceAnswers);
+    const sections = getActiveSections(template.sections, flowAnswers, questionsMap);
+
+    sections.forEach((section) => {
+      const flowItems = getFlowItems(section, flowAnswers, questionsMap, template.sections, sourceAnswers);
+      flowItems.forEach((item) => {
+        if (item.kind !== 'question') return;
+        const ctx = item.contextKey ?? '';
+        const storageKey = isDetailQuestion(item.question.code) && ctx
+          ? `${ctx}|${item.question.code}`
+          : item.question.code;
+        reachable.add(storageKey);
+      });
+    });
+
+    return reachable;
+  };
+
+  const pruneUnreachableDraftData = (
+    sourceAnswers: SurveyAnswers,
+    sourceOtherTexts: Record<string, string>
+  ) => {
+    const reachableKeys = getReachableAnswerKeys(sourceAnswers);
+    const prunedAnswers = Object.fromEntries(
+      Object.entries(sourceAnswers).filter(([key]) => reachableKeys.has(key))
+    );
+    const prunedOtherTexts = Object.fromEntries(
+      Object.entries(sourceOtherTexts).filter(([key]) => {
+        const markerIndex = key.indexOf('__choice_');
+        const baseKey = markerIndex >= 0 ? key.slice(0, markerIndex) : key;
+        return reachableKeys.has(baseKey);
+      })
+    );
+
+    return { answers: prunedAnswers, otherTexts: prunedOtherTexts };
+  };
+
   const validateSection = (): boolean => {
     const newErrors: Record<string, string> = {};
     if (!currentSection) return true;
@@ -1010,6 +1284,22 @@ export default function DynamicSurveyFormScreen({
       if (question.is_required) {
         if (answer === null || answer === undefined || answer === '' || (Array.isArray(answer) && answer.length === 0)) {
           newErrors[storageKey] = 'Pertanyaan ini wajib diisi';
+        }
+      }
+
+      const otherInputChoices = selectedOtherInputChoices(question, answer);
+      for (const otherInputChoice of otherInputChoices) {
+        const choiceTextKey = `${storageKey}__choice_${otherInputChoice.value}`;
+        const otherInputValue = String(otherTexts[choiceTextKey] ?? otherTexts[storageKey] ?? '').trim();
+        if (!otherInputValue) {
+          newErrors[storageKey] = 'Input tambahan wajib diisi';
+          break;
+        } else if (getOtherInputType(question.code, otherInputChoice) === 'integer' && !/^\d{4}$/.test(otherInputValue)) {
+          newErrors[storageKey] = 'Perkiraan tahun harus 4 digit';
+          break;
+        } else if (getOtherInputType(question.code, otherInputChoice) === 'date' && !/^\d{4}-\d{2}-\d{2}$/.test(otherInputValue)) {
+          newErrors[storageKey] = 'Tanggal harus YYYY-MM-DD';
+          break;
         }
       }
 
@@ -1041,6 +1331,23 @@ export default function DynamicSurveyFormScreen({
         return false;
       }
     }
+    const otherInputChoices = selectedOtherInputChoices(question, answer);
+    for (const otherInputChoice of otherInputChoices) {
+      const choiceTextKey = `${storageKey}__choice_${otherInputChoice.value}`;
+      const otherInputValue = String(otherTexts[choiceTextKey] ?? otherTexts[storageKey] ?? '').trim();
+      if (!otherInputValue) {
+        setErrors((prev) => ({ ...prev, [storageKey]: 'Input tambahan wajib diisi' }));
+        return false;
+      }
+      if (getOtherInputType(question.code, otherInputChoice) === 'integer' && !/^\d{4}$/.test(otherInputValue)) {
+        setErrors((prev) => ({ ...prev, [storageKey]: 'Perkiraan tahun harus 4 digit' }));
+        return false;
+      }
+      if (getOtherInputType(question.code, otherInputChoice) === 'date' && !/^\d{4}-\d{2}-\d{2}$/.test(otherInputValue)) {
+        setErrors((prev) => ({ ...prev, [storageKey]: 'Tanggal harus YYYY-MM-DD' }));
+        return false;
+      }
+    }
     if (question.answer_type === 'LOCATION' && answer) {
       const loc = answer as any;
       if (!loc.koordinat?.latitude || !loc.koordinat?.longitude) return false;
@@ -1059,7 +1366,6 @@ export default function DynamicSurveyFormScreen({
         return;
       }
       const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-      console.log(`[GPS] captureFinalGPS success: ${location.coords.latitude}, ${location.coords.longitude} (±${location.coords.accuracy}m)`);
       setFinalGps({
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
@@ -1073,7 +1379,6 @@ export default function DynamicSurveyFormScreen({
   };
 
   const handleNext = () => {
-    console.log(`[NAV] handleNext sectionIdx=${currentSectionIndex}/${activeSections.length} qIdx=${currentQuestionIndex}/${activeFlowItems.length} section=${currentSection?.code} currentFlowItem=${currentFlowItem ? currentFlowItem.kind : 'null'}`);
     // Push current position to history before advancing
     const currentPos = { sectionId: currentSectionId, questionIndex: currentQuestionIndex };
 
@@ -1124,7 +1429,6 @@ export default function DynamicSurveyFormScreen({
 
     // Current is a QUESTION — validate before advancing
     if (!currentQ) {
-      console.warn('[NAV] handleNext: currentQ is null, skipping');
       return;
     }
     if (!validateQuestion(currentQ, currentQCtx)) {
@@ -1143,7 +1447,6 @@ export default function DynamicSurveyFormScreen({
         setShowConfirmScreen(true);
       } else {
         const nextSection = activeSections[nextSectionIdx];
-        console.log(`[NAV] Transitioning to section ${nextSection?.code} introduction_text="${nextSection?.introduction_text?.substring(0, 50) ?? 'none'}"`);
         // Always skip section intro when using "Next" - go directly to first question
         // The section intro can be accessed via "Back" navigation if user wants to review it
         setNavHistory((prev) => [...prev, currentPos]);
@@ -1183,6 +1486,76 @@ export default function DynamicSurveyFormScreen({
     }
   };
 
+  const pickFileAnswer = async (questionCode: string, ctx: string = '') => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Izin Diperlukan', 'Aplikasi memerlukan akses galeri untuk memilih gambar.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: false,
+      quality: 0.8,
+    });
+
+    if (result.canceled || !result.assets?.[0]) {
+      return;
+    }
+
+    const asset = result.assets[0];
+    handleAnswerChange(questionCode, {
+      uri: asset.uri,
+      name: asset.fileName || asset.uri.split('/').pop() || `${questionCode}_${Date.now()}.jpg`,
+      type: asset.mimeType || 'image/jpeg',
+      uploaded: false,
+    }, ctx);
+  };
+
+  const uploadPendingFileAnswers = async (responseServerId: number, answerMap: SurveyAnswers) => {
+    const uploadedUpdates: Array<[string, FileAnswerValue]> = [];
+
+    for (const [storageKey, rawValue] of Object.entries(answerMap)) {
+      if (storageKey.endsWith('__other_text')) continue;
+
+      const questionCode = storageKey.includes('|') ? storageKey.split('|', 2)[1] : storageKey;
+      const contextKey = storageKey.includes('|') ? storageKey.split('|', 2)[0] : '';
+      if (!fileQuestionCodes.has(questionCode) || !isPendingLocalFile(rawValue)) continue;
+
+      const file = getFileAnswerObject(rawValue);
+      if (!file?.uri) continue;
+
+      const uploaded = await apiClient.uploadResponseAnswerFile(
+        responseServerId,
+        questionCode,
+        file.uri,
+        contextKey
+      );
+
+      uploadedUpdates.push([
+        storageKey,
+        {
+          uri: file.uri,
+          file_url: uploaded.file_url || uploaded.file,
+          file: uploaded.file,
+          name: file.name || getFileDisplayName(uploaded.file_url || uploaded.file || file.uri),
+          type: file.type,
+          uploaded: true,
+        },
+      ]);
+    }
+
+    if (uploadedUpdates.length > 0) {
+      setAnswers((prev) => {
+        const next = { ...prev };
+        for (const [key, value] of uploadedUpdates) {
+          next[key] = value;
+        }
+        return next;
+      });
+    }
+  };
+
   const handleSave = async (submit: boolean = false, silent: boolean = false) => {
     if (!selectedService) {
       if (!silent) Alert.alert('Validasi', 'Pilih fasilitas layanan terlebih dahulu');
@@ -1212,31 +1585,51 @@ export default function DynamicSurveyFormScreen({
       const allErrors: Record<string, string> = {};
       let firstFailedSection = -1;
       for (let i = 0; i < activeSections.length; i++) {
-        const sectionQuestions = getFlowBasedQuestions(activeSections[i], answers, questionsMap, template?.sections, answers);
-        sectionQuestions.forEach((question) => {
-          // Check plain answer first, then any context-prefixed variant (e.g. "R2|RQA")
-          const plainAnswer = answers[question.code];
-          const answer = plainAnswer !== undefined
-            ? plainAnswer
-            : Object.entries(answers).find(([k]) => k.endsWith(`|${question.code}`))?.[1];
+        const sectionItems = getFlowItems(activeSections[i], resolvedAnswers, questionsMap, template?.sections, answers);
+        sectionItems.forEach((item) => {
+          if (item.kind !== 'question') return;
+          const question = item.question;
+          const ctx = item.contextKey ?? '';
+          const storageKey = isDetailQuestion(question.code) && ctx
+            ? `${ctx}|${question.code}`
+            : question.code;
+          const answer = answers[storageKey];
           if (question.is_required) {
             if (answer === null || answer === undefined || answer === '' || (Array.isArray(answer) && answer.length === 0)) {
-              allErrors[question.code] = 'Pertanyaan ini wajib diisi';
+              allErrors[storageKey] = 'Pertanyaan ini wajib diisi';
               if (firstFailedSection === -1) firstFailedSection = i;
+            }
+          }
+          const otherInputChoices = selectedOtherInputChoices(question, answer);
+          for (const otherInputChoice of otherInputChoices) {
+            const choiceTextKey = `${storageKey}__choice_${otherInputChoice.value}`;
+            const otherInputValue = String(otherTexts[choiceTextKey] ?? otherTexts[storageKey] ?? '').trim();
+            if (!otherInputValue) {
+              allErrors[storageKey] = 'Input tambahan wajib diisi';
+              if (firstFailedSection === -1) firstFailedSection = i;
+              break;
+            } else if (getOtherInputType(question.code, otherInputChoice) === 'integer' && !/^\d{4}$/.test(otherInputValue)) {
+              allErrors[storageKey] = 'Perkiraan tahun harus 4 digit';
+              if (firstFailedSection === -1) firstFailedSection = i;
+              break;
+            } else if (getOtherInputType(question.code, otherInputChoice) === 'date' && !/^\d{4}-\d{2}-\d{2}$/.test(otherInputValue)) {
+              allErrors[storageKey] = 'Tanggal harus YYYY-MM-DD';
+              if (firstFailedSection === -1) firstFailedSection = i;
+              break;
             }
           }
           if (question.answer_type === 'LOCATION' && answer) {
             const loc = answer as any;
             if (!loc.koordinat?.latitude || !loc.koordinat?.longitude) {
-              allErrors[question.code] = 'Koordinat harus diisi';
+              allErrors[storageKey] = 'Koordinat harus diisi';
               if (firstFailedSection === -1) firstFailedSection = i;
             }
             if (!loc.kecamatan) {
-              allErrors[question.code] = 'Kecamatan harus dipilih';
+              allErrors[storageKey] = 'Kecamatan harus dipilih';
               if (firstFailedSection === -1) firstFailedSection = i;
             }
             if (!loc.desa) {
-              allErrors[question.code] = 'Desa/Kelurahan harus diisi';
+              allErrors[storageKey] = 'Desa/Kelurahan harus diisi';
               if (firstFailedSection === -1) firstFailedSection = i;
             }
           }
@@ -1256,11 +1649,49 @@ export default function DynamicSurveyFormScreen({
 
     setSaving(true);
     try {
-      // Merge otherTexts into answers with __other_text suffix
-      const answersWithOther = { ...answers };
-      for (const [code, text] of Object.entries(otherTexts)) {
-        if (text) answersWithOther[`${code}__other_text`] = text;
+      const prunedDraftData = pruneUnreachableDraftData(answers, otherTexts);
+      if (Object.keys(prunedDraftData.answers).length !== Object.keys(answers).length) {
+        setAnswers(prunedDraftData.answers);
       }
+      if (Object.keys(prunedDraftData.otherTexts).length !== Object.keys(otherTexts).length) {
+        setOtherTexts(prunedDraftData.otherTexts);
+      }
+
+      // Merge otherTexts into answers with __other_text suffix
+      const answersWithOther = { ...prunedDraftData.answers };
+      const groupedChoiceTexts: Record<string, Record<string, string>> = {};
+      for (const [code, text] of Object.entries(prunedDraftData.otherTexts)) {
+        if (!text) continue;
+        const choiceMarker = '__choice_';
+        const markerIndex = code.indexOf(choiceMarker);
+        if (markerIndex >= 0) {
+          const baseKey = code.slice(0, markerIndex);
+          const choiceValue = code.slice(markerIndex + choiceMarker.length);
+          groupedChoiceTexts[baseKey] = {
+            ...(groupedChoiceTexts[baseKey] || {}),
+            [choiceValue]: text,
+          };
+        } else {
+          answersWithOther[`${code}__other_text`] = text;
+        }
+      }
+      for (const [baseKey, values] of Object.entries(groupedChoiceTexts)) {
+        answersWithOther[`${baseKey}__other_text`] = JSON.stringify(values);
+      }
+      const fileAnswers = Object.fromEntries(
+        Object.entries(answersWithOther).filter(([key]) => {
+          if (key.endsWith('__other_text')) return false;
+          const code = key.includes('|') ? key.split('|', 2)[1] : key;
+          return fileQuestionCodes.has(code);
+        })
+      );
+      const payloadAnswers = Object.fromEntries(
+        Object.entries(answersWithOther).filter(([key]) => {
+          if (key.endsWith('__other_text')) return true;
+          const code = key.includes('|') ? key.split('|', 2)[1] : key;
+          return !fileQuestionCodes.has(code);
+        })
+      );
 
       const answersJson = JSON.stringify(answersWithOther);
 
@@ -1278,7 +1709,6 @@ export default function DynamicSurveyFormScreen({
           answers_json: answersJson,
           verification_status: dbStatus,
         });
-        console.log(`[GPS] Saved to local DB: lat=${finalGps?.latitude ?? 'null'}, lng=${finalGps?.longitude ?? 'null'}`);
       } else {
         const newLocalId = await database.saveSurveyLocal({
           server_id: responseId ?? null,
@@ -1322,18 +1752,15 @@ export default function DynamicSurveyFormScreen({
             template: template!.id,
             service: selectedService.id,
             survey_date: surveyDate,
-            answers: answersWithOther,
+            answers: payloadAnswers,
           };
           // Include started_at if captured (for new surveys or resumed ones)
           if (startedAt) {
             payload.started_at = startedAt;
           }
           if (finalGps) {
-            console.log(`[GPS] Saving to server: lat=${finalGps.latitude}, lng=${finalGps.longitude}`);
             payload.gps_latitude = finalGps.latitude;
             payload.gps_longitude = finalGps.longitude;
-          } else {
-            console.log(`[GPS] WARNING: finalGps is null, not saving GPS to server`);
           }
 
           // If saving as draft, explicitly send DRAFT status (otherwise backend auto-submits)
@@ -1344,26 +1771,50 @@ export default function DynamicSurveyFormScreen({
           if (effectiveResponseId) {
             // When submitting an existing draft, use the dedicated submit endpoint
             if (submit) {
+              await apiClient.patch(`/surveys/responses/${effectiveResponseId}/`, {
+                ...payload,
+                verification_status: 'DRAFT',
+                prune_missing_answers: true,
+              });
+              if (Object.keys(fileAnswers).length > 0) {
+                await uploadPendingFileAnswers(effectiveResponseId, fileAnswers);
+              }
               await apiClient.post(`/surveys/responses/${effectiveResponseId}/submit/`);
             } else {
-              await apiClient.patch(`/surveys/responses/${effectiveResponseId}/`, payload);
+              await apiClient.patch(`/surveys/responses/${effectiveResponseId}/`, {
+                ...payload,
+                prune_missing_answers: true,
+              });
+              if (Object.keys(fileAnswers).length > 0) {
+                await uploadPendingFileAnswers(effectiveResponseId, fileAnswers);
+              }
             }
-            await database.markSurveySynced(currentLocalId);
+            if (currentLocalId) {
+              await database.markSurveySynced(currentLocalId, effectiveResponseId);
+            }
           } else {
             // No responseId means we're creating new - send with SUBMITTED status if submitting
             if (submit) {
-              payload.verification_status = 'SUBMITTED';
+              payload.verification_status = Object.keys(fileAnswers).length > 0 ? 'DRAFT' : 'SUBMITTED';
             }
             const created = await apiClient.post('/surveys/responses/', payload) as any;
             if (created?.id) {
               setServerResponseId(created.id);
+              if (currentLocalId) {
+                await database.setSurveyServerId(currentLocalId, created.id);
+              }
+              if (Object.keys(fileAnswers).length > 0) {
+                await uploadPendingFileAnswers(created.id, fileAnswers);
+                if (submit) {
+                  await apiClient.post(`/surveys/responses/${created.id}/submit/`);
+                }
+              }
             }
             if (currentLocalId) {
               await database.markSurveySynced(currentLocalId, created?.id);
             }
           }
-        } catch (syncErr: any) {
-          console.warn('Server sync failed:', syncErr?.message);
+        } catch {
           // Don't block - draft is still saved locally
           if (!silent) {
             Alert.alert('Peringatan', 'Survei disimpan lokal, gagal sync ke server.');
@@ -1378,7 +1829,6 @@ export default function DynamicSurveyFormScreen({
         onSave();
       }
     } catch (err: any) {
-      console.error('Failed to save:', err);
       Alert.alert('Error', err?.message || 'Gagal menyimpan survei');
     } finally {
       setSaving(false);
@@ -1466,6 +1916,8 @@ export default function DynamicSurveyFormScreen({
 
   const renderQuestion = (question: Question, idx: number) => {
     const questionType = question.answer_type;
+    // Use introduction_text (backend field) as the help text between question and answer
+    const helpText = question.introduction_text?.trim() || question.keterangan?.trim();
     const ctx = questionContexts[idx] ?? '';
     const storageKey = isDetailQuestion(question.code) && ctx
       ? `${ctx}|${question.code}`
@@ -1495,6 +1947,12 @@ export default function DynamicSurveyFormScreen({
             </TouchableOpacity>
           )}
         </View>
+
+        {helpText ? (
+          <Text style={[styles.helpText, { color: c.textSecondary, fontSize: fs(14), lineHeight: fs(20) }]}>
+            {toUpper(helpText)}
+          </Text>
+        ) : null}
 
         {renderQuestionInput(question, questionType, value, ctx)}
 
@@ -1650,7 +2108,7 @@ export default function DynamicSurveyFormScreen({
                 styles.booleanText,
                 { color: c.text },
                 value === true && { color: '#03979D', fontWeight: '700' },
-              ]}>Ya</Text>
+              ]}>YA</Text>
               <TouchableOpacity
                 style={[
                   styles.choiceAudioBtn,
@@ -1681,7 +2139,7 @@ export default function DynamicSurveyFormScreen({
                 styles.booleanText,
                 { color: c.text },
                 value === false && { color: '#03979D', fontWeight: '700' },
-              ]}>Tidak</Text>
+              ]}>TIDAK</Text>
               <TouchableOpacity
                 style={[
                   styles.choiceAudioBtn,
@@ -1709,14 +2167,14 @@ export default function DynamicSurveyFormScreen({
       case 'GEO_PROVINSI':
         return (
           <View style={{ backgroundColor: c.surface, borderRadius: 6, padding: 16, borderWidth: 1, borderColor: c.border }}>
-            <Text style={{ color: c.textMuted }}>Jawa Tengah</Text>
+            <Text style={{ color: c.textMuted }}>JAWA TENGAH</Text>
           </View>
         );
 
       case 'GEO_KABUPATEN':
         return (
           <View style={{ backgroundColor: c.surface, borderRadius: 6, padding: 16, borderWidth: 1, borderColor: c.border }}>
-            <Text style={{ color: c.textMuted }}>Kebumen</Text>
+            <Text style={{ color: c.textMuted }}>KEBUMEN</Text>
           </View>
         );
 
@@ -1734,6 +2192,9 @@ export default function DynamicSurveyFormScreen({
 
       case 'COVERAGE_LEVEL':
         return renderCoverageLevel(question, value, ctx);
+
+      case 'FILE':
+        return renderFileInput(question, value, ctx);
 
       case 'STAFF_TABLE':
       case 'DIAGNOSIS_TABLE':
@@ -1773,10 +2234,54 @@ export default function DynamicSurveyFormScreen({
     }
   };
 
+  const renderOtherInput = (question: Question, choice: QuestionOption, otherTextKey: string, isDarkMode: boolean) => {
+    const otherInputType = getOtherInputType(question.code, choice);
+    const choiceTextKey = `${otherTextKey}__choice_${choice.value}`;
+    const currentValue = otherTexts[choiceTextKey] ?? otherTexts[otherTextKey] ?? '';
+    const placeholder = getOtherInputPlaceholder(question.code, choice);
+    const inputColors = {
+      backgroundColor: isDarkMode ? '#1f1f1f' : '#fff',
+      borderColor: isDarkMode ? '#404040' : '#d1d5db',
+      color: isDarkMode ? '#f5f5f5' : '#1A1A1A',
+    };
+
+    if (otherInputType === 'date') {
+      return (
+        <TouchableOpacity
+          style={[
+            styles.otherInput,
+            inputColors,
+            { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+          ]}
+          onPress={() => setShowOtherDatePicker({ key: choiceTextKey, value: currentValue })}
+        >
+          <Text style={{ color: currentValue ? inputColors.color : (isDarkMode ? '#525252' : '#9ca3af'), fontSize: 16 }}>
+            {currentValue || placeholder}
+          </Text>
+          <MaterialIcons name="event" size={20} color={isDarkMode ? '#737373' : '#6b7280'} />
+        </TouchableOpacity>
+      );
+    }
+
+    return (
+      <TextInput
+        style={[styles.otherInput, inputColors]}
+        value={currentValue}
+        onChangeText={(text) => setOtherTexts((prev) => ({ ...prev, [choiceTextKey]: text }))}
+        placeholder={placeholder}
+        placeholderTextColor={isDarkMode ? '#525252' : '#9ca3af'}
+        keyboardType={getOtherInputKeyboardType(otherInputType)}
+      />
+    );
+  };
+
   const renderSingleChoice = (question: Question, value: any, ctx: string = '') => {
     const choices = question.choices || [];
     const isDark = theme.dark;
     const isSelected = value !== null && value !== undefined && value !== '';
+    const otherTextKey = isDetailQuestion(question.code) && ctx
+      ? `${ctx}|${question.code}`
+      : question.code;
     return (
       <View style={styles.choicesContainer}>
         {choices.map((choice) => {
@@ -1809,7 +2314,7 @@ export default function DynamicSurveyFormScreen({
                 { flex: 1, color: isDark ? '#f5f5f5' : '#374151' },
                 thisSelected && { color: '#03979D', fontWeight: '700' },
               ]}>
-                {toSentenceCase(choice.label)}
+                {toUpper(choice.label)}
               </Text>
               <TouchableOpacity
                 style={[
@@ -1826,29 +2331,7 @@ export default function DynamicSurveyFormScreen({
                 <MaterialIcons name="volume-up" size={18} color={speakingCode === choiceSpeakKey ? '#03979D' : (isDark ? '#737373' : '#9ca3af')} />
               </TouchableOpacity>
             </TouchableOpacity>
-            {choice.has_other_input && thisSelected && (
-              <TextInput
-                style={[
-                  styles.otherInput,
-                  {
-                    backgroundColor: isDark ? '#1f1f1f' : '#fff',
-                    borderColor: isDark ? '#404040' : '#d1d5db',
-                    color: isDark ? '#f5f5f5' : '#1A1A1A',
-                  },
-                ]}
-                value={otherTexts[question.code] || ''}
-                onChangeText={(text) => setOtherTexts((prev) => ({ ...prev, [question.code]: text }))}
-                placeholder={choice.other_input_label || 'Sebutkan'}
-                placeholderTextColor={isDark ? '#525252' : '#9ca3af'}
-                keyboardType={
-                  choice.other_input_type === 'integer' ? 'number-pad' :
-                  choice.other_input_type === 'decimal' ? 'decimal-pad' :
-                  choice.other_input_type === 'phone' ? 'phone-pad' :
-                  choice.other_input_type === 'email' ? 'email-address' :
-                  'default'
-                }
-              />
-            )}
+            {choice.has_other_input && thisSelected && renderOtherInput(question, choice, otherTextKey, isDark)}
           </View>
           );
         })}
@@ -1859,21 +2342,19 @@ export default function DynamicSurveyFormScreen({
   const renderMultipleChoice = (question: Question, value: any, ctx: string = '') => {
     const choices = question.choices || [];
     const isDark = theme.dark;
+    const otherTextKey = isDetailQuestion(question.code) && ctx
+      ? `${ctx}|${question.code}`
+      : question.code;
     const selectedValues: string[] = Array.isArray(value)
       ? value
       : value !== null && value !== undefined && value !== ''
         ? [String(value)]
         : [];
 
-    // DEBUG: log value being rendered
-    console.log(`[MULTICHOICE] ${question.code} value=${JSON.stringify(value)} selectedValues=${JSON.stringify(selectedValues)}`);
-
     const toggleChoice = (choiceValue: string) => {
-      console.log(`[TOGGLE] ${question.code} tap choice=${choiceValue}, current selectedValues=${JSON.stringify(selectedValues)}`);
       const newValues = selectedValues.includes(choiceValue)
         ? selectedValues.filter((v) => v !== choiceValue)
         : [...selectedValues, choiceValue];
-      console.log(`[TOGGLE] ${question.code} newValues=${JSON.stringify(newValues)}`);
       handleAnswerChange(question.code, newValues, ctx);
     };
 
@@ -1911,7 +2392,7 @@ export default function DynamicSurveyFormScreen({
                   { flex: 1, color: isDark ? '#f5f5f5' : '#374151' },
                   isChecked && { color: '#03979D', fontWeight: '700' },
                 ]}>
-                  {toSentenceCase(choice.label)}
+                  {toUpper(choice.label)}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -1928,29 +2409,7 @@ export default function DynamicSurveyFormScreen({
               >
                 <MaterialIcons name="volume-up" size={18} color={speakingCode === choiceSpeakKey ? '#03979D' : (isDark ? '#737373' : '#9ca3af')} />
               </TouchableOpacity>
-              {choice.has_other_input && isChecked && (
-                <TextInput
-                  style={[
-                    styles.otherInput,
-                    {
-                      backgroundColor: isDark ? '#1f1f1f' : '#fff',
-                      borderColor: isDark ? '#404040' : '#d1d5db',
-                      color: isDark ? '#f5f5f5' : '#1A1A1A',
-                    },
-                  ]}
-                  value={otherTexts[question.code] || ''}
-                  onChangeText={(text) => setOtherTexts((prev) => ({ ...prev, [question.code]: text }))}
-                  placeholder={choice.other_input_label || 'Sebutkan'}
-                  placeholderTextColor={isDark ? '#525252' : '#9ca3af'}
-                  keyboardType={
-                    choice.other_input_type === 'integer' ? 'number-pad' :
-                    choice.other_input_type === 'decimal' ? 'decimal-pad' :
-                    choice.other_input_type === 'phone' ? 'phone-pad' :
-                    choice.other_input_type === 'email' ? 'email-address' :
-                    'default'
-                  }
-                />
-              )}
+              {choice.has_other_input && isChecked && renderOtherInput(question, choice, otherTextKey, isDark)}
             </View>
           );
         })}
@@ -1962,38 +2421,26 @@ export default function DynamicSurveyFormScreen({
     const selectedName = kecamatanList.find((k) => k.id === value)?.name;
 
     const handleSelectKecamatan = async (kecId: number, kecName: string) => {
-      console.log('[DEBUG] handleSelectKecamatan called:', kecId, kecName, 'ctx:', ctx);
       // Store the answer - always use question.code as key (same as how render reads it)
       // The ctx parameter is passed to handleAnswerChange for consistency
       handleAnswerChange(question.code, kecId, ctx);
       setShowKecamatanPicker(null);
-
-      // Also set the selected kecamatan in a separate state for the dropdown
-      const selectedKecamatan = kecamatanList.find(k => k.id === kecId);
-      console.log('[DEBUG] Selected kecamatan from list:', selectedKecamatan);
 
       // Fetch desas for selected kecamatan
       try {
         const netState = await NetInfo.fetch();
         const isOnline = !!(netState.isConnected && netState.isInternetReachable);
         if (isOnline) {
-          console.log('[DEBUG] Fetching desas for kecamatan:', kecId, kecName);
-          const apiUrl = `/surveys/geographic-units/?level=DESA_KELURAHAN&parent=${kecId}&page_size=200`;
-          console.log('[DEBUG] API URL:', apiUrl);
           const desaData = await apiClient.get<PaginatedResponse<{ id: number; name: string }>>(
             '/surveys/geographic-units/',
             { level: 'DESA_KELURAHAN', parent: kecId, page_size: 200 }
           );
-          console.log('[DEBUG] API response:', JSON.stringify(desaData).substring(0, 500));
-          console.log('[DEBUG] Desas fetched:', desaData.results?.length || 0, 'desas');
           if (desaData.results && desaData.results.length > 0) {
             setDesaList(desaData.results);
             await database.saveGeographicUnits('DESA_KELURAHAN', kecId, desaData.results);
           } else {
-            console.log('[DEBUG] No desas found for kecamatan', kecId);
             // Try to get from cache anyway
             const cached = await database.getGeographicUnits('DESA_KELURAHAN', kecId);
-            console.log('[DEBUG] Cached desas:', cached.length);
             if (cached.length > 0) {
               setDesaList(cached);
             } else {
@@ -2003,11 +2450,9 @@ export default function DynamicSurveyFormScreen({
           }
         } else {
           const cached = await database.getGeographicUnits('DESA_KELURAHAN', kecId);
-          console.log('[DEBUG] Offline mode - desas from cache:', cached.length);
           setDesaList(cached);
         }
-      } catch (err) {
-        console.error('[ERROR] Failed to fetch desas:', err);
+      } catch {
         setDesaList([]);
         Alert.alert('Error', 'Gagal mengambil data desa. Silakan coba lagi.');
       }
@@ -2053,18 +2498,15 @@ export default function DynamicSurveyFormScreen({
   };
 
   const renderDesaPicker = (question: Question, value: any, ctx: string = '') => {
-    console.log('[DEBUG] renderDesaPicker called:', 'question:', question.code, 'value:', value, 'ctx:', ctx, 'desaList.length:', desaList.length);
     const selectedName = desaList.find((d) => d.id === value)?.name;
 
     // Reload desas if kecamatan is selected but desaList is empty
     const reloadDesas = async () => {
-      console.log('[DEBUG] reloadDesas called, value:', value, 'desaList.length:', desaList.length);
       if (value && desaList.length === 0) {
         try {
           const netState = await NetInfo.fetch();
           const isOnline = !!(netState.isConnected && netState.isInternetReachable);
           if (isOnline) {
-            console.log('[DEBUG] Reloading desas for kecamatan:', value);
             const desaData = await apiClient.get<PaginatedResponse<{ id: number; name: string }>>(
               '/surveys/geographic-units/',
               { level: 'DESA_KELURAHAN', parent: value, page_size: 200 }
@@ -2077,8 +2519,7 @@ export default function DynamicSurveyFormScreen({
             const cached = await database.getGeographicUnits('DESA_KELURAHAN', value);
             setDesaList(cached);
           }
-        } catch (err) {
-          console.error('[ERROR] Failed to reload desas:', err);
+        } catch {
         }
       }
     };
@@ -2154,7 +2595,7 @@ export default function DynamicSurveyFormScreen({
         <View style={styles.locationField}>
           <Text style={styles.locationFieldLabel}>Provinsi</Text>
           <View style={[styles.inputBox, styles.disabledInput]}>
-            <Text style={styles.disabledText}>Jawa Tengah</Text>
+            <Text style={styles.disabledText}>JAWA TENGAH</Text>
           </View>
         </View>
 
@@ -2162,7 +2603,7 @@ export default function DynamicSurveyFormScreen({
         <View style={styles.locationField}>
           <Text style={styles.locationFieldLabel}>Kabupaten/Kota</Text>
           <View style={[styles.inputBox, styles.disabledInput]}>
-            <Text style={styles.disabledText}>Kebumen</Text>
+            <Text style={styles.disabledText}>KEBUMEN</Text>
           </View>
         </View>
 
@@ -2313,7 +2754,7 @@ export default function DynamicSurveyFormScreen({
                 {value === level.value && <View style={styles.radioInner} />}
               </View>
               <Text style={[styles.choiceLabel, value === level.value && styles.choiceLabelSelected, { flex: 1 }]}>
-                {toSentenceCase(level.label)}
+                {toUpper(level.label)}
               </Text>
               <TouchableOpacity
                 style={[styles.choiceAudioBtn, speakingCode === choiceSpeakKey && styles.choiceAudioBtnActive]}
@@ -2325,6 +2766,40 @@ export default function DynamicSurveyFormScreen({
             </TouchableOpacity>
           );
         })}
+      </View>
+    );
+  };
+
+  const renderFileInput = (question: Question, value: any, ctx: string = '') => {
+    const previewUri = getFilePreviewUri(value);
+    const fileName = getFileDisplayName(value);
+    const isLocalPending = isPendingLocalFile(value);
+
+    return (
+      <View style={styles.fileInputContainer}>
+        {previewUri ? (
+          <View style={styles.filePreviewCard}>
+            <Image source={{ uri: previewUri }} style={styles.filePreviewImage} resizeMode="cover" />
+            <View style={styles.filePreviewMeta}>
+              <Text style={styles.filePreviewName} numberOfLines={2}>
+                {fileName || 'Gambar terpilih'}
+              </Text>
+              <Text style={styles.filePreviewStatus}>
+                {isLocalPending ? 'Belum diunggah ke server' : 'Sudah terunggah'}
+              </Text>
+            </View>
+          </View>
+        ) : null}
+
+        <TouchableOpacity
+          style={styles.filePickerButton}
+          onPress={() => pickFileAnswer(question.code, ctx)}
+        >
+          <MaterialIcons name="image" size={20} color="#03979D" />
+          <Text style={styles.filePickerButtonText}>
+            {previewUri ? 'Ganti Gambar' : 'Pilih Gambar'}
+          </Text>
+        </TouchableOpacity>
       </View>
     );
   };
@@ -3375,7 +3850,6 @@ export default function DynamicSurveyFormScreen({
                   setNewServiceCity('Kebumen');
                   Alert.alert('Berhasil', 'Fasilitas baru berhasil ditambahkan');
                 } catch (err: any) {
-                  console.error('Failed to add service:', err);
                   Alert.alert('Error', err?.message || 'Gagal menambahkan fasilitas');
                 } finally {
                   setAddingService(false);
@@ -3739,18 +4213,18 @@ export default function DynamicSurveyFormScreen({
           {/* MTC context banner — shown only for detail questions (RQA..RQJ, IQA..IQC, etc.) */}
           {currentQCtx && isDetailQuestion(currentQ?.code ?? '') && (
             <View style={[styles.mtcBanner, { backgroundColor: isDark ? '#1a2e2e' : '#e6f7f7', borderColor: c.primary }]}>
-              <Text style={[styles.mtcBannerCode, { color: c.primary, fontSize: fs(15), fontWeight: '700' }]}>{currentMtcCode || String(currentQCtx || '').split(' — ')[0]}</Text>
-              {currentMtcLabel ? (
-                <Text style={[styles.mtcBannerLabel, { color: c.textSecondary, marginLeft: 4 }]}>— {toUpper(currentMtcLabel)}</Text>
+              <Text style={[styles.mtcBannerCode, { color: c.primary, fontSize: fs(15), fontWeight: '800', lineHeight: fs(21) }]}>
+                {detailBannerMeta.code}
+              </Text>
+              {detailBannerMeta.label ? (
+                <Text style={[styles.mtcBannerLabel, { color: c.textSecondary, fontSize: fs(15), fontWeight: '800', lineHeight: fs(21) }]}>
+                  {toUpper(detailBannerMeta.label)}
+                </Text>
               ) : null}
             </View>
           )}
 
           {/* ONE question or hint — full screen */}
-          {(() => {
-            console.log(`[RENDER] activeFlowItems.length=${activeFlowItems.length} currentQuestionIndex=${currentQuestionIndex} currentFlowItem=${JSON.stringify(currentFlowItem ? { kind: currentFlowItem.kind, code: currentFlowItem.kind === 'question' ? currentFlowItem.question.code : currentFlowItem.kind === 'hint' ? currentFlowItem.questionCode : 'END' } : null)} currentQ=${currentQ?.code ?? null}`);
-            return null;
-          })()}
           {currentFlowItem?.kind === 'hint' ? (
             <View style={styles.questionScreenContainer}>
               {renderHintPage(currentFlowItem)}
@@ -3839,10 +4313,7 @@ export default function DynamicSurveyFormScreen({
             >
               <Text style={[styles.draftButtonText, { color: c.textSecondary }]}>Simpan Draft</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.nextButton, { backgroundColor: c.primary }]} onPress={() => {
-              console.log(`[BUTTON] Next pressed: currentQ=${currentQ?.code ?? 'null'}, currentFlowItem=${currentFlowItem ? currentFlowItem.kind : 'null'}, currentQuestionIndex=${currentQuestionIndex}, totalItems=${totalItemsInSection}`);
-              handleNext();
-            }}>
+            <TouchableOpacity style={[styles.nextButton, { backgroundColor: c.primary }]} onPress={handleNext}>
               <Text style={[styles.nextButtonText, { color: '#fff' }]}>
                 {currentFlowItem?.kind === 'end_survey'
                   ? 'Selesai'
@@ -3857,6 +4328,27 @@ export default function DynamicSurveyFormScreen({
           )}
         </ScrollView>
       </View>
+
+      <DatePicker
+        modal
+        open={!!showOtherDatePicker}
+        date={parseDateInputValue(showOtherDatePicker?.value)}
+        mode="date"
+        locale="id"
+        title="Pilih Tanggal"
+        confirmText="Pilih"
+        cancelText="Batal"
+        theme={isDark ? 'dark' : 'light'}
+        onConfirm={(date) => {
+          if (!showOtherDatePicker) return;
+          setOtherTexts((prev) => ({
+            ...prev,
+            [showOtherDatePicker.key]: formatDateInputValue(date),
+          }));
+          setShowOtherDatePicker(null);
+        }}
+        onCancel={() => setShowOtherDatePicker(null)}
+      />
 
       {/* TIME PICKER MODAL — top-level so it renders for all question types */}
       {showTimePicker && (
@@ -4017,16 +4509,16 @@ const styles = StyleSheet.create({
   hintBannerContent: { flex: 1 },
   hintBannerPrevAnswer: { fontSize: 12, fontWeight: '700', color: '#03979D', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.3 },
   hintBannerText: { fontSize: 14, color: '#374151', lineHeight: 20 },
-  mtcBanner: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', marginTop: 8, padding: 10, backgroundColor: '#e6f7f7', borderRadius: 6, borderWidth: 1, borderColor: '#b2e0e1' },
-  mtcBannerLabel: { flexShrink: 1, fontSize: 15, color: '#4b5563' },
-  mtcBannerCode: { fontSize: 15, fontWeight: '700', color: '#03979D' },
+  mtcBanner: { flexDirection: 'column', alignItems: 'stretch', marginTop: 8, padding: 10, backgroundColor: '#e6f7f7', borderRadius: 6, borderWidth: 1, borderColor: '#b2e0e1', gap: 2 },
+  mtcBannerLabel: { width: '100%', flexShrink: 0, flexWrap: 'wrap', fontSize: 15, color: '#4b5563', fontWeight: '800' },
+  mtcBannerCode: { width: '100%', flexShrink: 0, flexWrap: 'wrap', fontSize: 15, fontWeight: '800', color: '#03979D' },
 
   // Detail group header (shown above each RQA-RQJ block)
   detailGroupHeader: { flexDirection: 'row', alignItems: 'stretch', marginBottom: 12, marginLeft: 8 },
   detailGroupHeaderBar: { width: 3, borderRadius: 2, backgroundColor: '#03979D', marginRight: 10 },
   detailGroupHeaderContent: { flex: 1, justifyContent: 'center' },
   detailGroupHeaderTrigger: { fontSize: 13, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.4 },
-  detailGroupHeaderCtx: { fontSize: 15, fontWeight: '600', color: '#03979D', marginTop: 1 },
+  detailGroupHeaderCtx: { fontSize: 15, fontWeight: '800', color: '#03979D', marginTop: 1, flexWrap: 'wrap' },
 
   // Wrapper that indents detail questions under their trigger
   detailQuestionWrapper: { marginLeft: 8, borderLeftWidth: 2, borderLeftColor: '#b2e0e1', paddingLeft: 8 },
@@ -4110,6 +4602,14 @@ const styles = StyleSheet.create({
   locationInfo: { marginTop: 8, padding: 12, backgroundColor: '#f0f9ff', borderRadius: 6 },
   locationCoordText: { fontSize: 14, color: '#1e40af', fontWeight: '500' },
   locationAccuracyText: { fontSize: 12, color: '#60a5fa', marginTop: 4 },
+  fileInputContainer: { gap: 12 },
+  filePreviewCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, padding: 10, gap: 12 },
+  filePreviewImage: { width: 72, height: 72, borderRadius: 6, backgroundColor: '#f3f4f6' },
+  filePreviewMeta: { flex: 1, gap: 4 },
+  filePreviewName: { fontSize: 14, fontWeight: '600', color: '#374151' },
+  filePreviewStatus: { fontSize: 12, color: '#6b7280' },
+  filePickerButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#b2e0e1', borderRadius: 8, paddingVertical: 14, paddingHorizontal: 16 },
+  filePickerButtonText: { fontSize: 15, fontWeight: '600', color: '#03979D' },
 
   // Table
   tableContainer: { backgroundColor: '#fff', borderRadius: 6, overflow: 'hidden' },

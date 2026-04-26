@@ -16,7 +16,7 @@ import DynamicSurveyFormScreen from './screens/DynamicSurveyFormScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import SettingsScreen from './screens/SettingsScreen';
 import BaseLayout from './components/BaseLayout';
-import { apiClient, ENV_CONFIGURED_URL } from './services/api';
+import { apiClient, ENV_CONFIGURED_URL, normalizeApiBaseUrl } from './services/api';
 import { database } from './services/database';
 import { syncQueue } from './services/syncQueue';
 import NetInfo from '@react-native-community/netinfo';
@@ -79,8 +79,12 @@ export default function App() {
       const savedUrl = await database.getApiBaseUrl();
       if (savedUrl) {
         // Saved URL exists — always use it (user explicitly set it)
-        apiClient.setBaseURL(savedUrl);
-        console.log('[API URL] Using SQLite-saved URL:', savedUrl);
+        const normalizedSavedUrl = normalizeApiBaseUrl(savedUrl);
+        apiClient.setBaseURL(normalizedSavedUrl);
+        if (normalizedSavedUrl !== savedUrl) {
+          await database.saveApiBaseUrl(normalizedSavedUrl);
+        }
+        console.log('[API URL] Using SQLite-saved URL:', normalizedSavedUrl);
       } else if (ENV_CONFIGURED_URL) {
         // No saved URL — use .env as initial default
         apiClient.setBaseURL(ENV_CONFIGURED_URL);
@@ -194,7 +198,7 @@ export default function App() {
       <View style={styles.splashContainer}>
         <Image source={require('./assets/logo.png')} style={styles.splashLogo} resizeMode="contain" />
         <Text style={styles.splashText}>OMMHA</Text>
-        <Text style={styles.splashSubtitle}>Klasifikasi Jenis-jenis{'\n'}Layanan Kesehatan Jiwa{'\n'}di Indonesia</Text>
+        <Text style={styles.splashSubtitle}>One Map for Mental Health Atlas</Text>
       </View>
     );
   }

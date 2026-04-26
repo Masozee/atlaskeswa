@@ -192,7 +192,7 @@ export default function SurveyDetailScreen({ surveyId, onBack, onEdit }: SurveyD
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      allowsEditing: true,
+      allowsEditing: false,
       quality: 0.8,
     });
 
