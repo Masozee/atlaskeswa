@@ -743,7 +743,7 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
 
     def apply_rbac_filter(self, queryset, user):
         """
-        Mobile app (Expo/ReactNative): all users see only their own surveys.
+        Mobile app (Expo/ReactNative): admins see all surveys, other users see only their own.
         Frontend web dashboard: admins see all, other roles use standard RBAC.
         X-Show-All header: bypasses RBAC for duplicate checking across all users.
         """
@@ -752,7 +752,9 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
             return queryset
 
         if self._is_mobile_request():
-            # Mobile UX: every user only sees surveys they submitted
+            # Mobile: admins see all surveys, other roles see only their own
+            if user.role == 'ADMIN':
+                return queryset
             return queryset.filter(surveyor=user)
 
         # Frontend web dashboard
