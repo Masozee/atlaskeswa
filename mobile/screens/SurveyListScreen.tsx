@@ -55,18 +55,35 @@ export default function SurveyListScreen({ onSelectSurvey, onAddNew }: SurveyLis
 
   const fetchSurveys = async () => {
     try {
+      // Log user info for debugging
+      try {
+        const userData = await apiClient.get<any>('/accounts/users/me/');
+        console.log('[SurveyList] Logged-in user:', userData);
+        console.log('[SurveyList] User role:', userData.role);
+      } catch (userErr) {
+        console.error('[SurveyList] Failed to get user info:', userErr);
+      }
+
       const ordering = sortBy === 'date_desc' ? '-survey_date' : sortBy === 'date_asc' ? 'survey_date' : sortBy === 'name_asc' ? 'service_name' : '-service_name';
 
       // Fetch server surveys
       let serverSurveys: SurveyResponseItem[] = [];
       try {
-        const data = await apiClient.get<PaginatedResponse<SurveyResponseItem>>(
+        console.log('[SurveyList] Fetching from API, baseURL:', apiClient.getBaseURL());
+        const data = await apiClient.get<PaginatedResponse<SurveyResponseItem> | SurveyResponseItem[]>(
           '/surveys/responses/',
           { ordering, page_size: 50 }
         );
-        serverSurveys = data.results;
+        console.log('[SurveyList] API response type:', Array.isArray(data) ? 'array' : 'paginated');
+        console.log('[SurveyList] Count:', Array.isArray(data) ? data.length : data?.results?.length);
+        serverSurveys = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.results)
+            ? data.results
+            : [];
+        console.log('[SurveyList] serverSurveys count:', serverSurveys.length);
       } catch (err) {
-        console.error('Failed to load server surveys:', err);
+        console.error('[SurveyList] Failed to load server surveys:', err);
       }
 
       // Fetch local unsynced surveys
@@ -97,7 +114,7 @@ export default function SurveyListScreen({ onSelectSurvey, onAddNew }: SurveyLis
       }
 
       // Merge: add local-only surveys to server surveys (local-first for unsynced)
-      const merged: LocalSurvey[] = [...serverSurveys];
+      const merged: LocalSurvey[] = [...(serverSurveys || [])];
       for (const local of localSurveys) {
         // If not synced (synced=0) and not already in server list, add it
         if (local.synced === 0 && !merged.find(s => (s as LocalSurvey).server_id === local.id)) {
@@ -112,9 +129,10 @@ export default function SurveyListScreen({ onSelectSurvey, onAddNew }: SurveyLis
           if (serverId > 0) {
             // Fetch from server
             const photosData = await apiClient.get<any>('/surveys/photos/', { survey: serverId });
-            if (photosData.results && photosData.results.length > 0) {
-              (survey as LocalSurvey).photos = photosData.results;
-              (survey as LocalSurvey).photoCount = photosData.results.length;
+            const serverPhotos = Array.isArray(photosData) ? photosData : photosData?.results;
+            if (Array.isArray(serverPhotos) && serverPhotos.length > 0) {
+              (survey as LocalSurvey).photos = serverPhotos;
+              (survey as LocalSurvey).photoCount = serverPhotos.length;
             }
           }
           // Fetch local photos

@@ -85,7 +85,6 @@ function evaluateSingleCondition(
     }
   })();
 
-  console.log(`[FLOW] evaluateSingleCondition q=${questionCode} op=${operator} val=${JSON.stringify(expectedValue)} answer=${JSON.stringify(answer)} => ${result}`);
   return result;
 }
 
@@ -119,13 +118,6 @@ export function getActiveSections(
 
     return evaluateCondition(triggerAnswer, section.show_if_value);
   });
-  console.log(`[FLOW] getActiveSections: ${result.map(s => s.code).join(',')} (from ${sections.length} sections)`);
-  console.log(`[FLOW] getActiveSections: QL1=${JSON.stringify(allResponses['QL1'])} Q4=${JSON.stringify(allResponses['Q4'])}`);
-  result.forEach(s => {
-    if (s.show_condition) {
-      console.log(`[FLOW]   section ${s.code} show_cond=${JSON.stringify(s.show_condition)} => ${evaluateShowCondition(s.show_condition as any, allResponses)}`);
-    }
-  });
   return result;
 }
 
@@ -139,9 +131,7 @@ export function getActiveQuestionsForSection(
   const result = section.questions
     .filter((question) => {
       if (question.show_condition) {
-        const r = evaluateShowCondition(question.show_condition, allResponses);
-        console.log(`[GAQ] section=${section.code} q=${question.code} show_cond=${JSON.stringify(question.show_condition)} QL1=${JSON.stringify(allResponses['QL1'])} => ${r}`);
-        return r;
+        return evaluateShowCondition(question.show_condition, allResponses);
       }
       if (!question.parent_question) return true;
       if (!questionsMap) return true;
@@ -156,7 +146,6 @@ export function getActiveQuestionsForSection(
     })
     .sort((a, b) => a.order - b.order);
 
-  console.log(`[GAQ] section=${section.code} => ${result.length}/${section.questions.length} questions: ${result.map(q => q.code).join(',')}`);
   return result;
 }
 
@@ -293,20 +282,7 @@ export function getFlowItems(
     })
     .sort((a, b) => a.order - b.order);
 
-  // Debug: log why questions are filtered out
-  console.log(`[FLOW] getFlowItems: section=${section.code} visible=${visibleQuestions.length}/${section.questions.length}`);
-  if (section.code === 'FASKSES' || section.code === 'NON-FASKES') {
-    console.log(`[FLOW] ${section.code}: ${visibleQuestions.length}/${section.questions.length} visible, QL1=${JSON.stringify(allResponses['QL1'])}, QL2=${JSON.stringify(allResponses['QL2'])}`);
-    section.questions.forEach(q => {
-      if (q.show_condition) {
-        const visible = evaluateShowCondition(q.show_condition, allResponses);
-        console.log(`[FLOW]   ${q.code} show_cond=${JSON.stringify(q.show_condition)} => ${visible}`);
-      }
-    });
-  }
-
   if (visibleQuestions.length === 0) {
-    console.log(`[FLOW] ${section.code}: NO visible questions, returning empty flow`);
     return [];
   }
 
@@ -320,15 +296,52 @@ export function getFlowItems(
 
   const result: FlowItem[] = [];
   const visited = new Set<string>();
+  const resolveBranchTargetCode = (questionCode: string, choice: QuestionOption): string | undefined => {
+    if (questionCode === 'IQ3' && choice.value === 'I2.1') {
+      return 'IQ4';
+    }
+    return choice.next_question_code;
+  };
+  const findInlineSectionForCode = (targetCode: string): QuestionSection | undefined =>
+    allSections?.find(
+      (s) =>
+        s.id !== section.id &&
+        (s.show_condition as Record<string, any>)?.question_code === '_inline_only_' &&
+        (s.questions || []).some((q) => q.code === targetCode),
+    );
+  const buildContextAnswers = (ctxValue: string): SurveyAnswers => {
+    const ctxAnswers: SurveyAnswers = {};
+    for (const [k, v] of Object.entries(allResponses)) {
+      if (!k.includes('|')) ctxAnswers[k] = v;
+    }
+    if (ctxValue && rawAnswers) {
+      const prefix = `${ctxValue}|`;
+      for (const [k, v] of Object.entries(rawAnswers)) {
+        if (k.startsWith(prefix)) {
+          ctxAnswers[k.slice(prefix.length)] = v;
+        }
+      }
+    }
+    return ctxAnswers;
+  };
+  const hasTraversedContextBranch = (targetCode: string, ctxValue: string): boolean =>
+    result.some(
+      (item) =>
+        item.kind === 'question' &&
+        item.question.code === targetCode &&
+        (item.contextKey ?? '') === ctxValue,
+    );
 
   // Determine entry point(s)
   // _forcedStartCode is used for cross-section jumps (detail chain) — process only that one
   // Otherwise, find ALL entry points from parent MULTIPLE_CHOICE (QL1/QL2) selections
   let entryCodes: string[];
+  let hasExternalEntryCodes = false;
   if (_forcedStartCode) {
     entryCodes = [_forcedStartCode];
   } else if (allSections) {
     entryCodes = findAllEntryPointsForSection(section, visibleQuestions, allResponses, allSections, globalCodeMap);
+    hasExternalEntryCodes = entryCodes.length > 0;
   } else {
     entryCodes = [];
   }
@@ -353,23 +366,19 @@ export function getFlowItems(
       return ans === null || ans === undefined || ans === '' || (Array.isArray(ans) && ans.length === 0);
     });
     if (unvisitedQuestions.length === 0) {
-      console.log(`[FLOW] section=${section.code} — all ${visibleQuestions.length} questions answered (inline section), returning empty flow`);
       return [];
     }
   }
 
-  console.log(`[FLOW] section=${section.code} visibleQ=${visibleQuestions.map(q=>q.code)} entryCodes=${JSON.stringify(entryCodes)} allResponsesKeys=${Object.keys(allResponses).join(',')}`);
-  console.log(`[FLOW]   QL1 answer = ${JSON.stringify(allResponses['QL1'])} show_condition check: ${evaluateShowCondition({question_code:'QL1',operator:'contains',value:'R'}, allResponses)}`);
-
   // Process each entry point sequentially
-  for (const entryCode of entryCodes) {
+  entryLoop: for (const entryCode of entryCodes) {
     const startQuestion = codeMap.get(entryCode);
     if (!startQuestion) continue;
 
     let current: Question | undefined = startQuestion;
     let isFirstInSection = true; // Track if this is the first question (entry point) in the section
 
-    while (current && !visited.has(current.code)) {
+    questionLoop: while (current && !visited.has(current.code)) {
       visited.add(current.code);
 
       // If current question has introduction_text, emit a hint page FIRST, then the question
@@ -377,7 +386,6 @@ export function getFlowItems(
         const prevLabel = prevAnswerInfo
           ? prevAnswerInfo.choice.label
           : null;
-        console.log(`[FLOW]   ${current.code} has introduction_text="${current.introduction_text.trim().substring(0, 50)}..." — adding HINT page`);
         result.push({
           kind: 'hint',
           questionCode: current.code,
@@ -396,7 +404,6 @@ export function getFlowItems(
       // Entry points (first questions in section flow) should always be shown to user first.
       // The user must see and attempt the question before we break.
       if (!isAnswered && current.is_required && !isFirstInSection) {
-        console.log(`[FLOW]   ${current.code} unanswered required — BREAK`);
         break;
       }
       isFirstInSection = false;
@@ -412,21 +419,15 @@ export function getFlowItems(
         // For MULTIPLE_CHOICE, answer is an array — find choice whose value appears in the answer array
         // For other types, answer is a scalar — find choice whose value equals the answer
         triggeringChoice = (current.choices as QuestionOption[]).find((c) => {
-          const match = answerType === 'MULTIPLE_CHOICE' && Array.isArray(answer)
+          return answerType === 'MULTIPLE_CHOICE' && Array.isArray(answer)
             ? answer.includes(c.value)
             : evaluateCondition(answer, c.value);
-          console.log(`[FLOW]     choiceMatch c.value=${JSON.stringify(c.value)} answer=${JSON.stringify(answer)} type=${answerType} => ${match}`);
-          return match;
         });
         if (triggeringChoice?.next_question_code) {
           nextCode = triggeringChoice.next_question_code;
-          console.log(`[FLOW]   ${current.code} ansType=${answerType} ans=${JSON.stringify(answer)} → choice=${triggeringChoice.value} → next=${nextCode} (cabang_mtc=${triggeringChoice.cabang_mtc})`);
-        } else {
-          console.log(`[FLOW]   ${current.code} ansType=${answerType} ans=${JSON.stringify(answer)} → NO matching choice (${current.choices.length} choices, first=${current.choices[0]?.value})`);
         }
       } else if (current.skip_logic?.length && current.skip_logic[0].goto) {
         nextCode = current.skip_logic[0].goto;
-        console.log(`[FLOW]   ${current.code} → next=${nextCode} (via skip_logic)`);
       }
 
       // Special case: IQC (detail Konsultasi & Asesmen) — next depends on IQ1 answer
@@ -441,24 +442,118 @@ export function getFlowItems(
           const iqcNext = codeMap.get('IQD');
           if (iqcNext) {
             nextCode = 'IQD';
-            console.log(`[FLOW]   IQC + IQ1=I1 → routing to IQD (bypassing IQF)`);
           }
         }
         // If IQ1=I2, default choice-based next (IQF or IQG) is correct
       }
 
-      // Special case: RQH/SRQH (payment method, MULTIPLE_CHOICE) — show tariff question
-      // RQI/SRQI only when PEMBAYARAN MANDIRI is among the selected values, else skip to RQJ/SRQJ.
-      // This must be code-driven (not show_condition) because show_condition is evaluated once
-      // at the start of the detail block flow, before RQH may have been answered.
-      const MANDIRI_VALUE = 'PEMBAYARAN MANDIRI OLEH KLIEN/PASIEN/KELUARGA';
-      if (current.code === 'RQH' && Array.isArray(answer)) {
-        nextCode = answer.includes(MANDIRI_VALUE) ? 'RQI' : 'RQJ';
-        console.log(`[FLOW]   RQH mandiri=${answer.includes(MANDIRI_VALUE)} → ${nextCode}`);
+      // Special case: IQ3 interactive info should go through IQ4 before entering detail.
+      if (current.code === 'IQ3' && answer === 'I2.1') {
+        nextCode = 'IQ4';
       }
-      if (current.code === 'SRQH' && Array.isArray(answer)) {
-        nextCode = answer.includes(MANDIRI_VALUE) ? 'SRQI' : 'SRQJ';
-        console.log(`[FLOW]   SRQH mandiri=${answer.includes(MANDIRI_VALUE)} → ${nextCode}`);
+
+      // Special case: IQB detail routing depends on the IQ2 / IQ3 / IQ4 context.
+      // I1.x (consultation/assessment) -> IQD
+      // I2.1.2 (interactive via media) -> IQC -> IQG...
+      // I2.1.1 and I2.2 (face-to-face / non-interactive info) -> IQG
+      if (current.code === 'IQB' && _contextKey) {
+        if (/^I1\./.test(_contextKey)) {
+          nextCode = 'IQD';
+        } else if (_contextKey === 'I2.1.2') {
+          nextCode = 'IQC';
+        } else if (_contextKey === 'I2.1.1' || _contextKey === 'I2.2') {
+          nextCode = 'IQG';
+        }
+      }
+
+      // Special case: SDQA detail branch depends on the SDQ9/SDQ10 context value.
+      // The template choices currently always point to SDQB, but each context should
+      // open its own follow-up:
+      // SD3.1.1 / SD3.2.1 -> SDQB1
+      // SD3.1.2 / SD3.2.2 -> SDQB2
+      // SD3.1.3 / SD3.2.3 -> SDQB3
+      // SD3.1.4 / SD3.2.4 -> SDQB4
+      if (current.code === 'SDQA' && _contextKey) {
+        const ctxMatch = _contextKey.match(/^SD3\.[12]\.([1-4])$/);
+        if (ctxMatch) {
+          nextCode = `SDQB${ctxMatch[1]}`;
+        }
+      }
+
+      // Special case: DQA detail branch depends on the DQ13/DQ14 context value.
+      // D4.1 / D8.1 -> DQB1
+      // D4.2 / D8.2 -> DQB2
+      // D4.3 / D8.3 -> DQB3
+      // D4.4 / D8.4 -> DQB3
+      if (current.code === 'DQA' && _contextKey) {
+        const ctxMatch = _contextKey.match(/^D(?:4|8)\.([1-4])$/);
+        if (ctxMatch) {
+          const branch = ctxMatch[1] === '1'
+            ? 'DQB1'
+            : ctxMatch[1] === '2'
+            ? 'DQB2'
+            : 'DQB3';
+          nextCode = branch;
+        }
+      }
+
+      // Special case: SOQ8 contains a stale SOQ8A target in template data.
+      // Route the social branch into the shared detail entry instead.
+      if (current.code === 'SOQ8' && answer === 'SO2.2.2') {
+        nextCode = 'SOQA';
+      }
+
+      // Special case: SOQA detail branch depends on the SOQ7/SOQ8/SOQ9 context value.
+      // SO2.x.1 -> SOQB1
+      // SO2.x.2 -> SOQB2
+      if (current.code === 'SOQA' && _contextKey) {
+        const ctxMatch = _contextKey.match(/^SO2\.[123]\.([12])$/);
+        if (ctxMatch) {
+          nextCode = `SOQB${ctxMatch[1]}`;
+        }
+      }
+
+      // Special case: OQA detail branch depends on the OQ4/OQ5/OQ7/OQ8/OQ11/OQ14/OQ15/OQ17/OQ18/OQ19
+      // context family. Any O*.1 branch goes to OQB1, any O*.2 branch goes to OQB2.
+      // This also covers deeper contexts such as O5.1.1 / O5.2.3 that reach OQA via OQ12/OQ13.
+      if (current.code === 'OQA' && _contextKey) {
+        const ctxMatch = _contextKey.match(/^O(?:\d+)\.(1|2)(?:\.\d+)?$/i);
+        if (ctxMatch) {
+          nextCode = `OQB${ctxMatch[1]}`;
+        }
+      }
+
+      // Special case: SIQB detail routing depends on the SIQ2 / SIQ4 context.
+      // SI1.x (consultation/assessment) -> SIQD
+      // SI2.1.2 (interactive via media) -> SIQC -> SIQG...
+      // SI2.1.1 and SI2.2 (face-to-face / non-interactive info) -> SIQG
+      if (current.code === 'SIQB' && _contextKey) {
+        if (/^SI1\./.test(_contextKey)) {
+          nextCode = 'SIQD';
+        } else if (_contextKey === 'SI2.1.2') {
+          nextCode = 'SIQC';
+        } else if (_contextKey === 'SI2.1.1' || _contextKey === 'SI2.2') {
+          nextCode = 'SIQG';
+        }
+      }
+
+      // Special case: payment-method MULTIPLE_CHOICE questions — show the tariff question
+      // only when PEMBAYARAN MANDIRI is among the selected values, else skip past it.
+      // This must be code-driven (not show_condition) because show_condition is evaluated once
+      // at the start of the detail block flow, before the payment question may have been answered.
+      const MANDIRI_VALUE = 'PEMBAYARAN MANDIRI OLEH KLIEN/PASIEN/KELUARGA';
+      const paymentRouting = {
+        RQH: { tariff: 'RQI', next: 'RQJ' },
+        SRQH: { tariff: 'SRQI', next: 'SRQJ' },
+        DQK: { tariff: 'DQL', next: 'DQM' },
+        SDQK: { tariff: 'SDQL', next: 'SDQM' },
+        OQK: { tariff: 'OQL', next: 'OQM' },
+        SOQK: { tariff: 'SOQL', next: 'SOQM' },
+      } as const;
+      const paymentRoute = paymentRouting[current.code as keyof typeof paymentRouting];
+      if (paymentRoute && Array.isArray(answer)) {
+        const hasMandiri = answer.includes(MANDIRI_VALUE);
+        nextCode = hasMandiri ? paymentRoute.tariff : paymentRoute.next;
       }
 
       if (!nextCode) {
@@ -467,16 +562,13 @@ export function getFlowItems(
         // with no next_question_code (e.g. RQJ, DQF). Non-last questions with
         // empty next_question_code fall through to sequential navigation.
         if (current.choices && current.choices.length > 0 && idx >= visibleQuestions.length - 1) {
-          console.log(`[FLOW]   ${current.code} → END OF BLOCK (terminal question at end of section)`);
           break;
         }
         if (idx < visibleQuestions.length - 1) {
           const nextQ = visibleQuestions[idx + 1];
-          console.log(`[FLOW]   ${current.code} → next=${nextQ.code} (sequential, idx=${idx}/${visibleQuestions.length - 1})`);
           current = nextQ;
           continue;
         }
-        console.log(`[FLOW]   ${current.code} → END OF SECTION (idx=${idx}/${visibleQuestions.length - 1})`);
         break;
       }
 
@@ -484,7 +576,7 @@ export function getFlowItems(
       const nextInSection = codeMap.get(nextCode);
       if (nextInSection) {
         current = nextInSection;
-        continue;
+        continue questionLoop;
       }
 
       // Special sentinel: _END_ signals the survey should end here (e.g., consent declined)
@@ -503,177 +595,141 @@ export function getFlowItems(
         // Searching all sections first could find the wrong section (e.g., SAQA found
         // in JENIS_LAYANAN instead of DETAIL). By filtering for _inline_only_ first,
         // we ensure only actual DETAIL blocks are considered cross-section targets.
-        const otherSection = allSections.find(
-          (s) =>
-            s.id !== section.id &&
-            (s.show_condition as Record<string, any>)?.question_code === '_inline_only_' &&
-            (s.questions || []).some((q) => q.code === nextCode)
-        );
+        const otherSection = findInlineSectionForCode(nextCode);
         const targetIsSentinel =
           otherSection?.show_condition != null &&
           (otherSection.show_condition as Record<string, any>)?.question_code === '_inline_only_';
-        console.log(`[FLOW] cross-section check: nextCode=${nextCode} currentSection=${section.code} found=${otherSection?.code ?? 'NOT FOUND'} isSentinel=${targetIsSentinel}`);
         if (otherSection && targetIsSentinel && !(_visitedSectionIds?.has(otherSection.id))) {
           const sectionVisited = _visitedSectionIds ?? new Set<number>();
           const newVisited = new Set(sectionVisited);
           newVisited.add(section.id);
-
-          // Mobile storage prefixes detail answers with the raw choice VALUE
-          // (e.g. "R4|RQA"), NOT cabang_mtc. Use the raw value so the prefix
-          // lookup actually finds this cycle's answers and the second detail
-          // loop doesn't inherit the first loop's answers via resolvedAnswers.
-          const ctxValue = triggeringChoice?.value ?? '';
-          const ctxAnswers: SurveyAnswers = {};
-          // Collect ctxAnswers: carry over non-detail answers (QL1, Q4, etc.) so show_condition
-          // still evaluates; detail answers must come from this cycle's prefix.
-          // Only filter out keys that are detail answers: those containing '|' (mobile
-          // prefixes detail answers as "prefix|answer_key", e.g. "SO|SOQA").
-          for (const [k, v] of Object.entries(allResponses)) {
-            if (!k.includes('|')) ctxAnswers[k] = v;
-          }
-          if (ctxValue) {
-            const prefix = `${ctxValue}|`;
-            for (const [k, v] of Object.entries(rawAnswers)) {
-              if (k.startsWith(prefix)) {
-                ctxAnswers[k.slice(prefix.length)] = v;
-              }
-            }
-          }
-
           // Track the index of the question that triggered the cross-section jump
           const triggerIdx = visibleQuestions.indexOf(current);
+          let pendingChoice: QuestionOption | undefined = triggeringChoice;
+          let pendingStartCode: string | undefined = nextCode;
+          let pendingInlineSection: QuestionSection | undefined = otherSection;
 
-          const crossItems = getFlowItems(
-            otherSection,
-            ctxAnswers,
-            questionsMap,
-            allSections,
-            rawAnswers,
-            newVisited,
-            nextCode,
-            ctxValue,
-          );
+          while (pendingInlineSection && pendingStartCode) {
+            // Mobile storage prefixes detail answers with the raw choice VALUE
+            // (e.g. "R4|RQA"), NOT cabang_mtc. Use the raw value so the prefix
+            // lookup actually finds this cycle's answers and each loop stays isolated.
+            const ctxValue = pendingChoice?.value ?? '';
+            const ctxAnswers = buildContextAnswers(ctxValue);
+            const crossItems = getFlowItems(
+              pendingInlineSection,
+              ctxAnswers,
+              questionsMap,
+              allSections,
+              rawAnswers,
+              newVisited,
+              pendingStartCode,
+              ctxValue,
+            );
 
-          result.push(...crossItems);
+            result.push(...crossItems);
 
-          // After a cross-section inline detail block (e.g. RQA→RQJ) completes,
-          // determine where to go next based on the MULTIPLE_CHOICE branching structure:
-          //
-          // Walk backward through result (only current-section questions via codeMap)
-          // to find the nearest MULTIPLE_CHOICE ancestor:
-          //   - If it has an unvisited matching choice → jump to that branch entry
-          //     (e.g. after AKUT detail, continue to NON-AKUT → RQ5)
-          //   - If all choices are visited → END this entry chain (e.g. AKUT-only after detail)
-          //   - If no MULTIPLE_CHOICE ancestor found → fall back to sequential navigation
-          //     (backward compat for non-MC-driven cross-sections)
-          let mcFound = false;
-          let nextBranchQuestion: Question | undefined;
-          let allSelectedBranchesWereCrossSection = false;
+            // After a cross-section inline detail block (e.g. RQA→RQJ) completes,
+            // determine where to go next based on the MULTIPLE_CHOICE branching structure.
+            let mcFound = false;
+            let nextBranchQuestion: Question | undefined;
+            let nextCrossSectionChoice: QuestionOption | undefined;
+            let allSelectedBranchesWereCrossSection = false;
 
-          // Add cross-section items to current section's visited set so the
-          // backward-walking algorithm knows which questions were traversed
-          // during the cross-section call. This includes both current-section
-          // questions (SOQ1, SOQ6, SOQ8) and cross-section detail questions
-          // (SOQA, SOQB, SOQC, SOQD) that were added to result.
-          for (const item of crossItems) {
-            if (item.kind === 'question') {
-              visited.add(item.question.code);
+            for (const item of crossItems) {
+              if (item.kind === 'question') {
+                visited.add(item.question.code);
+              }
             }
-          }
 
-          // Walk backward through result to find the nearest MULTIPLE_CHOICE ancestor
-          // that has an unvisited in-section branch to jump to.
+            for (let ri = result.length - 1; ri >= 0; ri--) {
+              const item = result[ri];
+              if (item.kind !== 'question') continue;
+              const mcQ = item.question;
 
-          for (let ri = result.length - 1; ri >= 0; ri--) {
-            const item = result[ri];
-            if (item.kind !== 'question') continue;
-            const mcQ = item.question;
+              if (!codeMap.has(mcQ.code)) continue;
+              if (mcQ.answer_type !== 'MULTIPLE_CHOICE') continue;
 
-            // Only inspect questions from the current section (codeMap).
-            // DETAIL-section questions (RQA…RQJ) are NOT in codeMap — skip them.
-            if (!codeMap.has(mcQ.code)) continue;
+              const rawMcAnswer = allResponses[mcQ.code];
+              const mcAnswer = Array.isArray(rawMcAnswer)
+                ? rawMcAnswer
+                : rawMcAnswer != null && rawMcAnswer !== ''
+                ? [rawMcAnswer]
+                : [];
+              if (mcAnswer.length === 0) continue;
 
-            if (mcQ.answer_type !== 'MULTIPLE_CHOICE') continue;
-
-            // Normalize answer to array — MULTIPLE_CHOICE stores array but some
-            // storage layers may normalize to scalar; handle both to ensure the
-            // backward-walking algorithm finds all selected-choice branches.
-            const rawMcAnswer = allResponses[mcQ.code];
-            const mcAnswer = Array.isArray(rawMcAnswer)
-              ? rawMcAnswer
-              : rawMcAnswer != null && rawMcAnswer !== ''
-              ? [rawMcAnswer]
-              : [];
-            console.log(`[FLOW]   backward MC q=${mcQ.code} mcAnswer=${JSON.stringify(mcAnswer)} visited=${[...visited]}`);
-            if (mcAnswer.length > 0) {
-              // Find all selected choices that have a next_question_code
               const selectedChoicesWithNext = (mcQ.choices || []).filter(
                 (c: QuestionOption) =>
-                  mcAnswer.includes(c.value) && c.next_question_code,
+                  mcAnswer.includes(c.value) && resolveBranchTargetCode(mcQ.code, c),
               );
-              // Check if ANY selected choice leads to an unvisited in-section question
-              const hasUnvisitedBranch = selectedChoicesWithNext.some(c => {
-                const target = codeMap.get(c.next_question_code!);
-                return target && !visited.has(target.code);
+              const nextChoice = selectedChoicesWithNext.find((c) => {
+                const targetCode = resolveBranchTargetCode(mcQ.code, c)!;
+                const target = codeMap.get(targetCode);
+                if (target) return !visited.has(target.code);
+                const inlineTarget = findInlineSectionForCode(targetCode);
+                if (!inlineTarget) return false;
+                return !hasTraversedContextBranch(targetCode, c.value);
               });
-              if (hasUnvisitedBranch) {
-                // At least one selected branch hasn't been visited — find the first one
-                const nextChoice = selectedChoicesWithNext.find(c => {
-                  const target = codeMap.get(c.next_question_code!);
-                  return target && !visited.has(target.code);
-                })!;
-                nextBranchQuestion = codeMap.get(nextChoice.next_question_code!);
+
+              if (nextChoice) {
+                const targetCode = resolveBranchTargetCode(mcQ.code, nextChoice)!;
+                const target = codeMap.get(targetCode);
+                if (target) {
+                  nextBranchQuestion = target;
+                } else {
+                  nextCrossSectionChoice = nextChoice;
+                }
                 mcFound = true;
                 break;
-              } else {
-                // All selected branches either:
-                // a) Lead to cross-section targets (not in codeMap)
-                // b) Have already been visited
-                // Check: were ALL selected choices cross-section jumps?
-                const anySelectedChoice = mcAnswer.length > 0;
-                const anyWithNextQuestionCode = selectedChoicesWithNext.length > 0;
-                const allWereCrossSectionOrVisited = !anyWithNextQuestionCode ||
-                  (selectedChoicesWithNext.every(c => !codeMap.has(c.next_question_code!)));
-                if (allWereCrossSectionOrVisited) {
-                  allSelectedBranchesWereCrossSection = true;
-                }
+              }
+
+              if (selectedChoicesWithNext.length > 0) {
+                allSelectedBranchesWereCrossSection = selectedChoicesWithNext.every(
+                  (c) => !codeMap.has(resolveBranchTargetCode(mcQ.code, c)!),
+                );
                 mcFound = true;
               }
             }
-          }
 
-          if (nextBranchQuestion && !visited.has(nextBranchQuestion.code)) {
-            // More MULTIPLE_CHOICE branches remain — navigate to the next entry point
-            current = nextBranchQuestion;
-            continue;
-          }
-
-          if (mcFound) {
-            // All selected branches of the MULTIPLE_CHOICE ancestor have been visited.
-            // Do NOT fall back to sequential navigation — unvisited questions in
-            // visibleQuestions belong to unselected branches and must not be shown.
-            // BUT: if all selected branches led to cross-section jumps (not in-section
-            // questions), there may still be unvisited in-section branches. Fall through
-            // to sequential navigation so every branch gets shown.
-            if (!allSelectedBranchesWereCrossSection) {
-              console.log(`[FLOW] cross-section done → all MC branches exhausted → END`);
-              break;
+            if (nextCrossSectionChoice) {
+              pendingChoice = nextCrossSectionChoice;
+              pendingStartCode = nextCrossSectionChoice.next_question_code;
+              pendingInlineSection = pendingStartCode
+                ? findInlineSectionForCode(pendingStartCode)
+                : undefined;
+              if (pendingInlineSection) {
+                continue;
+              }
             }
-            console.log(`[FLOW] cross-section done → all selected were cross-section → sequential fallback`);
-          }
 
-          // No MULTIPLE_CHOICE in the chain — fall back to sequential navigation
-          // (for cross-sections NOT driven by a MULTIPLE_CHOICE, e.g. a SINGLE_CHOICE
-          // that triggers a detail block with more questions following in the same section)
-          let nextIdx = triggerIdx + 1;
-          while (nextIdx < visibleQuestions.length && visited.has(visibleQuestions[nextIdx].code)) {
-            nextIdx++;
+            if (nextBranchQuestion && !visited.has(nextBranchQuestion.code)) {
+              current = nextBranchQuestion;
+              continue questionLoop;
+            }
+
+            if (mcFound) {
+              if (!allSelectedBranchesWereCrossSection) {
+                break questionLoop;
+              }
+            }
+
+            let nextIdx = triggerIdx + 1;
+            while (nextIdx < visibleQuestions.length && visited.has(visibleQuestions[nextIdx].code)) {
+              nextIdx++;
+            }
+            if (nextIdx < visibleQuestions.length) {
+              const nextQuestion = visibleQuestions[nextIdx];
+              const isUnselectedRootBranch =
+                hasExternalEntryCodes &&
+                nextQuestion.parent_question == null &&
+                !entryCodes.includes(nextQuestion.code);
+              if (isUnselectedRootBranch) {
+                break questionLoop;
+              }
+              current = visibleQuestions[nextIdx];
+              continue questionLoop;
+            }
+            break questionLoop;
           }
-          if (nextIdx < visibleQuestions.length) {
-            current = visibleQuestions[nextIdx];
-            continue;
-          }
-          break;
         }
       }
 
@@ -698,7 +754,6 @@ export function getFlowItems(
     }
   }
 
-  console.log(`[FLOW] section=${section.code} entryCodes=${JSON.stringify(entryCodes)} result.length=${result.length} items:`, result.map(i => i.kind === 'question' ? i.question.code : `HINT:${i.questionCode}`));
   return result;
 }
 

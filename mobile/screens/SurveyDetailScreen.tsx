@@ -33,6 +33,12 @@ interface SurveyPhoto {
   synced?: boolean;
 }
 
+interface PendingUploadImage {
+  uri: string;
+  fileName?: string | null;
+  mimeType?: string | null;
+}
+
 interface AnswerItem {
   question_code: string;
   question_text: string;
@@ -86,7 +92,7 @@ export default function SurveyDetailScreen({ surveyId, onBack, onEdit }: SurveyD
   const [uploading, setUploading] = useState(false);
   const [captionModalVisible, setCaptionModalVisible] = useState(false);
   const [captionText, setCaptionText] = useState('');
-  const [pendingImageUri, setPendingImageUri] = useState<string | null>(null);
+  const [pendingImage, setPendingImage] = useState<PendingUploadImage | null>(null);
   // Maps cabang_mtc value → question code that triggered it (e.g. "Pemantauan Intensitas Tinggi" → "RQ3")
   const [cabangMtcToTrigger, setCabangMtcToTrigger] = useState<Map<string, string>>(new Map());
 
@@ -191,25 +197,36 @@ export default function SurveyDetailScreen({ surveyId, onBack, onEdit }: SurveyD
     });
 
     if (!result.canceled && result.assets[0]) {
-      setPendingImageUri(result.assets[0].uri);
+      setPendingImage({
+        uri: result.assets[0].uri,
+        fileName: result.assets[0].fileName,
+        mimeType: result.assets[0].mimeType,
+      });
       setCaptionText('');
       setCaptionModalVisible(true);
     }
   };
 
   const handleUploadPhoto = async () => {
-    if (!pendingImageUri) return;
+    if (!pendingImage) {
+      console.error('[PhotoUpload] No pending image to upload');
+      return;
+    }
+
+    console.log('[PhotoUpload] Starting upload for survey:', surveyId);
+    console.log('[PhotoUpload] Image URI:', pendingImage.uri);
+    console.log('[PhotoUpload] Image fileName:', pendingImage.fileName);
+    console.log('[PhotoUpload] Image mimeType:', pendingImage.mimeType);
+    console.log('[PhotoUpload] Caption:', captionText);
+    console.log('[PhotoUpload] API baseURL:', apiClient.getBaseURL());
 
     setUploading(true);
     setCaptionModalVisible(false);
 
     try {
-      // Upload directly to server
-      console.log('Uploading photo for survey:', surveyId, 'uri:', pendingImageUri);
-      const serverPhoto = await apiClient.uploadSurveyPhoto(surveyId, pendingImageUri, captionText);
-      console.log('Upload success:', serverPhoto);
+      const serverPhoto = await apiClient.uploadSurveyPhoto(surveyId, pendingImage, captionText);
+      console.log('[PhotoUpload] Upload success:', serverPhoto);
 
-      // Add to UI
       const newPhoto: SurveyPhoto = {
         id: serverPhoto.id,
         survey: surveyId,
@@ -222,30 +239,15 @@ export default function SurveyDetailScreen({ surveyId, onBack, onEdit }: SurveyD
       setPhotos(prev => [newPhoto, ...prev]);
       Alert.alert('Berhasil', 'Foto berhasil diunggah');
     } catch (uploadErr: any) {
-      console.error('Upload error details:', uploadErr);
+      console.error('[PhotoUpload] Upload error:', uploadErr);
       let errorMsg = 'Gagal mengunggah foto';
       if (uploadErr?.message) {
-        // Try to parse JSON error message
-        const msgMatch = uploadErr.message.match(/\{.*\}/);
-        if (msgMatch) {
-          try {
-            const errObj = JSON.parse(msgMatch[0]);
-            errorMsg = errObj.detail || errObj.message || uploadErr.message;
-          } catch {
-            errorMsg = uploadErr.message;
-          }
-        } else {
-          errorMsg = uploadErr.message;
-        }
+        errorMsg = uploadErr.message;
       }
-      Alert.alert(
-        'Gagal Unggah',
-        errorMsg,
-        [{ text: 'OK' }]
-      );
+      Alert.alert('Gagal Unggah', errorMsg, [{ text: 'OK' }]);
     } finally {
       setUploading(false);
-      setPendingImageUri(null);
+      setPendingImage(null);
     }
   };
 
@@ -591,7 +593,7 @@ export default function SurveyDetailScreen({ surveyId, onBack, onEdit }: SurveyD
                 style={[styles.modalButton, { borderColor: c.border }]}
                 onPress={() => {
                   setCaptionModalVisible(false);
-                  setPendingImageUri(null);
+                  setPendingImage(null);
                 }}
               >
                 <Text style={[styles.modalButtonText, { color: c.text }]}>Batal</Text>

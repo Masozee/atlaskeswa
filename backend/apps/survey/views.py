@@ -3,6 +3,7 @@ import io
 import tablib
 from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
@@ -770,9 +771,22 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
     def perform_update(self, serializer):
         """Update survey response and handle answers if provided"""
         instance = serializer.save()
+        gps_update_fields = []
+        if 'gps_latitude' in self.request.data:
+            instance.latitude = self.request.data.get('gps_latitude')
+            gps_update_fields.append('latitude')
+        if 'gps_longitude' in self.request.data:
+            instance.longitude = self.request.data.get('gps_longitude')
+            gps_update_fields.append('longitude')
+        if gps_update_fields:
+            instance.save(update_fields=gps_update_fields)
         answers_data = self.request.data.get('answers')
         if answers_data and isinstance(answers_data, dict):
-            self._update_answers(instance, answers_data)
+            self._update_answers(
+                instance,
+                answers_data,
+                prune_missing=self.request.data.get('prune_missing_answers') is True,
+            )
         # Set submitted_at when status transitions to SUBMITTED
         new_status = self.request.data.get('verification_status')
         if new_status == DynamicSurveyResponse.Status.SUBMITTED and not instance.submitted_at:
@@ -798,7 +812,21 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
             )
 
         answers_data = request.data.get('answers', {})
-        self._update_answers(response, answers_data)
+        self._update_answers(
+            response,
+            answers_data,
+            prune_missing=request.data.get('prune_missing_answers') is True,
+        )
+
+        gps_update_fields = []
+        if 'gps_latitude' in request.data:
+            response.latitude = request.data.get('gps_latitude')
+            gps_update_fields.append('latitude')
+        if 'gps_longitude' in request.data:
+            response.longitude = request.data.get('gps_longitude')
+            gps_update_fields.append('longitude')
+        if gps_update_fields:
+            response.save(update_fields=gps_update_fields)
 
         return Response(DynamicSurveyResponseDetailSerializer(response).data)
 
@@ -825,7 +853,73 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
 
         log_survey_submit(request, response)
 
-        return Response(DynamicSurveyResponseDetailSerializer(response).data)
+        return Response({
+            'id': response.id,
+            'verification_status': response.verification_status,
+            'submitted_at': response.submitted_at,
+        })
+
+    @action(detail=True, methods=['post'], parser_classes=[MultiPartParser, FormParser], url_path='upload-answer-file')
+    def upload_answer_file(self, request, pk=None):
+        """Upload or replace a FILE answer for a specific question/context."""
+        response = self.get_object()
+
+        if response.verification_status != DynamicSurveyResponse.Status.DRAFT:
+            return Response(
+                {'detail': 'Only draft surveys can upload answer files'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if response.surveyor != request.user and request.user.role != 'ADMIN':
+            return Response(
+                {'detail': 'Only the surveyor can upload answer files for this response'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        question_code = str(request.data.get('question_code', '')).strip()
+        context_key = str(request.data.get('context_key', '')).strip()
+        upload = request.FILES.get('file')
+
+        if not question_code:
+            return Response({'detail': 'question_code is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not upload:
+            return Response({'detail': 'file is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        question = Question.objects.filter(
+            section__template=response.template,
+            code=question_code,
+        ).first()
+        if not question:
+            return Response({'detail': 'Question not found in this template'}, status=status.HTTP_404_NOT_FOUND)
+
+        if question.answer_type != Question.AnswerType.FILE:
+            return Response({'detail': 'Question is not a FILE answer type'}, status=status.HTTP_400_BAD_REQUEST)
+
+        answer, _ = QuestionAnswer.objects.get_or_create(
+            response=response,
+            question=question,
+            context_key=context_key,
+        )
+
+        answer.text_value = ''
+        answer.number_value = None
+        answer.date_value = None
+        answer.time_value = None
+        answer.boolean_value = None
+        answer.geographic_unit = None
+        answer.coverage_level = ''
+        answer.table_data = None
+        answer.gps_latitude = None
+        answer.gps_longitude = None
+        answer.other_text = ''
+        answer.file = upload
+        answer.save()
+
+        answer.selected_choices.clear()
+
+        serializer = QuestionAnswerSerializer(answer, context={'request': request})
+        return Response(serializer.data)
 
     @action(detail=True, methods=['post'])
     def verify(self, request, pk=None):
@@ -946,7 +1040,7 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-    def _update_answers(self, response, answers_data):
+    def _update_answers(self, response, answers_data, prune_missing=False):
         """Update answers for a response with batched operations"""
         # Separate __other_text keys from regular answers
         other_texts = {}
@@ -965,7 +1059,7 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
         # Pre-fetch existing answers for this response
         existing_answers = {
             (a.question_id, a.context_key or ''): a
-            for a in QuestionAnswer.objects.filter(response=response)
+            for a in QuestionAnswer.objects.filter(response=response).select_related('question')
         }
 
         # Batch fetch all choices for choice-type questions
@@ -981,6 +1075,7 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
         answers_to_create = []
         answers_to_update = []
         choice_assignments = []  # (answer, question, answer_value)
+        incoming_answer_keys = set()
 
         update_fields = [
             'text_value', 'number_value', 'date_value', 'time_value',
@@ -1000,6 +1095,9 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
             question = question_map.get(question_code)
             if not question:
                 continue
+            if question.answer_type == Question.AnswerType.FILE:
+                continue
+            incoming_answer_keys.add((question.id, context_key))
 
             # Get existing or create new answer
             answer = existing_answers.get((question.id, context_key))
@@ -1100,6 +1198,16 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
             elif answer_value and answer_value in question_choices:
                 answer.selected_choices.add(question_choices[answer_value])
 
+        if prune_missing:
+            stale_answer_ids = [
+                answer.id
+                for key, answer in existing_answers.items()
+                if key not in incoming_answer_keys
+                and answer.question.answer_type != Question.AnswerType.FILE
+            ]
+            if stale_answer_ids:
+                QuestionAnswer.objects.filter(id__in=stale_answer_ids).delete()
+
 
 # =============================================================================
 # SURVEY PHOTO VIEW SET
@@ -1113,6 +1221,7 @@ class SurveyPhotoViewSet(viewsets.ModelViewSet):
     queryset = SurveyPhoto.objects.all()
     serializer_class = SurveyPhotoSerializer
     permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['survey']
     ordering_fields = ['uploaded_at']

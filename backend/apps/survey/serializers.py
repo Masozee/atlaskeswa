@@ -187,6 +187,7 @@ class QuestionAnswerSerializer(serializers.ModelSerializer):
     selected_choice_labels = serializers.SerializerMethodField()
     geographic_unit_name = serializers.CharField(source='geographic_unit.get_full_path', read_only=True)
     geographic_unit_display = serializers.SerializerMethodField()
+    file_url = serializers.SerializerMethodField()
 
     class Meta:
         model = QuestionAnswer
@@ -195,7 +196,7 @@ class QuestionAnswerSerializer(serializers.ModelSerializer):
             'text_value', 'number_value', 'date_value', 'time_value', 'boolean_value',
             'selected_choices', 'selected_choice_values', 'selected_choice_labels', 'other_text',
             'geographic_unit', 'geographic_unit_name', 'geographic_unit_display', 'coverage_level',
-            'file', 'gps_latitude', 'gps_longitude', 'table_data',
+            'file', 'file_url', 'gps_latitude', 'gps_longitude', 'table_data',
             'context_key', 'derived_mtc', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
@@ -212,6 +213,14 @@ class QuestionAnswerSerializer(serializers.ModelSerializer):
             return obj.geographic_unit.get_full_path()
         if obj.text_value:
             return obj.text_value
+        return None
+
+    def get_file_url(self, obj):
+        if obj.file:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.file.url)
+            return obj.file.url
         return None
 
 
@@ -427,6 +436,8 @@ class DynamicSurveyResponseCreateSerializer(serializers.ModelSerializer):
 
             question = question_map.get(question_code)
             if not question:
+                continue
+            if question.answer_type == Question.AnswerType.FILE:
                 continue
 
             answer_kwargs = {'response': response, 'question': question, 'context_key': context_key}

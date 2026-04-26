@@ -403,3 +403,52 @@ class ActivityLogViewSet(UserActivityFilterMixin, viewsets.ReadOnlyModelViewSet)
 3. **Test each role** - ensure filtering works correctly for all roles
 4. **Document behavior** - add docstrings explaining what each role can access
 5. **Use select_related/prefetch_related** - optimize queries for performance
+
+## Mobile Survey Flow Engine
+
+The React Native mobile app uses a flow engine in `mobile/lib/question-logic.ts` (`getFlowItems` function) to navigate survey questions based on skip logic and answer branching.
+
+### Cross-Section Detail Block Handling
+
+**Critical Bug Fix: Skipping detail blocks when ALL MULTIPLE_CHOICE branches are cross-section jumps**
+
+When a MULTIPLE_CHOICE question has all choices leading to cross-section DETAIL blocks (e.g., `RQ13` → choices `[R12, R3.1.2]` both point to DETAIL sections `RQA`, `RQB` in different sections), the backward-walking algorithm must NOT break early after completing the first detail block.
+
+**The Problem:**
+After completing a detail block, the algorithm walks backward to find the parent MULTIPLE_CHOICE. When it finds that all remaining unvisited branches point to cross-section targets (not in `codeMap`), it incorrectly sets `mcFound=true` and breaks — skipping subsequent detail blocks.
+
+Example: `RQ13 = [R12, R3.1.2]` → first block (R12→RQA) completes, then RQF1 (skip_logic→RQF) appears only once at root level instead of per block.
+
+**The Fix (in `question-logic.ts` lines ~616-657):**
+```typescript
+let allSelectedBranchesWereCrossSection = true;
+// ... in the backward-walking section:
+if (allWereCrossSectionOrVisited) {
+  allSelectedBranchesWereCrossSection = true;
+}
+mcFound = true;
+// ...
+// Changed from: if (mcFound) { break; }
+// To:
+if (mcFound) {
+  if (!allSelectedBranchesWereCrossSection) {
+    console.log(`[FLOW] cross-section done → all MC branches exhausted → END`);
+    break;
+  }
+  console.log(`[FLOW] cross-section done → all selected were cross-section → sequential fallback`);
+}
+```
+
+**Key insight:** When ALL selected branches were cross-section, fall through to sequential navigation instead of breaking. This ensures every selected branch gets its own detail block.
+
+**Affected Questions (all MULTIPLE_CHOICE with all choices → DETAIL):**
+- `RQ13` (R12, R3.1.2 → RQA, RQB)
+- `DQ1` (DA1, DA2, DA3 → DQA, DQB, DQC)
+- `OQ1`, `SRQ1`, `SDQ1`, `SOQ1`, `SIQ1`, `SAQ1`, `IQ1`, and similar patterns
+
+### Geographic Unit Display
+
+Geographic unit names (Kecamatan, Desa/Kelurahan) in the mobile detail screen use the `geographic_unit_display` field. This field is populated by the `QuestionAnswerSerializer.get_geographic_unit_display()` method in `backend/apps/survey/serializers.py`:
+- Returns `geographic_unit.get_full_path()` if a FK relation exists
+- Falls back to `text_value` if no FK relation
+- Ensures names, not IDs, are displayed in the mobile UI
