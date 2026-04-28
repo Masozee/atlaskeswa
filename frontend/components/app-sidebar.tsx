@@ -374,21 +374,23 @@ function filterMenuByRole(menuItems: typeof data.navMain, userRole?: string) {
 
 // Mobile Sidebar Component
 function MobileSidebar({ filteredNavMain, pathname }: { filteredNavMain: typeof data.navMain, pathname: string }) {
+  const logoSrc = "/OMMHA.png"
+
   return (
     <Sidebar collapsible="offcanvas" className="flex-1">
       <SidebarHeader className="border-b p-4">
         <a href="/dashboard" className="flex items-center gap-3">
           <div className="flex size-10 shrink-0 items-center justify-center rounded-lg overflow-hidden relative">
             <Image
-              src="/logo.png"
-              alt="Logo Atlas Keswa"
+              src={logoSrc}
+              alt="Logo OMMHA"
               fill
               className="object-contain"
             />
           </div>
           <div className="grid flex-1 text-left text-sm leading-tight">
-            <span className="truncate font-semibold text-base">Atlas Keswa</span>
-            <span className="truncate text-xs text-muted-foreground">DESDE-LTC</span>
+            <span className="truncate font-semibold text-base">OMMHA</span>
+            <span className="truncate text-xs text-muted-foreground">One Map for Mental Health Atlas</span>
           </div>
         </a>
       </SidebarHeader>
@@ -470,6 +472,7 @@ function DesktopSidebar({
   setOpen: (open: boolean) => void
 }) {
   const [commandOpen, setCommandOpen] = React.useState(false)
+  const logoSrc = "/OMMHA.png"
 
   // Keyboard shortcut for command palette (Cmd+K / Ctrl+K)
   React.useEffect(() => {
@@ -502,15 +505,15 @@ function DesktopSidebar({
                 <a href="/dashboard" className="flex items-center gap-2">
                   <div className="flex size-8 shrink-0 items-center justify-center rounded-lg overflow-hidden relative">
                     <Image
-                      src="/logo.png"
-                      alt="Logo Atlas Keswa"
+                      src={logoSrc}
+                      alt="Logo OMMHA"
                       fill
                       className="object-contain"
                     />
                   </div>
                   <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-medium">Atlas Keswa</span>
-                    <span className="truncate text-xs">DESDE-LTC</span>
+                    <span className="truncate font-medium">OMMHA</span>
+                    <span className="truncate text-xs">One Map</span>
                   </div>
                 </a>
               </SidebarMenuButton>

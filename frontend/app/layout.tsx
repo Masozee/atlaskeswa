@@ -21,12 +21,12 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Atlas Keswa - Sistem DESDE-LTC",
-  description: "Sistem Direktori Layanan Kesehatan Jiwa dan Manajemen Survei DESDE-LTC",
+  title: "OMMHA - One Map for Mental Health Atlas",
+  description: "OMMHA - One Map for Mental Health Atlas - Sistem Direktori Layanan Kesehatan Jiwa dan Manajemen Survei DESDE-LTC",
   icons: {
-    icon: "/logo.png",
-    shortcut: "/logo.png",
-    apple: "/logo.png",
+    icon: "/OMMHA.png",
+    shortcut: "/OMMHA.png",
+    apple: "/OMMHA.png",
   },
 };
 

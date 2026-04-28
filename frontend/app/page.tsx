@@ -64,15 +64,15 @@ export default function HomePage() {
           <div className="flex items-center gap-3">
             <div className="relative h-10 w-10">
               <Image
-                src="/logo.png"
-                alt="Logo Atlas Keswa"
+                src="/OMMHA.png"
+                alt="Logo OMMHA"
                 fill
                 className="object-contain"
               />
             </div>
             <div>
-              <h1 className="font-bold text-lg">Atlas Keswa</h1>
-              <p className="text-xs text-muted-foreground">Sistem DESDE-LTC</p>
+              <h1 className="font-bold text-lg">OMMHA</h1>
+              <p className="text-xs text-muted-foreground">One Map for Mental Health Atlas</p>
             </div>
           </div>
           <div className="flex items-center gap-6">
@@ -276,7 +276,7 @@ export default function HomePage() {
                       <circle
                         cx="50" cy="50" r="40"
                         fill="none"
-                        stroke="#00979D"
+                        stroke="#07579E"
                         strokeWidth="12"
                         strokeDasharray="73.3 251.33"
                         strokeDashoffset="0"
@@ -322,7 +322,7 @@ export default function HomePage() {
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full bg-[#00979D]" />
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#07579E]" />
                     <span className="text-muted-foreground">Puskesmas: 14 (29%)</span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -643,15 +643,15 @@ export default function HomePage() {
             <div className="flex items-center gap-3">
               <div className="relative h-8 w-8">
                 <Image
-                  src="/logo.png"
-                  alt="Logo Atlas Keswa"
+                  src="/OMMHA.png"
+                  alt="Logo OMMHA"
                   fill
                   className="object-contain"
                 />
               </div>
               <div>
-                <div className="font-semibold">Atlas Keswa DESDE-LTC</div>
-                <div className="text-xs text-muted-foreground">Sistem Layanan Kesehatan Jiwa</div>
+                <div className="font-semibold">OMMHA</div>
+                <div className="text-xs text-muted-foreground">One Map for Mental Health Atlas</div>
               </div>
             </div>
             <div className="flex items-center gap-6 text-sm text-muted-foreground">

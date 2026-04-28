@@ -40,6 +40,7 @@ export function LoginForm({
 }: React.ComponentProps<"form">) {
   const router = useRouter();
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const logoSrc = "/OMMHA.png";
 
   /**
    * TanStack Form with field-level Zod validation
@@ -96,8 +97,8 @@ export function LoginForm({
         <div className="flex flex-col items-center gap-4 text-center">
           <div className="flex size-16 items-center justify-center rounded-lg overflow-hidden relative">
             <Image
-              src="/logo.png"
-              alt="Logo Atlas Keswa"
+              src={logoSrc}
+              alt="Logo OMMHA"
               fill
               className="object-contain"
             />
