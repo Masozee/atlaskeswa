@@ -18,8 +18,8 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { ClickableLabel } from './clickable-label';
 import { LocationInput } from './LocationInput';
-import { PROVINSI, KABUPATEN, PROVINSI_ID, KABUPATEN_ID, type LocationData } from '@/lib/constants/kebumen-location';
-import { useKebumenKecamatan } from '@/hooks/use-geographic-units';
+import { PROVINSI, KABUPATEN, type LocationData } from '@/lib/constants/kebumen-location';
+import { useGeographicUnits, useKebumenKecamatan } from '@/hooks/use-geographic-units';
 import { Location01Icon, Loading03Icon, VolumeHighIcon } from 'hugeicons-react';
 import { useSpeechSynthesis } from '@/hooks/use-speech-synthesis';
 
@@ -27,14 +27,26 @@ interface DynamicQuestionProps {
   question: Question;
   value: any;
   onChange: (value: any) => void;
-  onOtherTextChange?: (text: string) => void;
-  otherText?: string;
+  onOtherTextChange?: (text: string, optionValue?: string) => void;
+  otherText?: string | Record<string, string>;
   error?: string;
 }
 
-const toSentenceCase = (text: string) => {
+const toUpper = (text: string) => {
   if (!text) return '';
-  return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
+  return text.toUpperCase();
+};
+
+const getOtherInputType = (questionCode: string, option: QuestionOption) => {
+  if (questionCode === 'Q15' && option.value === 'TANGGAL') return 'date';
+  if (questionCode === 'Q15' && option.value === 'TIDAK_DIKETAHUI') return 'integer';
+  return option.other_input_type || 'text';
+};
+
+const getOtherInputPlaceholder = (questionCode: string, option: QuestionOption) => {
+  if (questionCode === 'Q15' && option.value === 'TANGGAL') return 'Pilih tanggal';
+  if (questionCode === 'Q15' && option.value === 'TIDAK_DIKETAHUI') return 'YYYY';
+  return option.other_input_label || 'Sebutkan';
 };
 
 function AnswerSoundButton({ text }: { text: string }) {
@@ -60,18 +72,30 @@ export function DynamicQuestion({ question, value, onChange, onOtherTextChange, 
   // Use backend field names with fallback to aliases
   const questionType = question.answer_type || question.question_type;
   const helpText = question.keterangan || question.help_text;
-  const questionText = toSentenceCase(question.question_text || question.text || '');
+  const questionText = toUpper(question.question_text || question.text || '');
   const options = question.choices || question.options;
+  const { data: provinsiList = [] } = useGeographicUnits({ level: 'PROVINSI', enabled: true });
+  const { data: kabupatenList = [] } = useGeographicUnits({ level: 'KABUPATEN_KOTA', enabled: true });
+  const provinsiUnit = provinsiList.find(
+    (unit) => unit.code === '33' || unit.name.toLowerCase() === PROVINSI.toLowerCase()
+  );
+  const kabupatenUnit = kabupatenList.find(
+    (unit) => unit.code === '3305' || unit.name.toLowerCase() === KABUPATEN.toLowerCase()
+  );
+  const getOtherText = (optionValue: string) =>
+    typeof otherText === 'object' && otherText !== null
+      ? otherText[optionValue] || ''
+      : otherText || '';
 
-  // Auto-set fixed values for GEO_PROVINSI and GEO_KABUPATEN (using database IDs)
+  // Auto-set fixed values for GEO_PROVINSI and GEO_KABUPATEN using the current live IDs.
   useEffect(() => {
-    if (questionType === 'GEO_PROVINSI' && value !== PROVINSI_ID) {
-      onChange(PROVINSI_ID);
+    if (questionType === 'GEO_PROVINSI' && provinsiUnit?.id && value !== provinsiUnit.id) {
+      onChange(provinsiUnit.id);
     }
-    if (questionType === 'GEO_KABUPATEN' && value !== KABUPATEN_ID) {
-      onChange(KABUPATEN_ID);
+    if (questionType === 'GEO_KABUPATEN' && kabupatenUnit?.id && value !== kabupatenUnit.id) {
+      onChange(kabupatenUnit.id);
     }
-  }, [questionType, value, onChange]);
+  }, [questionType, value, onChange, provinsiUnit?.id, kabupatenUnit?.id]);
 
   const renderQuestion = () => {
     switch (questionType) {
@@ -120,12 +144,12 @@ export function DynamicQuestion({ question, value, onChange, onOtherTextChange, 
           <RadioGroup value={value === true ? 'true' : value === false ? 'false' : ''} onValueChange={(v) => onChange(v === 'true')} className="space-y-2">
             <div className="flex items-center space-x-3 py-1">
               <RadioGroupItem value="true" id={`${question.code}-yes`} />
-              <Label htmlFor={`${question.code}-yes`} className="font-normal cursor-pointer">Ya</Label>
+              <Label htmlFor={`${question.code}-yes`} className="font-normal cursor-pointer">YA</Label>
               <AnswerSoundButton text="Ya" />
             </div>
             <div className="flex items-center space-x-3 py-1">
               <RadioGroupItem value="false" id={`${question.code}-no`} />
-              <Label htmlFor={`${question.code}-no`} className="font-normal cursor-pointer">Tidak</Label>
+              <Label htmlFor={`${question.code}-no`} className="font-normal cursor-pointer">TIDAK</Label>
               <AnswerSoundButton text="Tidak" />
             </div>
           </RadioGroup>
@@ -151,16 +175,22 @@ export function DynamicQuestion({ question, value, onChange, onOtherTextChange, 
                 <div className="flex items-center space-x-3 py-1">
                   <RadioGroupItem value={option.value} id={`${question.code}-${option.value}`} />
                   <Label htmlFor={`${question.code}-${option.value}`} className="font-normal cursor-pointer">
-                    {toSentenceCase(option.label)}
+                    {toUpper(option.label)}
                   </Label>
                   <AnswerSoundButton text={option.label} />
                 </div>
                 {option.has_other_input && value === option.value && (
                   <div className="ml-7 mt-1">
                     <Input
-                      value={otherText || ''}
-                      onChange={(e) => onOtherTextChange?.(e.target.value)}
-                      placeholder={option.other_input_label || 'Sebutkan'}
+                      type={getOtherInputType(question.code, option) === 'date' ? 'date' : getOtherInputType(question.code, option) === 'integer' ? 'number' : 'text'}
+                      inputMode={getOtherInputType(question.code, option) === 'integer' ? 'numeric' : undefined}
+                      pattern={getOtherInputType(question.code, option) === 'integer' ? '[0-9]*' : undefined}
+                      min={getOtherInputType(question.code, option) === 'integer' ? 1900 : undefined}
+                      max={getOtherInputType(question.code, option) === 'integer' ? 2100 : undefined}
+                      step={getOtherInputType(question.code, option) === 'integer' ? 1 : undefined}
+                      value={getOtherText(option.value)}
+                      onChange={(e) => onOtherTextChange?.(e.target.value, option.value)}
+                      placeholder={getOtherInputPlaceholder(question.code, option)}
                       className="max-w-md"
                     />
                   </div>
@@ -189,16 +219,22 @@ export function DynamicQuestion({ question, value, onChange, onOtherTextChange, 
                     }}
                   />
                   <Label htmlFor={`${question.code}-${option.value}`} className="font-normal cursor-pointer">
-                    {toSentenceCase(option.label)}
+                    {toUpper(option.label)}
                   </Label>
                   <AnswerSoundButton text={option.label} />
                 </div>
                 {option.has_other_input && currentValues.includes(option.value) && (
                   <div className="ml-7 mt-1">
                     <Input
-                      value={otherText || ''}
-                      onChange={(e) => onOtherTextChange?.(e.target.value)}
-                      placeholder={option.other_input_label || 'Sebutkan'}
+                      type={getOtherInputType(question.code, option) === 'date' ? 'date' : getOtherInputType(question.code, option) === 'integer' ? 'number' : 'text'}
+                      inputMode={getOtherInputType(question.code, option) === 'integer' ? 'numeric' : undefined}
+                      pattern={getOtherInputType(question.code, option) === 'integer' ? '[0-9]*' : undefined}
+                      min={getOtherInputType(question.code, option) === 'integer' ? 1900 : undefined}
+                      max={getOtherInputType(question.code, option) === 'integer' ? 2100 : undefined}
+                      step={getOtherInputType(question.code, option) === 'integer' ? 1 : undefined}
+                      value={getOtherText(option.value)}
+                      onChange={(e) => onOtherTextChange?.(e.target.value, option.value)}
+                      placeholder={getOtherInputPlaceholder(question.code, option)}
                       className="max-w-md"
                     />
                   </div>
@@ -222,7 +258,7 @@ export function DynamicQuestion({ question, value, onChange, onOtherTextChange, 
               <div key={level.value} className="flex items-center space-x-3 py-1">
                 <RadioGroupItem value={level.value} id={`${question.code}-${level.value}`} />
                 <Label htmlFor={`${question.code}-${level.value}`} className="font-normal cursor-pointer">
-                  {level.label}
+                  {toUpper(level.label)}
                 </Label>
                 <AnswerSoundButton text={level.label} />
               </div>
@@ -278,7 +314,7 @@ export function DynamicQuestion({ question, value, onChange, onOtherTextChange, 
         return (
           <Input
             id={question.code}
-            value={PROVINSI}
+            value={toUpper(PROVINSI)}
             disabled
             className="bg-muted"
           />
@@ -289,7 +325,7 @@ export function DynamicQuestion({ question, value, onChange, onOtherTextChange, 
         return (
           <Input
             id={question.code}
-            value={KABUPATEN}
+            value={toUpper(KABUPATEN)}
             disabled
             className="bg-muted"
           />
@@ -357,7 +393,7 @@ export function DynamicQuestion({ question, value, onChange, onOtherTextChange, 
       {question.introduction_text && (
         <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-4 -mb-1">
           <p className="text-sm font-medium text-yellow-900 whitespace-pre-line">
-            {toSentenceCase(question.introduction_text)}
+            {toUpper(question.introduction_text)}
           </p>
         </div>
       )}
@@ -610,108 +646,217 @@ interface MatrixKegiatanInputProps {
 }
 
 const DAY_OPTIONS = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
+const MATRIX_KEGIATAN_PRESETS: Record<string, string[]> = {
+  kesehatan: [
+    'PSIKOTERAPI',
+    'KONSELING',
+    'TERAPI KELOMPOK',
+    'PEMANTAUAN PENGGUNAAN OBAT',
+    'EDUKASI KESEHATAN JIWA',
+  ],
+  pendidikan: [
+    'PELATIHAN MENJAHIT',
+    'PELATIHAN MEMASAK',
+    'PELATIHAN KERAJINAN',
+    'PELATIHAN KESIAPAN KERJA',
+    'PENDIDIKAN NON FORMAL',
+  ],
+  sosial_budaya: [
+    'KELOMPOK DUKUNGAN SEBAYA',
+    'KEGIATAN REKREASI',
+    'OLAHRAGA',
+    'KEGIATAN KOMUNITAS',
+    'KEGIATAN KEAGAMAAN/SPIRITUAL',
+  ],
+};
 
 function MatrixKegiatanInput({ question, value, onChange, error }: MatrixKegiatanInputProps) {
-  const rows: Array<{ nama_kegiatan: string; hari: string[] }> =
-    Array.isArray(value) && value.length > 0
+  const config = question.table_config ?? {};
+  const dayOptions = config.day_options?.length ? config.day_options : DAY_OPTIONS;
+  const predefinedOptions = config.activity_options?.length
+    ? config.activity_options
+    : (config.matrix_variant ? MATRIX_KEGIATAN_PRESETS[config.matrix_variant] ?? [] : []);
+  const allowCustom = config.allow_custom !== false;
+  const usesPredefinedActivities = predefinedOptions.length > 0;
+  const storedRows: Array<{ nama_kegiatan: string; hari: string[] }> =
+    Array.isArray(value)
       ? value.map((r: any) => ({ nama_kegiatan: r.nama_kegiatan ?? '', hari: r.hari ?? [] }))
-      : [{ nama_kegiatan: '', hari: [] }];
+      : [];
+  const rows: Array<{ nama_kegiatan: string; hari: string[] }> =
+    !usesPredefinedActivities && storedRows.length === 0
+      ? [{ nama_kegiatan: '', hari: [] }]
+      : storedRows;
+  const customRows = rows.filter((row) => !predefinedOptions.includes(row.nama_kegiatan));
 
-  const handleCellChange = (idx: number, field: 'nama_kegiatan' | 'hari', val: any) => {
-    const next = rows.map((r, i) => i === idx ? { ...r, [field]: val } : r);
-    onChange(next);
+  const updateRows = (next: Array<{ nama_kegiatan: string; hari: string[] }>) => onChange(next);
+
+  const toggleDays = (currentDays: string[], day: string) => (
+    currentDays.includes(day)
+      ? currentDays.filter((item) => item !== day)
+      : [...currentDays, day]
+  );
+
+  const updateCustomRow = (index: number, patch: Partial<{ nama_kegiatan: string; hari: string[] }>) => {
+    const nextCustomRows = customRows.map((row, i) => (i === index ? { ...row, ...patch } : row));
+    const predefinedRows = rows.filter((row) => predefinedOptions.includes(row.nama_kegiatan));
+    updateRows([...predefinedRows, ...nextCustomRows]);
   };
 
-  const toggleDay = (rowIdx: number, day: string) => {
-    const currentDays = rows[rowIdx].hari || [];
-    const newDays = currentDays.includes(day)
-      ? currentDays.filter((d: string) => d !== day)
-      : [...currentDays, day];
-    handleCellChange(rowIdx, 'hari', newDays);
+  const togglePredefinedActivity = (activity: string) => {
+    const exists = rows.some((row) => row.nama_kegiatan === activity);
+    if (exists) {
+      updateRows(rows.filter((row) => row.nama_kegiatan !== activity));
+      return;
+    }
+    updateRows([...rows, { nama_kegiatan: activity, hari: [] }]);
   };
 
-  const handleAddRow = () => onChange([...rows, { nama_kegiatan: '', hari: [] }]);
+  const togglePredefinedDay = (activity: string, day: string) => {
+    updateRows(
+      rows.map((row) =>
+        row.nama_kegiatan === activity
+          ? { ...row, hari: toggleDays(row.hari || [], day) }
+          : row
+      )
+    );
+  };
 
-  const handleRemoveRow = (idx: number) => {
-    if (rows.length <= 1) return;
-    onChange(rows.filter((_: any, i: number) => i !== idx));
+  const addCustomRow = () => updateRows([...rows, { nama_kegiatan: '', hari: [] }]);
+
+  const removeCustomRow = (index: number) => {
+    const nextCustomRows = customRows.filter((_, i) => i !== index);
+    const predefinedRows = rows.filter((row) => predefinedOptions.includes(row.nama_kegiatan));
+    updateRows([...predefinedRows, ...nextCustomRows]);
   };
 
   return (
     <div className="space-y-3">
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse border text-sm">
-          <thead>
-            <tr>
-              <th className="border p-2 bg-muted text-center font-medium w-10">No</th>
-              <th className="border p-2 bg-muted text-left font-medium">KEGIATAN</th>
-              <th className="border p-2 bg-muted text-left font-medium">HARI</th>
-              <th className="border p-2 bg-muted w-10" />
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, idx) => (
-              <tr key={idx}>
-                <td className="border p-2 text-center text-muted-foreground">{idx + 1}</td>
-                {/* Nama Kegiatan — text input */}
-                <td className="border p-1">
-                  <Input
-                    value={row.nama_kegiatan}
-                    onChange={(e) => handleCellChange(idx, 'nama_kegiatan', e.target.value)}
-                    placeholder="Nama kegiatan"
-                    className="h-8 border-0 focus-visible:ring-1"
-                  />
-                </td>
-                {/* Hari — multi-select checkboxes */}
-                <td className="border p-2">
-                  <div className="flex flex-wrap gap-1">
-                    {DAY_OPTIONS.map((day) => {
-                      const isSelected = (row.hari || []).includes(day);
+      {usesPredefinedActivities ? (
+        <div className="space-y-3 rounded-lg border p-4">
+          <div>
+            <p className="text-sm font-semibold">Daftar Kegiatan</p>
+            <p className="text-xs text-muted-foreground">Pilih kegiatan, lalu tentukan hari pelaksanaannya.</p>
+          </div>
+          {predefinedOptions.map((activity) => {
+            const selectedRow = rows.find((row) => row.nama_kegiatan === activity);
+            const isSelected = !!selectedRow;
+            return (
+              <div key={activity} className="rounded-lg border bg-card p-3">
+                <button
+                  type="button"
+                  onClick={() => togglePredefinedActivity(activity)}
+                  className="flex w-full items-center gap-3 text-left"
+                >
+                  <div className={cn(
+                    'flex h-5 w-5 items-center justify-center rounded border-2 text-xs',
+                    isSelected ? 'border-primary bg-primary text-white' : 'border-muted-foreground/40'
+                  )}>
+                    {isSelected ? '✓' : ''}
+                  </div>
+                  <span className="text-sm font-medium">{activity}</span>
+                </button>
+                {isSelected ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {dayOptions.map((day) => {
+                      const daySelected = (selectedRow.hari || []).includes(day);
                       return (
-                        <label
-                          key={day}
+                        <button
+                          key={`${activity}-${day}`}
+                          type="button"
+                          onClick={() => togglePredefinedDay(activity, day)}
                           className={cn(
-                            'inline-flex items-center gap-1 px-2 py-1 rounded text-xs cursor-pointer transition-colors',
-                            isSelected
-                              ? 'bg-primary text-white'
-                              : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                            'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                            daySelected
+                              ? 'border-primary bg-primary text-white'
+                              : 'border-border bg-muted text-muted-foreground hover:bg-muted/80'
                           )}
                         >
-                          <Checkbox
-                            checked={isSelected}
-                            onCheckedChange={() => toggleDay(idx, day)}
-                            className="sr-only"
-                          />
                           {day.substring(0, 3)}
-                        </label>
+                        </button>
                       );
                     })}
                   </div>
-                </td>
-                <td className="border p-1 text-center">
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveRow(idx)}
-                    disabled={rows.length <= 1}
-                    className="text-destructive hover:text-destructive/80 disabled:opacity-30 text-lg leading-none px-1"
-                    aria-label="Hapus baris"
-                  >
-                    ×
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
 
-      <button
-        type="button"
-        onClick={handleAddRow}
-        className="text-sm text-primary hover:underline flex items-center gap-1"
-      >
-        + Tambah baris
-      </button>
+      {allowCustom ? (
+        <>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse border text-sm">
+              <thead>
+                <tr>
+                  <th className="border p-2 bg-muted text-center font-medium w-10">No</th>
+                  <th className="border p-2 bg-muted text-left font-medium">KEGIATAN</th>
+                  <th className="border p-2 bg-muted text-left font-medium">HARI</th>
+                  <th className="border p-2 bg-muted w-10" />
+                </tr>
+              </thead>
+              <tbody>
+                {customRows.map((row, idx) => (
+                  <tr key={`custom-${idx}`}>
+                    <td className="border p-2 text-center text-muted-foreground">{idx + 1}</td>
+                    <td className="border p-1">
+                      <Input
+                        value={row.nama_kegiatan}
+                        onChange={(e) => updateCustomRow(idx, { nama_kegiatan: e.target.value })}
+                        placeholder="Nama kegiatan"
+                        className="h-8 border-0 focus-visible:ring-1"
+                      />
+                    </td>
+                    <td className="border p-2">
+                      <div className="flex flex-wrap gap-1">
+                        {dayOptions.map((day) => {
+                          const isSelected = (row.hari || []).includes(day);
+                          return (
+                            <label
+                              key={`${idx}-${day}`}
+                              className={cn(
+                                'inline-flex items-center gap-1 px-2 py-1 rounded text-xs cursor-pointer transition-colors',
+                                isSelected
+                                  ? 'bg-primary text-white'
+                                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                              )}
+                            >
+                              <Checkbox
+                                checked={isSelected}
+                                onCheckedChange={() => updateCustomRow(idx, { hari: toggleDays(row.hari || [], day) })}
+                                className="sr-only"
+                              />
+                              {day.substring(0, 3)}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </td>
+                    <td className="border p-1 text-center">
+                      <button
+                        type="button"
+                        onClick={() => removeCustomRow(idx)}
+                        className="text-destructive hover:text-destructive/80 text-lg leading-none px-1"
+                        aria-label="Hapus baris"
+                      >
+                        ×
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <button
+            type="button"
+            onClick={addCustomRow}
+            className="text-sm text-primary hover:underline flex items-center gap-1"
+          >
+            + Tambah baris
+          </button>
+        </>
+      ) : null}
 
       {error && <p className="text-sm text-destructive">{error}</p>}
     </div>

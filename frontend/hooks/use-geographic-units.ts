@@ -80,7 +80,10 @@ export function useGeographicUnits(params: {
     queryKey: ['geographic-units', params],
     queryFn: () => fetchGeographicUnits(params),
     enabled: params.enabled !== false,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
 }
 
@@ -188,12 +191,24 @@ export function useDesa(kecamatanId?: number) {
   });
 }
 
-const KEBUMEN_ID = 2;
-
 export function useKebumenKecamatan() {
-  return useGeographicUnits({
-    level: 'KECAMATAN',
-    parent: KEBUMEN_ID,
+  const { data: kabupatenList = [], isLoading: isLoadingKabupaten } = useGeographicUnits({
+    level: 'KABUPATEN_KOTA',
     enabled: true,
   });
+
+  const kebumen = kabupatenList.find(
+    (unit) => unit.code === '3305' || unit.name.toLowerCase() === 'kebumen'
+  );
+
+  const kecamatanQuery = useGeographicUnits({
+    level: 'KECAMATAN',
+    parent: kebumen?.id,
+    enabled: !!kebumen?.id,
+  });
+
+  return {
+    ...kecamatanQuery,
+    isLoading: isLoadingKabupaten || kecamatanQuery.isLoading,
+  };
 }

@@ -24,6 +24,7 @@ import { apiClient } from '../services/api';
 import { database } from '../services/database';
 import NetInfo from '@react-native-community/netinfo';
 import { useSettings, useTheme, useFontScale } from '../contexts/SettingsContext';
+import { prepareImageForUpload } from '../lib/upload-image';
 import type {
   SurveyTemplate,
   QuestionSection,
@@ -44,6 +45,13 @@ import {
 const toSentenceCase = (text: string): string => {
   if (!text) return text;
   return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
+};
+
+const formatTemplateName = (name: string): string => {
+  if (/ommha/i.test(name)) {
+    return 'Kuisioner OMMHA (One Map for Mental Health)';
+  }
+  return toSentenceCase(name);
 };
 
 const toUpper = (text: string): string => {
@@ -87,14 +95,27 @@ const formatGpsCoord = (gps: { latitude: number; longitude: number; accuracy?: n
   return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
 };
 
+const formatDisplayDate = (value?: string | null): string => {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+};
+
 interface Service {
   id: number;
   name: string;
   city?: string;
+  province?: string;
   kecamatan?: string;
   kategori_fasilitas?: 'KESEHATAN' | 'NON_KESEHATAN' | '';
   kategori_fasilitas_display?: string;
   mtc_name?: string;
+  bsic_code?: string;
   bsic_name?: string;
   service_type_name?: string;
 }
@@ -179,6 +200,103 @@ const parseDateInputValue = (value?: string): Date => {
     return new Date(year, month - 1, day);
   }
   return new Date();
+};
+
+const FORCE_REQUIRED_ANSWER_TYPES = new Set<Question['answer_type']>([
+  'STAFF_TABLE',
+  'INTERVENTION_MATRIX',
+  'MATRIX_KEGIATAN',
+]);
+
+const isBlankValue = (value: any) => (
+  value === null
+  || value === undefined
+  || value === ''
+  || (typeof value === 'string' && value.trim() === '')
+  || (Array.isArray(value) && value.length === 0)
+);
+
+const isQuestionRequired = (question: Question) => (
+  question.is_required || FORCE_REQUIRED_ANSWER_TYPES.has(question.answer_type)
+);
+
+const isSocialMediaDetailQuestion = (questionCode: string) => (
+  questionCode === 'IQC' || questionCode === 'SIQC'
+);
+
+const hasFilledValue = (value: any): boolean => {
+  if (isBlankValue(value)) return false;
+  if (Array.isArray(value)) return value.some((item) => hasFilledValue(item));
+  if (typeof value === 'object') return Object.values(value).some((item) => hasFilledValue(item));
+  return true;
+};
+
+const hasCompleteStaffTable = (question: Question, value: any): boolean => {
+  const config = question.table_config;
+
+  if (config?.rows?.length) {
+    const columns = config.columns?.length
+      ? config.columns
+      : [
+          { code: 'LAKI_LAKI' },
+          { code: 'PEREMPUAN' },
+        ];
+    if (!value || Array.isArray(value) || typeof value !== 'object') return false;
+
+    return config.rows.every((row) =>
+      columns.every((col) => !isBlankValue(value[row.code]?.[col.code]))
+    );
+  }
+
+  if (!Array.isArray(value) || value.length === 0) return false;
+  return value.every((row) =>
+    !isBlankValue(row?.jabatan)
+    && !isBlankValue(row?.laki)
+    && !isBlankValue(row?.perempuan)
+  );
+};
+
+const hasCompleteMatrixKegiatan = (value: any): boolean => {
+  if (!Array.isArray(value) || value.length === 0) return false;
+  return value.every((row) =>
+    !isBlankValue(row?.nama_kegiatan)
+    && Array.isArray(row?.hari)
+    && row.hari.length > 0
+  );
+};
+
+const hasCompleteInterventionMatrix = (question: Question, value: any): boolean => {
+  const config = question.table_config;
+  const hasSubQuestions = Array.isArray(config?.sub_questions) && config.sub_questions.length > 0;
+
+  if (hasSubQuestions) {
+    if (!Array.isArray(value) || value.length === 0) return false;
+    return value.some((row) =>
+      !isBlankValue(row?.label)
+      && config!.sub_questions!.some((subQuestion) => hasFilledValue(row?.[subQuestion.code]))
+    );
+  }
+
+  if (!value || Array.isArray(value) || typeof value !== 'object') return false;
+  return Object.values(value).some((row: any) => row?.selected && hasFilledValue(row));
+};
+
+const getRequiredError = (question: Question, value: any): string | null => {
+  if (!isQuestionRequired(question)) return null;
+
+  if (question.answer_type === 'STAFF_TABLE') {
+    return hasCompleteStaffTable(question, value) ? null : 'Tabel staf wajib diisi lengkap';
+  }
+
+  if (question.answer_type === 'MATRIX_KEGIATAN') {
+    return hasCompleteMatrixKegiatan(value) ? null : 'Matrix wajib diisi lengkap';
+  }
+
+  if (question.answer_type === 'INTERVENTION_MATRIX') {
+    return hasCompleteInterventionMatrix(question, value) ? null : 'Matrix wajib diisi';
+  }
+
+  return isBlankValue(value) ? 'Pertanyaan ini wajib diisi' : null;
 };
 
 // ── InterventionMatrixNewFormat ───────────────────────────────────────────────
@@ -509,7 +627,6 @@ export default function DynamicSurveyFormScreen({
   const [finalGps, setFinalGps] = useState<{ latitude: number; longitude: number; accuracy: number | null } | null>(null);
 
   // Simple confirmation screen before final submit
-  const [showConfirmScreen, setShowConfirmScreen] = useState(false);
 
   // Resume position for edit mode: find the last answered question
   const [resumeFromSection, setResumeFromSection] = useState<number | null>(null);
@@ -526,9 +643,6 @@ export default function DynamicSurveyFormScreen({
 
   // Local SQLite row id for this survey (set after first local save)
   const [localSurveyId, setLocalSurveyId] = useState<number | null>(null);
-  // Server response id for this survey. This is updated after a draft is synced so
-  // submit can promote the same record instead of creating a second one.
-  const [serverResponseId, setServerResponseId] = useState<number | null>(responseId ?? null);
 
   // Survey duration tracking - started_at captured when surveyor begins questions
   const [startedAt, setStartedAt] = useState<string | null>(null);
@@ -539,10 +653,6 @@ export default function DynamicSurveyFormScreen({
   useEffect(() => {
     loadData();
     return () => { Speech.stop(); };
-  }, [responseId]);
-
-  useEffect(() => {
-    setServerResponseId(responseId ?? null);
   }, [responseId]);
 
   // Reset question index when section changes — but not on initial resume from edit
@@ -677,22 +787,26 @@ export default function DynamicSurveyFormScreen({
         }
       };
 
+      const KEBUMEN_KECAMATAN_CACHE_PARENT = 0;
+
       const loadKecamatan = async () => {
         if (isOnline) {
           try {
             const kecData = await apiClient.get<PaginatedResponse<{ id: number; name: string }>>(
               '/surveys/geographic-units/',
-              { level: 'KECAMATAN', parent: 2, page_size: 100 }
+              { level: 'KECAMATAN', page_size: 500 }
             );
-            const kecResults = Array.isArray(kecData?.results) ? kecData.results : [];
+            const kecResults = (Array.isArray(kecData?.results) ? kecData.results : []).filter(
+              (item: any) => !item.parent_name || String(item.parent_name).toLowerCase() === 'kebumen'
+            );
             setKecamatanList(kecResults);
-            await database.saveGeographicUnits('KECAMATAN', 2, kecResults);
+            await database.saveGeographicUnits('KECAMATAN', KEBUMEN_KECAMATAN_CACHE_PARENT, kecResults);
             return;
           } catch {
             // Fall back to cache below.
           }
         }
-        const cached = await database.getGeographicUnits('KECAMATAN', 2);
+        const cached = await database.getGeographicUnits('KECAMATAN', KEBUMEN_KECAMATAN_CACHE_PARENT);
         setKecamatanList(cached);
       };
 
@@ -731,9 +845,6 @@ export default function DynamicSurveyFormScreen({
         if (!local) return false;
 
         setLocalSurveyId(Number(local.id));
-        if (typeof local.server_id === 'number') {
-          setServerResponseId(local.server_id);
-        }
         if (local.template_id) tplId = local.template_id;
         if (local.survey_date) setSurveyDate(local.survey_date);
         savedLatitude = typeof local.gps_latitude === 'number' && !isNaN(local.gps_latitude) ? local.gps_latitude : null;
@@ -764,8 +875,6 @@ export default function DynamicSurveyFormScreen({
         const localOnlyId = responseId < 0 ? Math.abs(responseId) : null;
         if (localOnlyId) {
           await loadLocalDraft(localOnlyId);
-        } else {
-          setServerResponseId(responseId);
         }
         if (isOnline && !localOnlyId) {
           try {
@@ -987,26 +1096,15 @@ export default function DynamicSurveyFormScreen({
     }
   };
 
-  // Detect detail questions. Most detail codes end with a letter (RQA, RQF, IQM),
-  // but some follow-up detail questions use a digit suffix (RQF1, DQB1, SRQF1).
-  const isDetailQuestion = (code: string) => /[A-Z]$/.test(code) || /Q[A-Z]\d+$/.test(code);
+  // Detect detail questions. Most detail codes end with a letter (RQA, IQC),
+  // while newer variants may use numbered suffixes (SOQB1, SRQF1, SDQB2).
+  // Keep root section codes like SDQ9/RQ10/SOQ8 out of detail-context storage.
+  const isDetailQuestion = (code: string) => /^[A-Z]+Q[A-Z]\d*$/.test(code) || /^SDBQ\d+$/.test(code);
 
   // Build questions map
   const questionsMap = useMemo(() => {
     if (!template?.sections) return new Map<number, Question>();
     return buildQuestionsMap(template.sections);
-  }, [template?.sections]);
-
-  const fileQuestionCodes = useMemo(() => {
-    const codes = new Set<string>();
-    template?.sections?.forEach((section) => {
-      section.questions?.forEach((question) => {
-        if (question.answer_type === 'FILE') {
-          codes.add(question.code);
-        }
-      });
-    });
-    return codes;
   }, [template?.sections]);
 
   // Resolved answers: map all "ctx|code" prefixed keys → "code" so flow conditions work
@@ -1036,6 +1134,112 @@ export default function DynamicSurveyFormScreen({
     }
     return getActiveSections(template.sections, resolvedAnswers, questionsMap);
   }, [template?.sections, resolvedAnswers, questionsMap]);
+
+  const summaryClassificationValue = useMemo(() => {
+    const allQuestions = template?.sections?.flatMap((section) => section.questions || []) ?? [];
+    const isPlaceholderText = (value: string) => /^(tbd|to be determined)$/i.test(value.trim());
+
+    const getQuestionByCode = (questionCode: string) => allQuestions.find((q) => q.code === questionCode);
+    const uniqueJoined = (items: string[]) => {
+      const unique = Array.from(new Set(items.map((item) => item.trim()).filter(Boolean)));
+      return unique.length > 0 ? unique.join(', ') : '—';
+    };
+    const getAnswerValue = (questionCode: string) => {
+      const storageKey = Object.keys(resolvedAnswers).find((key) => key === questionCode || key.endsWith(`|${questionCode}`));
+      if (!storageKey) return null;
+      return resolvedAnswers[storageKey];
+    };
+
+    const mtcEntries = Object.entries(resolvedAnswers).flatMap(([storageKey, rawValue]) => {
+      const questionCode = storageKey.includes('|') ? storageKey.split('|', 2)[1] : storageKey;
+      const question = getQuestionByCode(questionCode);
+      if (!question) return [];
+
+      const values = Array.isArray(rawValue) ? rawValue : [rawValue];
+      return values.flatMap((value) => {
+        if (value === null || value === undefined) return [];
+        const stringValue = String(value).trim();
+        if (!stringValue || isPlaceholderText(stringValue)) return [];
+
+        const choice = question.choices?.find((item) => String(item.value) === stringValue);
+        const display = choice?.mtc_code_display?.trim() || '';
+        if (!display) return [];
+
+        const [codePart, labelPart] = display.split(' — ', 2);
+        const code = codePart?.trim() || '';
+        const title = labelPart?.trim() ? `${code} — ${labelPart.trim()}` : display;
+        if (!code) return [];
+
+        return [{ code, title }];
+      });
+    });
+
+    const uniqueMtcEntries = Array.from(
+      new Map(mtcEntries.map((entry) => [entry.code, entry])).values()
+    );
+
+    const leafMtcEntries = uniqueMtcEntries.filter((entry) => (
+      !uniqueMtcEntries.some((other) => other.code !== entry.code && other.code.startsWith(entry.code))
+    ));
+
+    const q3 = getQuestionByCode('Q3');
+    const q3RawValue = getAnswerValue('Q3');
+    const q3Values = Array.isArray(q3RawValue) ? q3RawValue : [q3RawValue];
+    const q3Label = q3Values.flatMap((value) => {
+      if (value === null || value === undefined) return [];
+      const stringValue = String(value).trim();
+      if (!stringValue || isPlaceholderText(stringValue)) return [];
+      const choice = q3?.choices?.find((item) => String(item.value) === stringValue);
+      const label = choice?.label?.trim() || stringValue;
+      return isPlaceholderText(label) ? [] : [label];
+    })[0] || '';
+
+    const klasifikasi = leafMtcEntries.length > 0
+      ? uniqueJoined(leafMtcEntries.map((entry) => entry.title))
+      : (/^kesehatan$/i.test(q3Label) ? 'FASKES' : 'NON FASKES');
+
+    const q4 = getQuestionByCode('Q4');
+    const q4RawValue = getAnswerValue('Q4');
+    const q4Values = Array.isArray(q4RawValue) ? q4RawValue : [q4RawValue];
+    const bentukKelembagaan = uniqueJoined(
+      q4Values.flatMap((rawValue) => {
+        if (rawValue === null || rawValue === undefined) return [];
+        const values = Array.isArray(rawValue) ? rawValue : [rawValue];
+        return values.flatMap((value) => {
+          const stringValue = String(value).trim();
+          if (!stringValue || isPlaceholderText(stringValue)) return [];
+          const choice = q4?.choices?.find((item) => String(item.value) === stringValue);
+          const label = choice?.label?.trim() || stringValue;
+          return isPlaceholderText(label) ? [] : [label];
+        });
+      })
+    );
+
+    return {
+      klasifikasi,
+      bentukKelembagaan: bentukKelembagaan === '—' ? (selectedService?.kategori_fasilitas_display || '—') : bentukKelembagaan,
+    };
+  }, [resolvedAnswers, selectedService?.kategori_fasilitas_display, template?.sections]);
+
+  const surveySummary = useMemo(() => ([
+    { label: 'Nama Fasilitas', value: selectedService?.name || '—' },
+    {
+      label: 'Lokasi',
+      value: [selectedService?.city, selectedService?.province].filter(Boolean).join(', ') || '—',
+    },
+    { label: 'Klasifikasi', value: summaryClassificationValue.klasifikasi },
+    { label: 'Bentuk Kelembagaan', value: summaryClassificationValue.bentukKelembagaan },
+    { label: 'Tanggal Survei', value: formatDisplayDate(surveyDate) },
+    { label: 'Status', value: 'Tersimpan' },
+  ]), [
+    formatDisplayDate,
+    selectedService?.city,
+    selectedService?.name,
+    selectedService?.province,
+    surveyDate,
+    summaryClassificationValue.bentukKelembagaan,
+    summaryClassificationValue.klasifikasi,
+  ]);
 
   // Derive currentSectionIndex from currentSectionId — this survives activeSections recomputation
   // when answers change (prevents navigation to wrong section after activeSections recalculates)
@@ -1072,6 +1276,11 @@ export default function DynamicSurveyFormScreen({
   // Current flow item helpers for one-per-screen layout
   const totalItemsInSection = activeFlowItems.length;
   const currentFlowItem = activeFlowItems[currentQuestionIndex] ?? null;
+  const nextFlowItem = activeFlowItems[currentQuestionIndex + 1] ?? null;
+  const isLastQuestionBeforeEnd =
+    currentFlowItem?.kind === 'question' &&
+    nextFlowItem?.kind === 'end_survey' &&
+    currentSectionIndex >= activeSections.length - 1;
 
   // The active Question (null when current item is a hint page)
   const currentQ =
@@ -1120,13 +1329,6 @@ export default function DynamicSurveyFormScreen({
       }
     }
   }, [currentSectionIndex, setupComplete]);
-
-  // Auto-save draft when confirm screen appears so answers are safe before submit
-  useEffect(() => {
-    if (showConfirmScreen) {
-      handleSave(false, true);
-    }
-  }, [showConfirmScreen]);
 
   // ctxOverride: the per-question MTC context (from questionContexts). Falls back to
   // currentMtcContext when not provided. Answers always accumulate — no context clearing.
@@ -1281,10 +1483,9 @@ export default function DynamicSurveyFormScreen({
         ? `${ctx}|${question.code}`
         : question.code;
       const answer = answers[storageKey];
-      if (question.is_required) {
-        if (answer === null || answer === undefined || answer === '' || (Array.isArray(answer) && answer.length === 0)) {
-          newErrors[storageKey] = 'Pertanyaan ini wajib diisi';
-        }
+      const requiredError = getRequiredError(question, answer);
+      if (requiredError) {
+        newErrors[storageKey] = requiredError;
       }
 
       const otherInputChoices = selectedOtherInputChoices(question, answer);
@@ -1326,10 +1527,10 @@ export default function DynamicSurveyFormScreen({
       ? `${ctx}|${question.code}`
       : question.code;
     const answer = answers[storageKey];
-    if (question.is_required) {
-      if (answer === null || answer === undefined || answer === '' || (Array.isArray(answer) && answer.length === 0)) {
-        return false;
-      }
+    const requiredError = getRequiredError(question, answer);
+    if (requiredError) {
+      setErrors((prev) => ({ ...prev, [storageKey]: requiredError }));
+      return false;
     }
     const otherInputChoices = selectedOtherInputChoices(question, answer);
     for (const otherInputChoice of otherInputChoices) {
@@ -1392,9 +1593,9 @@ export default function DynamicSurveyFormScreen({
       return -1;
     };
 
-    // If current item is END_SURVEY sentinel, go straight to confirm/submit screen
+    // If current item is END_SURVEY sentinel, save immediately and show thank-you summary
     if (currentFlowItem?.kind === 'end_survey') {
-      setShowConfirmScreen(true);
+      handleSave(true);
       return;
     }
 
@@ -1408,7 +1609,7 @@ export default function DynamicSurveyFormScreen({
       } else {
         const nextSectionIdx = findNextNonEmptySection(currentSectionIndex + 1);
         if (nextSectionIdx === -1) {
-          setShowConfirmScreen(true);
+          handleSave(true);
         } else {
           const nextSection = activeSections[nextSectionIdx];
           if (nextSection?.introduction_text) {
@@ -1444,7 +1645,7 @@ export default function DynamicSurveyFormScreen({
     } else {
       const nextSectionIdx = findNextNonEmptySection(currentSectionIndex + 1);
       if (nextSectionIdx === -1) {
-        setShowConfirmScreen(true);
+        handleSave(true);
       } else {
         const nextSection = activeSections[nextSectionIdx];
         // Always skip section intro when using "Next" - go directly to first question
@@ -1497,6 +1698,7 @@ export default function DynamicSurveyFormScreen({
       mediaTypes: ['images'],
       allowsEditing: false,
       quality: 0.8,
+      base64: true,
     });
 
     if (result.canceled || !result.assets?.[0]) {
@@ -1504,56 +1706,13 @@ export default function DynamicSurveyFormScreen({
     }
 
     const asset = result.assets[0];
+    const preparedImage = await prepareImageForUpload(asset, questionCode);
     handleAnswerChange(questionCode, {
-      uri: asset.uri,
-      name: asset.fileName || asset.uri.split('/').pop() || `${questionCode}_${Date.now()}.jpg`,
-      type: asset.mimeType || 'image/jpeg',
+      uri: preparedImage.uri,
+      name: preparedImage.fileName,
+      type: preparedImage.mimeType,
       uploaded: false,
     }, ctx);
-  };
-
-  const uploadPendingFileAnswers = async (responseServerId: number, answerMap: SurveyAnswers) => {
-    const uploadedUpdates: Array<[string, FileAnswerValue]> = [];
-
-    for (const [storageKey, rawValue] of Object.entries(answerMap)) {
-      if (storageKey.endsWith('__other_text')) continue;
-
-      const questionCode = storageKey.includes('|') ? storageKey.split('|', 2)[1] : storageKey;
-      const contextKey = storageKey.includes('|') ? storageKey.split('|', 2)[0] : '';
-      if (!fileQuestionCodes.has(questionCode) || !isPendingLocalFile(rawValue)) continue;
-
-      const file = getFileAnswerObject(rawValue);
-      if (!file?.uri) continue;
-
-      const uploaded = await apiClient.uploadResponseAnswerFile(
-        responseServerId,
-        questionCode,
-        file.uri,
-        contextKey
-      );
-
-      uploadedUpdates.push([
-        storageKey,
-        {
-          uri: file.uri,
-          file_url: uploaded.file_url || uploaded.file,
-          file: uploaded.file,
-          name: file.name || getFileDisplayName(uploaded.file_url || uploaded.file || file.uri),
-          type: file.type,
-          uploaded: true,
-        },
-      ]);
-    }
-
-    if (uploadedUpdates.length > 0) {
-      setAnswers((prev) => {
-        const next = { ...prev };
-        for (const [key, value] of uploadedUpdates) {
-          next[key] = value;
-        }
-        return next;
-      });
-    }
   };
 
   const handleSave = async (submit: boolean = false, silent: boolean = false) => {
@@ -1569,15 +1728,10 @@ export default function DynamicSurveyFormScreen({
     let reusedExistingLocalDraftId: number | null = null;
     if (!responseId && !localSurveyId) {
       const existing = await database.getExistingSurveyForService(selectedService.id, template!.id);
-      if (existing) {
-        reusedExistingLocalDraftId = Number((existing as any).id);
-        setLocalSurveyId(reusedExistingLocalDraftId);
-        const existingServerId =
-          typeof (existing as any).server_id === 'number' ? (existing as any).server_id : null;
-        if (existingServerId) {
-          setServerResponseId(existingServerId);
+        if (existing) {
+          reusedExistingLocalDraftId = Number((existing as any).id);
+          setLocalSurveyId(reusedExistingLocalDraftId);
         }
-      }
     }
 
     if (submit) {
@@ -1594,11 +1748,10 @@ export default function DynamicSurveyFormScreen({
             ? `${ctx}|${question.code}`
             : question.code;
           const answer = answers[storageKey];
-          if (question.is_required) {
-            if (answer === null || answer === undefined || answer === '' || (Array.isArray(answer) && answer.length === 0)) {
-              allErrors[storageKey] = 'Pertanyaan ini wajib diisi';
-              if (firstFailedSection === -1) firstFailedSection = i;
-            }
+          const requiredError = getRequiredError(question, answer);
+          if (requiredError) {
+            allErrors[storageKey] = requiredError;
+            if (firstFailedSection === -1) firstFailedSection = i;
           }
           const otherInputChoices = selectedOtherInputChoices(question, answer);
           for (const otherInputChoice of otherInputChoices) {
@@ -1649,18 +1802,20 @@ export default function DynamicSurveyFormScreen({
 
     setSaving(true);
     try {
-      const prunedDraftData = pruneUnreachableDraftData(answers, otherTexts);
-      if (Object.keys(prunedDraftData.answers).length !== Object.keys(answers).length) {
-        setAnswers(prunedDraftData.answers);
+      const draftData = submit
+        ? pruneUnreachableDraftData(answers, otherTexts)
+        : { answers, otherTexts };
+      if (submit && Object.keys(draftData.answers).length !== Object.keys(answers).length) {
+        setAnswers(draftData.answers);
       }
-      if (Object.keys(prunedDraftData.otherTexts).length !== Object.keys(otherTexts).length) {
-        setOtherTexts(prunedDraftData.otherTexts);
+      if (submit && Object.keys(draftData.otherTexts).length !== Object.keys(otherTexts).length) {
+        setOtherTexts(draftData.otherTexts);
       }
 
       // Merge otherTexts into answers with __other_text suffix
-      const answersWithOther = { ...prunedDraftData.answers };
+      const answersWithOther = { ...draftData.answers };
       const groupedChoiceTexts: Record<string, Record<string, string>> = {};
-      for (const [code, text] of Object.entries(prunedDraftData.otherTexts)) {
+      for (const [code, text] of Object.entries(draftData.otherTexts)) {
         if (!text) continue;
         const choiceMarker = '__choice_';
         const markerIndex = code.indexOf(choiceMarker);
@@ -1678,21 +1833,6 @@ export default function DynamicSurveyFormScreen({
       for (const [baseKey, values] of Object.entries(groupedChoiceTexts)) {
         answersWithOther[`${baseKey}__other_text`] = JSON.stringify(values);
       }
-      const fileAnswers = Object.fromEntries(
-        Object.entries(answersWithOther).filter(([key]) => {
-          if (key.endsWith('__other_text')) return false;
-          const code = key.includes('|') ? key.split('|', 2)[1] : key;
-          return fileQuestionCodes.has(code);
-        })
-      );
-      const payloadAnswers = Object.fromEntries(
-        Object.entries(answersWithOther).filter(([key]) => {
-          if (key.endsWith('__other_text')) return true;
-          const code = key.includes('|') ? key.split('|', 2)[1] : key;
-          return !fileQuestionCodes.has(code);
-        })
-      );
-
       const answersJson = JSON.stringify(answersWithOther);
 
       // ── 1. Always save to local SQLite first ────────────────────────────
@@ -1727,105 +1867,10 @@ export default function DynamicSurveyFormScreen({
         currentLocalId = newLocalId;
       }
 
-      let effectiveResponseId = serverResponseId;
-      if (!effectiveResponseId && currentLocalId) {
-        const localSurvey = await database.getSurvey(currentLocalId);
-        const localServerId =
-          localSurvey && typeof (localSurvey as any).server_id === 'number'
-            ? (localSurvey as any).server_id
-            : null;
-        if (localServerId) {
-          effectiveResponseId = localServerId;
-          setServerResponseId(localServerId);
-        }
-      }
-
-      // ── 2. Try to sync to server if online ─────
-      // Both drafts and submits are synced to server for backup.
-      // Draft saves send verification_status=DRAFT so they stay as draft on server.
-      const netState = await NetInfo.fetch();
-      const isOnline = !!(netState.isConnected && netState.isInternetReachable);
-
-      if (isOnline) {
-        try {
-          const payload: Record<string, unknown> = {
-            template: template!.id,
-            service: selectedService.id,
-            survey_date: surveyDate,
-            answers: payloadAnswers,
-          };
-          // Include started_at if captured (for new surveys or resumed ones)
-          if (startedAt) {
-            payload.started_at = startedAt;
-          }
-          if (finalGps) {
-            payload.gps_latitude = finalGps.latitude;
-            payload.gps_longitude = finalGps.longitude;
-          }
-
-          // If saving as draft, explicitly send DRAFT status (otherwise backend auto-submits)
-          if (!submit) {
-            payload.verification_status = 'DRAFT';
-          }
-
-          if (effectiveResponseId) {
-            // When submitting an existing draft, use the dedicated submit endpoint
-            if (submit) {
-              await apiClient.patch(`/surveys/responses/${effectiveResponseId}/`, {
-                ...payload,
-                verification_status: 'DRAFT',
-                prune_missing_answers: true,
-              });
-              if (Object.keys(fileAnswers).length > 0) {
-                await uploadPendingFileAnswers(effectiveResponseId, fileAnswers);
-              }
-              await apiClient.post(`/surveys/responses/${effectiveResponseId}/submit/`);
-            } else {
-              await apiClient.patch(`/surveys/responses/${effectiveResponseId}/`, {
-                ...payload,
-                prune_missing_answers: true,
-              });
-              if (Object.keys(fileAnswers).length > 0) {
-                await uploadPendingFileAnswers(effectiveResponseId, fileAnswers);
-              }
-            }
-            if (currentLocalId) {
-              await database.markSurveySynced(currentLocalId, effectiveResponseId);
-            }
-          } else {
-            // No responseId means we're creating new - send with SUBMITTED status if submitting
-            if (submit) {
-              payload.verification_status = Object.keys(fileAnswers).length > 0 ? 'DRAFT' : 'SUBMITTED';
-            }
-            const created = await apiClient.post('/surveys/responses/', payload) as any;
-            if (created?.id) {
-              setServerResponseId(created.id);
-              if (currentLocalId) {
-                await database.setSurveyServerId(currentLocalId, created.id);
-              }
-              if (Object.keys(fileAnswers).length > 0) {
-                await uploadPendingFileAnswers(created.id, fileAnswers);
-                if (submit) {
-                  await apiClient.post(`/surveys/responses/${created.id}/submit/`);
-                }
-              }
-            }
-            if (currentLocalId) {
-              await database.markSurveySynced(currentLocalId, created?.id);
-            }
-          }
-        } catch {
-          // Don't block - draft is still saved locally
-          if (!silent) {
-            Alert.alert('Peringatan', 'Survei disimpan lokal, gagal sync ke server.');
-          }
-        }
-      }
-
       if (submit) {
         setIsSubmitted(true);
       } else if (!silent) {
-        Alert.alert('Berhasil', isOnline ? 'Survei berhasil disimpan' : 'Survei disimpan lokal, akan dikirim saat online');
+        Alert.alert('Berhasil', 'Survei disimpan di perangkat. Sinkronkan manual dari detail survei.');
         onSave();
       }
     } catch (err: any) {
@@ -1916,8 +1961,9 @@ export default function DynamicSurveyFormScreen({
 
   const renderQuestion = (question: Question, idx: number) => {
     const questionType = question.answer_type;
-    // Use introduction_text (backend field) as the help text between question and answer
-    const helpText = question.introduction_text?.trim() || question.keterangan?.trim();
+    // introduction_text is rendered only as a separate hint page.
+    // Inline helper text between the question and answer form is only keterangan.
+    const helpText = question.keterangan?.trim();
     const ctx = questionContexts[idx] ?? '';
     const storageKey = isDetailQuestion(question.code) && ctx
       ? `${ctx}|${question.code}`
@@ -1931,7 +1977,7 @@ export default function DynamicSurveyFormScreen({
         <View style={styles.questionHeader}>
           <Text style={[styles.questionText, { color: c.text, fontSize: fs(26) }]}>
             {toUpper(question.question_text)}
-            {question.is_required && <Text style={[styles.required, { color: '#ef4444' }]}> *</Text>}
+            {isQuestionRequired(question) && <Text style={[styles.required, { color: '#ef4444' }]}> *</Text>}
           </Text>
           {settings.ttsEnabled && (
             <TouchableOpacity
@@ -1950,7 +1996,7 @@ export default function DynamicSurveyFormScreen({
 
         {helpText ? (
           <Text style={[styles.helpText, { color: c.textSecondary, fontSize: fs(14), lineHeight: fs(20) }]}>
-            {toUpper(helpText)}
+            {helpText}
           </Text>
         ) : null}
 
@@ -2098,30 +2144,30 @@ export default function DynamicSurveyFormScreen({
                 styles.booleanOption,
                 {
                   backgroundColor: c.surface,
-                  borderColor: value === true ? '#03979D' : c.border,
+                  borderColor: value === true ? '#07579E' : c.border,
                 },
-                value === true && { backgroundColor: '#f0f9ff', borderColor: '#03979D' },
+                value === true && { backgroundColor: '#f0f9ff', borderColor: '#07579E' },
               ]}
               onPress={() => handleAnswerChange(question.code, true, ctx)}
             >
               <Text style={[
                 styles.booleanText,
                 { color: c.text },
-                value === true && { color: '#03979D', fontWeight: '700' },
+                value === true && { color: '#07579E', fontWeight: '700' },
               ]}>YA</Text>
               <TouchableOpacity
                 style={[
                   styles.choiceAudioBtn,
                   {
                     backgroundColor: c.surface,
-                    borderColor: speakingCode === `${question.code}_bool_ya` ? '#03979D' : c.border,
+                    borderColor: speakingCode === `${question.code}_bool_ya` ? '#07579E' : c.border,
                   },
-                  speakingCode === `${question.code}_bool_ya` && { backgroundColor: '#f0f9ff', borderColor: '#03979D' },
+                  speakingCode === `${question.code}_bool_ya` && { backgroundColor: '#f0f9ff', borderColor: '#07579E' },
                 ]}
                 onPress={(e) => { e.stopPropagation(); speakQuestion(`${question.code}_bool_ya`, 'Ya'); }}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
-                <MaterialIcons name="volume-up" size={18} color={speakingCode === `${question.code}_bool_ya` ? '#03979D' : c.textMuted} />
+                <MaterialIcons name="volume-up" size={18} color={speakingCode === `${question.code}_bool_ya` ? '#07579E' : c.textMuted} />
               </TouchableOpacity>
             </TouchableOpacity>
             <TouchableOpacity
@@ -2129,30 +2175,30 @@ export default function DynamicSurveyFormScreen({
                 styles.booleanOption,
                 {
                   backgroundColor: c.surface,
-                  borderColor: value === false ? '#03979D' : c.border,
+                  borderColor: value === false ? '#07579E' : c.border,
                 },
-                value === false && { backgroundColor: '#f0f9ff', borderColor: '#03979D' },
+                value === false && { backgroundColor: '#f0f9ff', borderColor: '#07579E' },
               ]}
               onPress={() => handleAnswerChange(question.code, false, ctx)}
             >
               <Text style={[
                 styles.booleanText,
                 { color: c.text },
-                value === false && { color: '#03979D', fontWeight: '700' },
+                value === false && { color: '#07579E', fontWeight: '700' },
               ]}>TIDAK</Text>
               <TouchableOpacity
                 style={[
                   styles.choiceAudioBtn,
                   {
                     backgroundColor: c.surface,
-                    borderColor: speakingCode === `${question.code}_bool_tidak` ? '#03979D' : c.border,
+                    borderColor: speakingCode === `${question.code}_bool_tidak` ? '#07579E' : c.border,
                   },
-                  speakingCode === `${question.code}_bool_tidak` && { backgroundColor: '#f0f9ff', borderColor: '#03979D' },
+                  speakingCode === `${question.code}_bool_tidak` && { backgroundColor: '#f0f9ff', borderColor: '#07579E' },
                 ]}
                 onPress={(e) => { e.stopPropagation(); speakQuestion(`${question.code}_bool_tidak`, 'Tidak'); }}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
-                <MaterialIcons name="volume-up" size={18} color={speakingCode === `${question.code}_bool_tidak` ? '#03979D' : c.textMuted} />
+                <MaterialIcons name="volume-up" size={18} color={speakingCode === `${question.code}_bool_tidak` ? '#07579E' : c.textMuted} />
               </TouchableOpacity>
             </TouchableOpacity>
           </View>
@@ -2234,7 +2280,13 @@ export default function DynamicSurveyFormScreen({
     }
   };
 
-  const renderOtherInput = (question: Question, choice: QuestionOption, otherTextKey: string, isDarkMode: boolean) => {
+  const renderOtherInput = (
+    question: Question,
+    choice: QuestionOption,
+    otherTextKey: string,
+    isDarkMode: boolean,
+    options: { showLabel?: boolean; fullWidth?: boolean } = {}
+  ) => {
     const otherInputType = getOtherInputType(question.code, choice);
     const choiceTextKey = `${otherTextKey}__choice_${choice.value}`;
     const currentValue = otherTexts[choiceTextKey] ?? otherTexts[otherTextKey] ?? '';
@@ -2244,28 +2296,27 @@ export default function DynamicSurveyFormScreen({
       borderColor: isDarkMode ? '#404040' : '#d1d5db',
       color: isDarkMode ? '#f5f5f5' : '#1A1A1A',
     };
-
-    if (otherInputType === 'date') {
-      return (
-        <TouchableOpacity
-          style={[
-            styles.otherInput,
-            inputColors,
-            { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-          ]}
-          onPress={() => setShowOtherDatePicker({ key: choiceTextKey, value: currentValue })}
-        >
-          <Text style={{ color: currentValue ? inputColors.color : (isDarkMode ? '#525252' : '#9ca3af'), fontSize: 16 }}>
-            {currentValue || placeholder}
-          </Text>
-          <MaterialIcons name="event" size={20} color={isDarkMode ? '#737373' : '#6b7280'} />
-        </TouchableOpacity>
-      );
-    }
-
-    return (
+    const inputStyle = [
+      styles.otherInput,
+      options.fullWidth && styles.otherInputFullWidth,
+      inputColors,
+    ];
+    const inputElement = otherInputType === 'date' ? (
+      <TouchableOpacity
+        style={[
+          ...inputStyle,
+          { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+        ]}
+        onPress={() => setShowOtherDatePicker({ key: choiceTextKey, value: currentValue })}
+      >
+        <Text style={{ color: currentValue ? inputColors.color : (isDarkMode ? '#525252' : '#9ca3af'), fontSize: 16 }}>
+          {currentValue || placeholder}
+        </Text>
+        <MaterialIcons name="event" size={20} color={isDarkMode ? '#737373' : '#6b7280'} />
+      </TouchableOpacity>
+    ) : (
       <TextInput
-        style={[styles.otherInput, inputColors]}
+        style={inputStyle}
         value={currentValue}
         onChangeText={(text) => setOtherTexts((prev) => ({ ...prev, [choiceTextKey]: text }))}
         placeholder={placeholder}
@@ -2273,6 +2324,19 @@ export default function DynamicSurveyFormScreen({
         keyboardType={getOtherInputKeyboardType(otherInputType)}
       />
     );
+
+    if (options.showLabel) {
+      return (
+        <View style={styles.otherInputGroup}>
+          <Text style={[styles.otherInputLabel, { color: isDarkMode ? '#d4d4d4' : '#374151' }]}>
+            {placeholder}
+          </Text>
+          {inputElement}
+        </View>
+      );
+    }
+
+    return inputElement;
   };
 
   const renderSingleChoice = (question: Question, value: any, ctx: string = '') => {
@@ -2287,6 +2351,7 @@ export default function DynamicSurveyFormScreen({
         {choices.map((choice) => {
           const choiceSpeakKey = `${question.code}_choice_${choice.value}`;
           const thisSelected = Array.isArray(value) ? value.includes(choice.value) : value === choice.value;
+          const useStackedOtherInput = isSocialMediaDetailQuestion(question.code);
           return (
           <View key={choice.value}>
             <TouchableOpacity
@@ -2294,7 +2359,7 @@ export default function DynamicSurveyFormScreen({
                 styles.choiceOption,
                 {
                   backgroundColor: isDark ? '#1f1f1f' : '#fff',
-                  borderColor: thisSelected ? '#03979D' : (isDark ? '#2e2e2e' : '#e5e7eb'),
+                  borderColor: thisSelected ? '#07579E' : (isDark ? '#2e2e2e' : '#e5e7eb'),
                 },
                 thisSelected && { backgroundColor: isDark ? '#1a2e2e' : '#f0f9ff' },
               ]}
@@ -2303,7 +2368,7 @@ export default function DynamicSurveyFormScreen({
               <View style={[
                 styles.radio,
                 {
-                  borderColor: thisSelected ? '#03979D' : (isDark ? '#404040' : '#d1d5db'),
+                  borderColor: thisSelected ? '#07579E' : (isDark ? '#404040' : '#d1d5db'),
                   borderRadius: 12,
                 },
               ]}>
@@ -2312,7 +2377,7 @@ export default function DynamicSurveyFormScreen({
               <Text style={[
                 styles.choiceLabel,
                 { flex: 1, color: isDark ? '#f5f5f5' : '#374151' },
-                thisSelected && { color: '#03979D', fontWeight: '700' },
+                thisSelected && { color: '#07579E', fontWeight: '700' },
               ]}>
                 {toUpper(choice.label)}
               </Text>
@@ -2321,17 +2386,23 @@ export default function DynamicSurveyFormScreen({
                   styles.choiceAudioBtn,
                   {
                     backgroundColor: isDark ? '#1f1f1f' : '#fff',
-                    borderColor: speakingCode === choiceSpeakKey ? '#03979D' : (isDark ? '#404040' : '#d1d5db'),
+                    borderColor: speakingCode === choiceSpeakKey ? '#07579E' : (isDark ? '#404040' : '#d1d5db'),
                   },
-                  speakingCode === choiceSpeakKey && { backgroundColor: isDark ? '#1a2e2e' : '#e6f7f7', borderColor: '#03979D' },
+                  speakingCode === choiceSpeakKey && { backgroundColor: isDark ? '#1a2e2e' : '#e6f7f7', borderColor: '#07579E' },
                 ]}
                 onPress={(e) => { e.stopPropagation(); speakQuestion(choiceSpeakKey, choice.label); }}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
-                <MaterialIcons name="volume-up" size={18} color={speakingCode === choiceSpeakKey ? '#03979D' : (isDark ? '#737373' : '#9ca3af')} />
+                <MaterialIcons name="volume-up" size={18} color={speakingCode === choiceSpeakKey ? '#07579E' : (isDark ? '#737373' : '#9ca3af')} />
               </TouchableOpacity>
             </TouchableOpacity>
-            {choice.has_other_input && thisSelected && renderOtherInput(question, choice, otherTextKey, isDark)}
+            {choice.has_other_input && thisSelected && renderOtherInput(
+              question,
+              choice,
+              otherTextKey,
+              isDark,
+              { showLabel: useStackedOtherInput, fullWidth: useStackedOtherInput }
+            )}
           </View>
           );
         })}
@@ -2363,53 +2434,62 @@ export default function DynamicSurveyFormScreen({
         {choices.map((choice) => {
           const isChecked = selectedValues.includes(choice.value);
           const choiceSpeakKey = `${question.code}_choice_${choice.value}`;
+          const useStackedOtherInput = isSocialMediaDetailQuestion(question.code);
           return (
-            <View key={choice.value} style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <TouchableOpacity
-                style={[
-                  styles.choiceOption,
-                  { flex: 1 },
-                  {
-                    backgroundColor: isDark ? '#1f1f1f' : '#fff',
-                    borderColor: isChecked ? '#03979D' : (isDark ? '#2e2e2e' : '#e5e7eb'),
-                  },
-                  isChecked && { backgroundColor: isDark ? '#1a2e2e' : '#f0f9ff' },
-                ]}
-                onPress={() => toggleChoice(choice.value)}
-              >
-                <View style={[
-                  styles.checkbox,
-                  { borderRadius: 4 },
-                  {
-                    borderColor: isChecked ? '#03979D' : (isDark ? '#404040' : '#d1d5db'),
-                    backgroundColor: isChecked ? '#03979D' : 'transparent',
-                  },
-                ]}>
-                  {isChecked && <MaterialIcons name="check" size={14} color="#fff" />}
-                </View>
-                <Text style={[
-                  styles.choiceLabel,
-                  { flex: 1, color: isDark ? '#f5f5f5' : '#374151' },
-                  isChecked && { color: '#03979D', fontWeight: '700' },
-                ]}>
-                  {toUpper(choice.label)}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.choiceAudioBtn,
-                  {
-                    backgroundColor: isDark ? '#1f1f1f' : '#fff',
-                    borderColor: speakingCode === choiceSpeakKey ? '#03979D' : (isDark ? '#404040' : '#d1d5db'),
-                  },
-                  speakingCode === choiceSpeakKey && { backgroundColor: isDark ? '#1a2e2e' : '#e6f7f7', borderColor: '#03979D' },
-                ]}
-                onPress={(e) => { e.stopPropagation(); speakQuestion(choiceSpeakKey, choice.label); }}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <MaterialIcons name="volume-up" size={18} color={speakingCode === choiceSpeakKey ? '#03979D' : (isDark ? '#737373' : '#9ca3af')} />
-              </TouchableOpacity>
-              {choice.has_other_input && isChecked && renderOtherInput(question, choice, otherTextKey, isDark)}
+            <View key={choice.value}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <TouchableOpacity
+                  style={[
+                    styles.choiceOption,
+                    { flex: 1 },
+                    {
+                      backgroundColor: isDark ? '#1f1f1f' : '#fff',
+                      borderColor: isChecked ? '#07579E' : (isDark ? '#2e2e2e' : '#e5e7eb'),
+                    },
+                    isChecked && { backgroundColor: isDark ? '#1a2e2e' : '#f0f9ff' },
+                  ]}
+                  onPress={() => toggleChoice(choice.value)}
+                >
+                  <View style={[
+                    styles.checkbox,
+                    { borderRadius: 4 },
+                    {
+                      borderColor: isChecked ? '#07579E' : (isDark ? '#404040' : '#d1d5db'),
+                      backgroundColor: isChecked ? '#07579E' : 'transparent',
+                    },
+                  ]}>
+                    {isChecked && <MaterialIcons name="check" size={14} color="#fff" />}
+                  </View>
+                  <Text style={[
+                    styles.choiceLabel,
+                    { flex: 1, color: isDark ? '#f5f5f5' : '#374151' },
+                    isChecked && { color: '#07579E', fontWeight: '700' },
+                  ]}>
+                    {toUpper(choice.label)}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.choiceAudioBtn,
+                    {
+                      backgroundColor: isDark ? '#1f1f1f' : '#fff',
+                      borderColor: speakingCode === choiceSpeakKey ? '#07579E' : (isDark ? '#404040' : '#d1d5db'),
+                    },
+                    speakingCode === choiceSpeakKey && { backgroundColor: isDark ? '#1a2e2e' : '#e6f7f7', borderColor: '#07579E' },
+                  ]}
+                  onPress={(e) => { e.stopPropagation(); speakQuestion(choiceSpeakKey, choice.label); }}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <MaterialIcons name="volume-up" size={18} color={speakingCode === choiceSpeakKey ? '#07579E' : (isDark ? '#737373' : '#9ca3af')} />
+                </TouchableOpacity>
+              </View>
+              {choice.has_other_input && isChecked && renderOtherInput(
+                question,
+                choice,
+                otherTextKey,
+                isDark,
+                { showLabel: useStackedOtherInput, fullWidth: useStackedOtherInput }
+              )}
             </View>
           );
         })}
@@ -2668,7 +2748,7 @@ export default function DynamicSurveyFormScreen({
             onPress={() => captureGPS(question.code, ctx)}
             disabled={capturingLocation}
           >
-            <MaterialIcons name="place" size={20} color="#03979D" />
+            <MaterialIcons name="place" size={20} color="#07579E" />
             <Text style={styles.locationButtonText}>
               {capturingLocation ? 'Menangkap...' : koordinat.latitude ? 'Perbarui Lokasi' : 'Dapatkan Lokasi'}
             </Text>
@@ -2716,7 +2796,7 @@ export default function DynamicSurveyFormScreen({
           }}
           disabled={capturingLocation}
         >
-          <MaterialIcons name="place" size={20} color="#03979D" />
+          <MaterialIcons name="place" size={20} color="#07579E" />
           <Text style={styles.locationButtonText}>
             {capturingLocation ? 'Menangkap...' : coords.latitude ? 'Perbarui Lokasi' : 'Dapatkan Lokasi'}
           </Text>
@@ -2761,7 +2841,7 @@ export default function DynamicSurveyFormScreen({
                 onPress={(e) => { e.stopPropagation(); speakQuestion(choiceSpeakKey, level.label); }}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
-                <MaterialIcons name="volume-up" size={18} color={speakingCode === choiceSpeakKey ? '#03979D' : '#9ca3af'} />
+                <MaterialIcons name="volume-up" size={18} color={speakingCode === choiceSpeakKey ? '#07579E' : '#9ca3af'} />
               </TouchableOpacity>
             </TouchableOpacity>
           );
@@ -2795,7 +2875,7 @@ export default function DynamicSurveyFormScreen({
           style={styles.filePickerButton}
           onPress={() => pickFileAnswer(question.code, ctx)}
         >
-          <MaterialIcons name="image" size={20} color="#03979D" />
+          <MaterialIcons name="image" size={20} color="#07579E" />
           <Text style={styles.filePickerButtonText}>
             {previewUri ? 'Ganti Gambar' : 'Pilih Gambar'}
           </Text>
@@ -3572,7 +3652,7 @@ export default function DynamicSurveyFormScreen({
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#03979D" />
+        <ActivityIndicator size="large" color="#07579E" />
         <Text style={styles.loadingText}>Memuat survei...</Text>
       </View>
     );
@@ -3635,7 +3715,7 @@ export default function DynamicSurveyFormScreen({
                 style={[
                   styles.filterTab,
                   { backgroundColor: isDark ? '#1f1f1f' : '#f5f6f7' },
-                  serviceFilter === filter && { backgroundColor: '#00979D' },
+                  serviceFilter === filter && { backgroundColor: '#07579E' },
                 ]}
                 onPress={() => setServiceFilter(filter)}
               >
@@ -3651,13 +3731,13 @@ export default function DynamicSurveyFormScreen({
 
           {/* Add New Service Button */}
           <TouchableOpacity
-            style={[styles.addServiceBtn, { backgroundColor: c.surface, borderColor: '#00979D' }]}
+            style={[styles.addServiceBtn, { backgroundColor: c.surface, borderColor: '#07579E' }]}
             onPress={() => {
               setShowServicePicker(false);
               setShowAddServiceModal(true);
             }}
           >
-            <MaterialIcons name="add-circle" size={20} color="#00979D" />
+            <MaterialIcons name="add-circle" size={20} color="#07579E" />
             <Text style={styles.addServiceBtnText}>Tambah Fasilitas Baru</Text>
           </TouchableOpacity>
 
@@ -3680,7 +3760,7 @@ export default function DynamicSurveyFormScreen({
                       borderColor: c.border,
                       opacity: isUsed ? 0.45 : 1,
                     },
-                    selectedService?.id === service.id && { borderColor: '#00979D', backgroundColor: isDark ? '#1a2e2e' : '#f0f9ff' },
+                    selectedService?.id === service.id && { borderColor: '#07579E', backgroundColor: isDark ? '#1a2e2e' : '#f0f9ff' },
                   ]}
                   disabled={isUsed}
                   onPress={() => {
@@ -3717,7 +3797,7 @@ export default function DynamicSurveyFormScreen({
                     </View>
                   )}
                   {selectedService?.id === service.id && !isUsed && (
-                    <MaterialIcons name="check-circle" size={22} color="#00979D" />
+                    <MaterialIcons name="check-circle" size={22} color="#07579E" />
                   )}
                 </TouchableOpacity>
               );
@@ -3817,7 +3897,7 @@ export default function DynamicSurveyFormScreen({
             <TouchableOpacity
               style={[
                 styles.submitButton,
-                { marginTop: 24, backgroundColor: '#00979D' },
+                { marginTop: 24, backgroundColor: '#07579E' },
                 (!newServiceName.trim() || addingService) && styles.buttonDisabled,
               ]}
               onPress={async () => {
@@ -3837,8 +3917,10 @@ export default function DynamicSurveyFormScreen({
                     id: result.id,
                     name: result.name,
                     city: result.city || newServiceCity,
+                    province: result.province || '',
                     kecamatan: result.kecamatan || newServiceKecamatan?.name || '',
                     mtc_name: result.mtc?.name,
+                    bsic_code: result.bsic?.code,
                     bsic_name: result.bsic?.name,
                     service_type_name: result.service_type?.name,
                   };
@@ -3891,7 +3973,7 @@ export default function DynamicSurveyFormScreen({
             automaticallyAdjustKeyboardInsets
             contentContainerStyle={{ flexGrow: 1, paddingBottom: 32 }}
           >
-            <Text style={[styles.templateName, { color: c.text }]}>{toSentenceCase(template.name)}</Text>
+            <Text style={[styles.templateName, { color: c.text }]}>{formatTemplateName(template.name)}</Text>
 
             {/* Service Selection */}
             <View style={styles.formGroup}>
@@ -4005,102 +4087,32 @@ export default function DynamicSurveyFormScreen({
   // --- THANK YOU SCREEN ---
   if (isSubmitted) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', padding: 32 }]}>
-        <View style={styles.thankYouIcon}>
-          <MaterialIcons name="check-circle" size={56} color="#03979D" />
-        </View>
-        <Text style={styles.thankYouTitle}>Terima Kasih!</Text>
-        <Text style={styles.thankYouSubtitle}>
-          Jawaban Anda telah berhasil disimpan. Terima kasih telah mengisi survei ini.
-        </Text>
-        <TouchableOpacity style={styles.backButtonCentered} onPress={onSave}>
-          <Text style={styles.backButtonText}>Kembali</Text>
-        </TouchableOpacity>
+      <View style={[styles.container, { backgroundColor: c.background }]}>
+        <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 40 }}>
+          <View style={{ alignItems: 'center' }}>
+            <View style={styles.thankYouIcon}>
+              <MaterialIcons name="check-circle" size={56} color="#07579E" />
+            </View>
+            <Text style={[styles.thankYouTitle, { color: c.text }]}>Terima Kasih!</Text>
+            <Text style={[styles.thankYouSubtitle, { color: c.textSecondary }]}>
+              Jawaban Anda telah berhasil disimpan. Berikut ringkasan fasilitas yang dipilih.
+            </Text>
+          </View>
+
+          <View style={[styles.summaryCard, { backgroundColor: c.surface, borderColor: c.border }]}>
+            {surveySummary.map((item) => (
+              <View key={item.label} style={[styles.summaryItem, { borderColor: c.border }]}>
+                <Text style={[styles.summaryLabel, { color: c.textSecondary }]}>{item.label}</Text>
+                <Text style={[styles.summaryValue, { color: c.text }]}>{item.value}</Text>
+              </View>
+            ))}
+          </View>
+
+          <TouchableOpacity style={styles.backButtonCentered} onPress={onSave}>
+            <Text style={styles.backButtonText}>Selesai</Text>
+          </TouchableOpacity>
+        </ScrollView>
       </View>
-    );
-  }
-
-  // --- KONFIRMASI & KIRIM SCREEN ---
-  if (showConfirmScreen && !isSubmitted) {
-    return (
-      <KeyboardAvoidingView style={[styles.container, { backgroundColor: c.background }]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <View style={[styles.contentWrapper, { backgroundColor: c.background }]}>
-          <View style={[styles.pageHeader, { backgroundColor: c.surface, borderBottomWidth: 1, borderBottomColor: c.border }]}>
-            <TouchableOpacity onPress={() => setShowConfirmScreen(false)} style={styles.backIcon}>
-              <MaterialIcons name="arrow-back" size={22} color={c.text} />
-            </TouchableOpacity>
-            <Text style={[styles.sectionIndicator, { color: c.textSecondary }]}>Konfirmasi & Kirim</Text>
-          </View>
-          <View style={styles.progressContainer}>
-            <View style={[styles.progressBar, { backgroundColor: c.border }]}>
-              <View style={[styles.progressFill, { width: '100%', backgroundColor: c.primary }]} />
-            </View>
-            <Text style={[styles.progressText, { color: c.primary }]}>100%</Text>
-          </View>
-          <ScrollView style={[styles.content, { backgroundColor: c.background }]} contentContainerStyle={{ flexGrow: 1, paddingBottom: 32 }}>
-            <View style={{ alignItems: 'center', paddingTop: 48, paddingHorizontal: 24 }}>
-              {/* Thank You Icon */}
-              <View style={styles.thankYouIcon}>
-                <MaterialIcons name="check-circle" size={64} color={c.primary} />
-              </View>
-              <Text style={[styles.thankYouTitle, { color: c.text, marginTop: 16 }]}>Terima Kasih!</Text>
-              <Text style={[styles.thankYouSubtitle, { color: c.textSecondary, marginTop: 8, textAlign: 'center' }]}>
-                Semua pertanyaan telah dijawab.{'\n'}Survei Anda siap dikirim.
-              </Text>
-
-              {/* GPS Status Summary */}
-              <View style={{ width: '100%', backgroundColor: c.surface, borderRadius: 8, padding: 16, marginTop: 32, borderWidth: 1, borderColor: c.border }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                    <MaterialIcons name={isValidGps(finalGps) ? 'check-circle' : 'warning'} size={22} color={isValidGps(finalGps) ? '#059669' : '#f59e0b'} />
-                    <View>
-                      <Text style={{ fontSize: 14, fontWeight: '600', color: c.text }}>
-                        Lokasi GPS
-                      </Text>
-                      <Text style={{ fontSize: 12, color: c.textSecondary }}>
-                        {formatGpsCoord(finalGps, 'Belum direkam')}
-                      </Text>
-                    </View>
-                  </View>
-                  {!isValidGps(finalGps) && (
-                    <TouchableOpacity
-                      style={{ backgroundColor: c.primary + '15', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 }}
-                      onPress={captureFinalGPS}
-                      disabled={capturingLocation}
-                    >
-                      {capturingLocation ? (
-                        <ActivityIndicator size="small" color={c.primary} />
-                      ) : (
-                        <Text style={{ fontSize: 13, color: c.primary, fontWeight: '600' }}>Rekam</Text>
-                      )}
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </View>
-            </View>
-
-            {/* Action Buttons */}
-            <View style={[styles.buttonsRow, { paddingHorizontal: 16, marginTop: 32 }]}>
-              <TouchableOpacity
-                style={[styles.draftButton, { backgroundColor: c.surface, borderColor: c.border }, saving && styles.buttonDisabled]}
-                onPress={() => handleSave(false)}
-                disabled={saving}
-              >
-                <Text style={[styles.draftButtonText, { color: c.textSecondary }]}>Simpan Draft</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.submitButton, saving && styles.buttonDisabled]}
-                onPress={() => handleSave(true)}
-                disabled={saving}
-              >
-                {saving
-                  ? <ActivityIndicator size="small" color="#fff" />
-                  : <Text style={styles.submitButtonText}>Kirim Survei</Text>}
-              </TouchableOpacity>
-            </View>
-          </ScrollView>
-        </View>
-      </KeyboardAvoidingView>
     );
   }
 
@@ -4232,7 +4244,7 @@ export default function DynamicSurveyFormScreen({
           ) : currentFlowItem?.kind === 'end_survey' ? (
             <View style={styles.questionScreenContainer}>
               <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 }}>
-                <MaterialIcons name="info-outline" size={48} color="#00979D" />
+                <MaterialIcons name="info-outline" size={48} color="#07579E" />
                 <Text style={{ fontSize: 18, fontWeight: '600', color: c.text, marginTop: 16, textAlign: 'center' }}>
                   Survei Selesai
                 </Text>
@@ -4240,13 +4252,12 @@ export default function DynamicSurveyFormScreen({
                   Anda telah menyelesaikan survei.{'n'}Data akan disimpan.
                 </Text>
                 <TouchableOpacity
-                  style={{ marginTop: 32, backgroundColor: '#00979D', paddingHorizontal: 32, paddingVertical: 14, borderRadius: 8 }}
+                  style={{ marginTop: 32, backgroundColor: '#07579E', paddingHorizontal: 32, paddingVertical: 14, borderRadius: 8, alignItems: 'center', justifyContent: 'center' }}
                   onPress={() => {
-                    // Auto-save as submitted and show confirmation
                     handleSave(true);
                   }}
                 >
-                  <Text style={{ color: '#fff', fontWeight: '600', fontSize: 15 }}>Simpan & Selesaikan</Text>
+                  <Text style={{ color: '#fff', fontWeight: '600', fontSize: 15, textAlign: 'center' }}>Selesai</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -4262,14 +4273,7 @@ export default function DynamicSurveyFormScreen({
               </Text>
               <View style={[styles.buttonsRow, { marginTop: 24, backgroundColor: 'transparent' }]}>
                 <TouchableOpacity
-                  style={[styles.draftButton, { backgroundColor: c.surface, borderColor: c.border }, saving && styles.buttonDisabled]}
-                  onPress={() => handleSave(false)}
-                  disabled={saving}
-                >
-                  <Text style={[styles.draftButtonText, { color: c.textSecondary }]}>Simpan Draft</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[{ flex: 1, backgroundColor: c.primary, borderRadius: 6, paddingVertical: 14, alignItems: 'center', marginLeft: 14 }]}
+                  style={[styles.submitButton, saving && styles.buttonDisabled]}
                   onPress={() => {
                     // Find next section with non-empty flow
                     let nextIdx = currentSectionIndex + 1;
@@ -4291,9 +4295,10 @@ export default function DynamicSurveyFormScreen({
                       }
                       nextIdx++;
                     }
-                    // No more sections with questions - show confirm screen
-                    setShowConfirmScreen(true);
+                    // No more sections with questions - save and show thank-you summary
+                    handleSave(true);
                   }}
+                  disabled={saving}
                 >
                   <Text style={styles.nextButtonText}>
                     {currentSectionIndex < activeSections.length - 1 ? 'Bagian Berikutnya' : 'Selesai'}
@@ -4304,23 +4309,31 @@ export default function DynamicSurveyFormScreen({
           )}
 
           {/* Navigation Buttons */}
-          {currentFlowItem && (
+          {currentFlowItem && currentFlowItem.kind !== 'end_survey' && (
           <View style={[styles.buttonsRow, { backgroundColor: c.background }]}>
+            {!isLastQuestionBeforeEnd && (
+              <TouchableOpacity
+                style={[styles.draftButton, { backgroundColor: c.surface, borderColor: c.border }, saving && styles.buttonDisabled]}
+                onPress={() => handleSave(false)}
+                disabled={saving}
+              >
+                <Text style={[styles.draftButtonText, { color: c.textSecondary }]}>Simpan Draft</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
-              style={[styles.draftButton, { backgroundColor: c.surface, borderColor: c.border }, saving && styles.buttonDisabled]}
-              onPress={() => handleSave(false)}
-              disabled={saving}
+              style={[
+                isLastQuestionBeforeEnd ? styles.submitButton : styles.nextButton,
+                { backgroundColor: c.primary },
+              ]}
+              onPress={handleNext}
             >
-              <Text style={[styles.draftButtonText, { color: c.textSecondary }]}>Simpan Draft</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.nextButton, { backgroundColor: c.primary }]} onPress={handleNext}>
-              <Text style={[styles.nextButtonText, { color: '#fff' }]}>
-                {currentFlowItem?.kind === 'end_survey'
-                  ? 'Selesai'
-                  : currentQuestionIndex < totalItemsInSection - 1
-                    ? 'Selanjutnya'
-                    : currentSectionIndex < activeSections.length - 1
-                      ? 'Bagian Berikutnya'
+	              <Text style={[styles.nextButtonText, { color: '#fff' }]}>
+	                {isLastQuestionBeforeEnd
+	                  ? 'Selesai'
+	                  : currentQuestionIndex < totalItemsInSection - 1
+	                    ? 'Selanjutnya'
+	                    : currentSectionIndex < activeSections.length - 1
+	                      ? 'Bagian Berikutnya'
                       : 'Selesai'}
               </Text>
             </TouchableOpacity>
@@ -4471,8 +4484,8 @@ const styles = StyleSheet.create({
   contentWrapper: { flex: 1, backgroundColor: '#f5f6f7' },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
   loadingText: { marginTop: 12, fontSize: 12, color: '#6b7280' },
-  backButtonCentered: { marginTop: 16, paddingVertical: 14, paddingHorizontal: 32, backgroundColor: '#03979D', borderRadius: 6 },
-  backButtonText: { color: '#fff', fontWeight: '700', fontSize: 18 },
+  backButtonCentered: { marginTop: 16, paddingVertical: 14, paddingHorizontal: 32, backgroundColor: '#07579E', borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
+  backButtonText: { color: '#fff', fontWeight: '700', fontSize: 18, textAlign: 'center' },
 
   // Header
   pageHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10, gap: 10 },
@@ -4481,12 +4494,12 @@ const styles = StyleSheet.create({
 
   // Progress
   progressContainer: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 4, paddingBottom: 8, gap: 12 },
-  questionProgressText: { fontWeight: '600', color: '#03979D' },
+  questionProgressText: { fontWeight: '600', color: '#07579E' },
   questionProgressBar: { flex: 1, height: 6, backgroundColor: '#e5e7eb', borderRadius: 3, overflow: 'hidden' },
-  questionProgressFill: { height: '100%', backgroundColor: '#03979D', borderRadius: 3 },
+  questionProgressFill: { height: '100%', backgroundColor: '#07579E', borderRadius: 3 },
   progressBar: { flex: 1, height: 5, backgroundColor: '#e5e7eb', borderRadius: 3, overflow: 'hidden' },
-  progressFill: { height: '100%', backgroundColor: '#03979D', borderRadius: 3 },
-  progressText: { fontSize: 11, fontWeight: '600', color: '#03979D', width: 32, textAlign: 'right' },
+  progressFill: { height: '100%', backgroundColor: '#07579E', borderRadius: 3 },
+  progressText: { fontSize: 11, fontWeight: '600', color: '#07579E', width: 32, textAlign: 'right' },
 
   // Content
   content: { flex: 1, padding: 16 },
@@ -4496,7 +4509,7 @@ const styles = StyleSheet.create({
   templateDesc: { fontSize: 12, color: '#6b7280', lineHeight: 18, marginBottom: 16 },
 
   // Question code
-  questionCode: { fontSize: 14, fontWeight: '700', color: '#03979D', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
+  questionCode: { fontSize: 14, fontWeight: '700', color: '#07579E', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
 
   // Section header
   sectionHeaderContainer: { marginBottom: 16 },
@@ -4504,21 +4517,21 @@ const styles = StyleSheet.create({
   sectionSubtitle: { fontSize: 12, color: '#6b7280', lineHeight: 18 },
   introBox: { marginTop: 10, marginBottom: 16, padding: 14, backgroundColor: '#fefce8', borderRadius: 6, borderWidth: 1, borderColor: '#fde68a' },
   introText: { fontSize: 16, color: '#78350f', lineHeight: 22 },
-  hintBanner: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: '#e6f7f7', borderRadius: 6, borderWidth: 1.5, borderColor: '#03979D', padding: 12, marginBottom: 14, gap: 10 },
+  hintBanner: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: '#e6f7f7', borderRadius: 6, borderWidth: 1.5, borderColor: '#07579E', padding: 12, marginBottom: 14, gap: 10 },
   hintBannerIcon: { marginTop: 2, flexShrink: 0 },
   hintBannerContent: { flex: 1 },
-  hintBannerPrevAnswer: { fontSize: 12, fontWeight: '700', color: '#03979D', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.3 },
+  hintBannerPrevAnswer: { fontSize: 12, fontWeight: '700', color: '#07579E', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.3 },
   hintBannerText: { fontSize: 14, color: '#374151', lineHeight: 20 },
   mtcBanner: { flexDirection: 'column', alignItems: 'stretch', marginTop: 8, padding: 10, backgroundColor: '#e6f7f7', borderRadius: 6, borderWidth: 1, borderColor: '#b2e0e1', gap: 2 },
   mtcBannerLabel: { width: '100%', flexShrink: 0, flexWrap: 'wrap', fontSize: 15, color: '#4b5563', fontWeight: '800' },
-  mtcBannerCode: { width: '100%', flexShrink: 0, flexWrap: 'wrap', fontSize: 15, fontWeight: '800', color: '#03979D' },
+  mtcBannerCode: { width: '100%', flexShrink: 0, flexWrap: 'wrap', fontSize: 15, fontWeight: '800', color: '#07579E' },
 
   // Detail group header (shown above each RQA-RQJ block)
   detailGroupHeader: { flexDirection: 'row', alignItems: 'stretch', marginBottom: 12, marginLeft: 8 },
-  detailGroupHeaderBar: { width: 3, borderRadius: 2, backgroundColor: '#03979D', marginRight: 10 },
+  detailGroupHeaderBar: { width: 3, borderRadius: 2, backgroundColor: '#07579E', marginRight: 10 },
   detailGroupHeaderContent: { flex: 1, justifyContent: 'center' },
   detailGroupHeaderTrigger: { fontSize: 13, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.4 },
-  detailGroupHeaderCtx: { fontSize: 15, fontWeight: '800', color: '#03979D', marginTop: 1, flexWrap: 'wrap' },
+  detailGroupHeaderCtx: { fontSize: 15, fontWeight: '800', color: '#07579E', marginTop: 1, flexWrap: 'wrap' },
 
   // Wrapper that indents detail questions under their trigger
   detailQuestionWrapper: { marginLeft: 8, borderLeftWidth: 2, borderLeftColor: '#b2e0e1', paddingLeft: 8 },
@@ -4534,7 +4547,7 @@ const styles = StyleSheet.create({
   speakerButton: { marginTop: 2, padding: 4 },
   questionText: { flex: 1, fontWeight: '600', color: '#374151', lineHeight: 38, letterSpacing: 0.3 },
   required: { color: '#dc2626' },
-  helpText: { fontSize: 13, color: '#6b7280', marginBottom: 8, lineHeight: 18, fontStyle: 'italic' },
+  helpText: { fontSize: 13, color: '#6b7280', marginBottom: 8, lineHeight: 18 },
   errorText: { fontSize: 14, color: '#dc2626', marginTop: 6 },
 
   // Inputs
@@ -4548,30 +4561,33 @@ const styles = StyleSheet.create({
   // Boolean
   booleanRow: { flexDirection: 'row', gap: 14 },
   booleanOption: { flex: 1, flexDirection: 'row', backgroundColor: '#fff', borderRadius: 6, paddingVertical: 18, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center', gap: 10, borderWidth: 2, borderColor: '#e5e7eb' },
-  booleanSelected: { borderColor: '#03979D', backgroundColor: '#f0f9ff' },
+  booleanSelected: { borderColor: '#07579E', backgroundColor: '#f0f9ff' },
   booleanText: { fontSize: 18, fontWeight: '600', color: '#6b7280' },
-  booleanTextSelected: { color: '#03979D' },
+  booleanTextSelected: { color: '#07579E' },
 
   // Choices
   choicesContainer: { gap: 12 },
   choiceOption: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 6, padding: 16, gap: 12, borderWidth: 2, borderColor: '#e5e7eb' },
-  choiceSelected: { borderColor: '#03979D', backgroundColor: '#f0f9ff' },
+  choiceSelected: { borderColor: '#07579E', backgroundColor: '#f0f9ff' },
   choiceLabelContainer: { flex: 1 },
   choiceLabel: { fontSize: 18, fontWeight: '500', color: '#374151', flex: 1 },
-  choiceLabelSelected: { color: '#03979D', fontWeight: '700' },
+  choiceLabelSelected: { color: '#07579E', fontWeight: '700' },
   choiceHint: { fontSize: 12, color: '#9ca3af', marginTop: 2 },
   otherInput: { marginLeft: 36, marginTop: 6, marginBottom: 6, borderWidth: 1, borderColor: '#d1d5db', borderRadius: 6, paddingHorizontal: 14, paddingVertical: 10, fontSize: 16, color: '#1A1A1A', backgroundColor: '#fff' },
+  otherInputFullWidth: { marginLeft: 0, marginTop: 8 },
+  otherInputGroup: { marginTop: 8, marginBottom: 6 },
+  otherInputLabel: { fontSize: 14, fontWeight: '600', marginBottom: 6 },
   choiceAudioBtn: { width: 32, height: 32, borderRadius: 6, borderWidth: 1.5, borderColor: '#d1d5db', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
-  choiceAudioBtnActive: { borderColor: '#03979D', backgroundColor: '#e6f7f7' },
+  choiceAudioBtnActive: { borderColor: '#07579E', backgroundColor: '#e6f7f7' },
 
   // Radio
   radio: { width: 24, height: 24, borderRadius: 6, borderWidth: 2.5, borderColor: '#d1d5db', alignItems: 'center', justifyContent: 'center' },
-  radioSelected: { borderColor: '#03979D' },
-  radioInner: { width: 12, height: 12, borderRadius: 6, backgroundColor: '#03979D' },
+  radioSelected: { borderColor: '#07579E' },
+  radioInner: { width: 12, height: 12, borderRadius: 6, backgroundColor: '#07579E' },
 
   // Checkbox
   checkbox: { width: 24, height: 24, borderRadius: 6, borderWidth: 2.5, borderColor: '#d1d5db', alignItems: 'center', justifyContent: 'center' },
-  checkboxSelected: { borderColor: '#03979D', backgroundColor: '#03979D' },
+  checkboxSelected: { borderColor: '#07579E', backgroundColor: '#07579E' },
 
   // Picker
   picker: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#ffffff', borderRadius: 6, padding: 14 },
@@ -4584,7 +4600,7 @@ const styles = StyleSheet.create({
   pickerItem: { padding: 14, borderBottomWidth: 1, borderBottomColor: '#f3f4f6' },
   pickerItemSelected: { backgroundColor: '#f0f9ff' },
   pickerItemText: { fontSize: 16, color: '#374151' },
-  pickerItemTextSelected: { color: '#03979D', fontWeight: '600' },
+  pickerItemTextSelected: { color: '#07579E', fontWeight: '600' },
 
   // Picker modal overlay
   pickerOverlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'flex-end', zIndex: 999 },
@@ -4598,7 +4614,7 @@ const styles = StyleSheet.create({
   locationField: { gap: 4 },
   locationFieldLabel: { fontSize: 14, fontWeight: '600', color: '#6b7280' },
   locationButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#ffffff', borderRadius: 6, paddingVertical: 14, gap: 8 },
-  locationButtonText: { fontSize: 16, color: '#03979D', fontWeight: '600' },
+  locationButtonText: { fontSize: 16, color: '#07579E', fontWeight: '600' },
   locationInfo: { marginTop: 8, padding: 12, backgroundColor: '#f0f9ff', borderRadius: 6 },
   locationCoordText: { fontSize: 14, color: '#1e40af', fontWeight: '500' },
   locationAccuracyText: { fontSize: 12, color: '#60a5fa', marginTop: 4 },
@@ -4609,7 +4625,7 @@ const styles = StyleSheet.create({
   filePreviewName: { fontSize: 14, fontWeight: '600', color: '#374151' },
   filePreviewStatus: { fontSize: 12, color: '#6b7280' },
   filePickerButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#b2e0e1', borderRadius: 8, paddingVertical: 14, paddingHorizontal: 16 },
-  filePickerButtonText: { fontSize: 15, fontWeight: '600', color: '#03979D' },
+  filePickerButtonText: { fontSize: 15, fontWeight: '600', color: '#07579E' },
 
   // Table
   tableContainer: { backgroundColor: '#fff', borderRadius: 6, overflow: 'hidden' },
@@ -4642,22 +4658,26 @@ const styles = StyleSheet.create({
   filterTab: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20 },
   filterTabText: { fontSize: 13, fontWeight: '600' },
   addServiceBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginHorizontal: 16, marginTop: 12, marginBottom: 4, paddingVertical: 12, borderRadius: 8, borderWidth: 1.5, gap: 8 },
-  addServiceBtnText: { fontSize: 14, fontWeight: '600', color: '#00979D' },
+  addServiceBtnText: { fontSize: 14, fontWeight: '600', color: '#07579E' },
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
   emptyStateText: { fontSize: 15, marginTop: 12 },
   pageTitle: { fontSize: 17, fontWeight: '700', flex: 1, textAlign: 'center' },
 
   // Buttons
   buttonsRow: { flexDirection: 'row', gap: 14, marginTop: 16, marginBottom: 24 },
-  startButton: { flex: 1, backgroundColor: '#03979D', borderRadius: 6, paddingVertical: 14, alignItems: 'center' },
+  startButton: { flex: 1, backgroundColor: '#07579E', borderRadius: 6, paddingVertical: 14, alignItems: 'center' },
   startButtonText: { fontSize: 15, fontWeight: '600', color: '#fff' },
-  nextButton: { flex: 1, backgroundColor: '#03979D', borderRadius: 6, paddingVertical: 14, alignItems: 'center' },
+  nextButton: { flex: 1, backgroundColor: '#07579E', borderRadius: 6, paddingVertical: 14, alignItems: 'center' },
   nextButtonText: { fontSize: 15, fontWeight: '700', color: '#fff' },
-  submitButton: { flex: 1, backgroundColor: '#03979D', borderRadius: 6, paddingVertical: 14, alignItems: 'center' },
+  submitButton: { flex: 1, backgroundColor: '#07579E', borderRadius: 6, paddingVertical: 14, alignItems: 'center' },
   submitButtonText: { fontSize: 15, fontWeight: '700', color: '#fff' },
   thankYouIcon: { marginBottom: 16 },
   thankYouTitle: { fontSize: 32, fontWeight: '700', color: '#1a1a1a', marginBottom: 12, textAlign: 'center' },
   thankYouSubtitle: { fontSize: 16, color: '#6b7280', textAlign: 'center', lineHeight: 24, maxWidth: 320 },
+  summaryCard: { marginTop: 28, borderWidth: 1, borderRadius: 12, padding: 16, gap: 12 },
+  summaryItem: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12 },
+  summaryLabel: { fontSize: 12, fontWeight: '600', marginBottom: 4 },
+  summaryValue: { fontSize: 15, fontWeight: '700' },
   draftButton: { flex: 1, backgroundColor: '#e5e7eb', borderRadius: 6, paddingVertical: 14, alignItems: 'center' },
   draftButtonText: { fontSize: 15, fontWeight: '600', color: '#374151' },
   cancelButton: { flex: 1, backgroundColor: '#e5e7eb', borderRadius: 6, paddingVertical: 16, alignItems: 'center' },
@@ -4666,10 +4686,10 @@ const styles = StyleSheet.create({
 
   // Hint page styles
   hintPageHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 },
-  hintPageLabel: { fontWeight: '600', color: '#00979D' },
+  hintPageLabel: { fontWeight: '600', color: '#07579E' },
   hintPagePrevAnswer: { backgroundColor: '#f0f9ff', borderRadius: 6, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: '#b2e0e1' },
   hintPagePrevAnswerLabel: { color: '#6b7280', marginBottom: 4 },
-  hintPagePrevAnswerValue: { fontWeight: '700', color: '#00979D' },
+  hintPagePrevAnswerValue: { fontWeight: '700', color: '#07579E' },
   hintPageText: { marginTop: 8 },
   hintPageBodyText: {},
 
@@ -4680,8 +4700,8 @@ const styles = StyleSheet.create({
   opHoursCol: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
   opHoursCellText: { fontSize: 14, color: '#374151', flex: 1, textAlign: 'center' },
   opHoursTimeInput: { fontSize: 14, color: '#374151', textAlign: 'center', backgroundColor: '#f9fafb', borderRadius: 6, paddingVertical: 8, paddingHorizontal: 4, width: '100%', borderWidth: 1, borderColor: '#e5e7eb' },
-  opHoursAddButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 6, borderWidth: 1.5, borderColor: '#00979D', borderStyle: 'dashed' },
-  opHoursAddButtonText: { fontSize: 14, fontWeight: '600', color: '#00979D' },
+  opHoursAddButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 6, borderWidth: 1.5, borderColor: '#07579E', borderStyle: 'dashed' },
+  opHoursAddButtonText: { fontSize: 14, fontWeight: '600', color: '#07579E' },
 
   // Kegiatan table (kegiatans with start/stop time pickers)
   kegTableContainer: { backgroundColor: '#fff', borderRadius: 8, overflow: 'hidden', marginBottom: 12 },
@@ -4707,7 +4727,7 @@ const styles = StyleSheet.create({
   matrixOptionCard: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, padding: 12, gap: 10 },
   matrixOptionHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   matrixCheckbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: '#9ca3af', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
-  matrixCheckboxSelected: { backgroundColor: '#03979D', borderColor: '#03979D' },
+  matrixCheckboxSelected: { backgroundColor: '#07579E', borderColor: '#07579E' },
   matrixOptionLabel: { flex: 1, fontSize: 14, fontWeight: '600', color: '#374151' },
   matrixDaysWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   matrixDayChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: '#f3f4f6', borderWidth: 1, borderColor: '#e5e7eb' },
