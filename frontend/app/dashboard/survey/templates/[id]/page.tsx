@@ -47,7 +47,14 @@ import type { Question, QuestionOption, QuestionSection, QuestionType } from '@/
 import { SurveyMindmap } from '@/components/survey/SurveyMindmap';
 import { SurveyFlowTimeline } from '@/components/survey/SurveyFlowTimeline';
 
-const ANSWER_TYPE_OPTIONS: { value: QuestionType; label: string }[] = [
+type TemplateEditorAnswerType =
+  | QuestionType
+  | 'MATRIX_KEGIATAN_CUSTOM'
+  | 'MATRIX_KEGIATAN_KESEHATAN'
+  | 'MATRIX_KEGIATAN_PENDIDIKAN'
+  | 'MATRIX_KEGIATAN_SOSIAL_BUDAYA';
+
+const ANSWER_TYPE_OPTIONS: { value: TemplateEditorAnswerType; label: string }[] = [
   { value: 'TEXT', label: 'Teks' },
   { value: 'TEXTAREA', label: 'Teks Panjang' },
   { value: 'NUMBER', label: 'Angka' },
@@ -72,8 +79,71 @@ const ANSWER_TYPE_OPTIONS: { value: QuestionType; label: string }[] = [
   { value: 'INTERVENTION_MATRIX', label: 'Matriks Intervensi (baris pilih + kolom detail)' },
   { value: 'OPERATING_HOURS', label: 'Tabel Jadwal' },
   { value: 'KEGIATAN_TABLE', label: 'Tabel Kegiatan' },
-  { value: 'MATRIX_KEGIATAN', label: 'Matrix Kegiatan' },
+  { value: 'MATRIX_KEGIATAN_CUSTOM', label: 'Matrix Kegiatan Custom' },
+  { value: 'MATRIX_KEGIATAN_KESEHATAN', label: 'Matrix Kegiatan Kesehatan' },
+  { value: 'MATRIX_KEGIATAN_PENDIDIKAN', label: 'Matrix Kegiatan Pendidikan' },
+  { value: 'MATRIX_KEGIATAN_SOSIAL_BUDAYA', label: 'Matrix Kegiatan Sosial Budaya' },
 ];
+
+const MATRIX_KEGIATAN_PRESET_DESCRIPTIONS: Record<string, string[]> = {
+  kesehatan: [
+    'PSIKOTERAPI',
+    'KONSELING',
+    'TERAPI KELOMPOK',
+    'PEMANTAUAN PENGGUNAAN OBAT',
+    'EDUKASI KESEHATAN JIWA',
+  ],
+  pendidikan: [
+    'PELATIHAN MENJAHIT',
+    'PELATIHAN MEMASAK',
+    'PELATIHAN KERAJINAN',
+    'PELATIHAN KESIAPAN KERJA',
+    'PENDIDIKAN NON FORMAL',
+  ],
+  sosial_budaya: [
+    'KELOMPOK DUKUNGAN SEBAYA',
+    'KEGIATAN REKREASI',
+    'OLAHRAGA',
+    'KEGIATAN KOMUNITAS',
+    'KEGIATAN KEAGAMAAN/SPIRITUAL',
+  ],
+};
+
+const MATRIX_KEGIATAN_EDITOR_VARIANT_MAP: Record<string, string> = {
+  MATRIX_KEGIATAN_CUSTOM: 'custom',
+  MATRIX_KEGIATAN_KESEHATAN: 'kesehatan',
+  MATRIX_KEGIATAN_PENDIDIKAN: 'pendidikan',
+  MATRIX_KEGIATAN_SOSIAL_BUDAYA: 'sosial_budaya',
+};
+
+const getEditorAnswerType = (question?: Pick<Question, 'answer_type' | 'table_config'> | null): TemplateEditorAnswerType => {
+  if (!question) return 'TEXT';
+  if (question.answer_type !== 'MATRIX_KEGIATAN') return question.answer_type;
+
+  const variant = question.table_config?.matrix_variant || 'custom';
+  switch (variant) {
+    case 'kesehatan':
+      return 'MATRIX_KEGIATAN_KESEHATAN';
+    case 'pendidikan':
+      return 'MATRIX_KEGIATAN_PENDIDIKAN';
+    case 'sosial_budaya':
+      return 'MATRIX_KEGIATAN_SOSIAL_BUDAYA';
+    default:
+      return 'MATRIX_KEGIATAN_CUSTOM';
+  }
+};
+
+const normalizeAnswerTypeForSave = (answerType: TemplateEditorAnswerType): QuestionType => (
+  answerType.startsWith('MATRIX_KEGIATAN_') ? 'MATRIX_KEGIATAN' : answerType as QuestionType
+);
+
+const getMatrixTableConfig = (answerType: TemplateEditorAnswerType, allowCustom: boolean) => {
+  if (!answerType.startsWith('MATRIX_KEGIATAN_')) return null;
+  return {
+    matrix_variant: MATRIX_KEGIATAN_EDITOR_VARIANT_MAP[answerType] || 'custom',
+    allow_custom: allowCustom,
+  };
+};
 
 const OPERATOR_OPTIONS = [
   { value: 'equals', label: 'Sama dengan (equals)' },
@@ -185,6 +255,7 @@ interface EditQuestionData {
   answer_type: QuestionType;
   is_required: boolean;
   show_condition: Record<string, any> | null;
+  table_config?: Record<string, any> | null;
 }
 
 function EditQuestionDialog({
@@ -199,23 +270,32 @@ function EditQuestionDialog({
 }) {
   const [questionText, setQuestionText] = useState('');
   const [keterangan, setKeterangan] = useState('');
-  const [answerType, setAnswerType] = useState<QuestionType>('TEXT');
+  const [answerType, setAnswerType] = useState<TemplateEditorAnswerType>('TEXT');
   const [isRequired, setIsRequired] = useState(false);
   const [showCondition, setShowCondition] = useState<Record<string, any> | null>(null);
+  const [allowCustomMatrixRows, setAllowCustomMatrixRows] = useState(true);
 
   useEffect(() => {
     if (question && open) {
       setQuestionText(question.question_text || '');
       setKeterangan(question.keterangan || '');
-      setAnswerType(question.answer_type || 'TEXT');
+      setAnswerType(getEditorAnswerType(question));
       setIsRequired(question.is_required || false);
       setShowCondition(question.show_condition || null);
+      setAllowCustomMatrixRows(question.table_config?.allow_custom !== false);
     }
   }, [question, open]);
 
   const handleSave = () => {
     if (!question) return;
-    onSave(question.id, { question_text: questionText, keterangan, answer_type: answerType, is_required: isRequired, show_condition: showCondition });
+    onSave(question.id, {
+      question_text: questionText,
+      keterangan,
+      answer_type: normalizeAnswerTypeForSave(answerType),
+      is_required: isRequired,
+      show_condition: showCondition,
+      table_config: getMatrixTableConfig(answerType, allowCustomMatrixRows),
+    });
   };
 
   const filteredCodes = allQuestionCodes.filter(c => c !== question?.code);
@@ -231,7 +311,7 @@ function EditQuestionDialog({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label className="mb-2 block">Tipe Jawaban</Label>
-              <Select value={answerType} onValueChange={(v) => setAnswerType(v as QuestionType)}>
+              <Select value={answerType} onValueChange={(v) => setAnswerType(v as TemplateEditorAnswerType)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {ANSWER_TYPE_OPTIONS.map((opt) => (
@@ -254,6 +334,31 @@ function EditQuestionDialog({
             <Label className="mb-2 block">Keterangan / Petunjuk</Label>
             <Textarea value={keterangan} onChange={(e) => setKeterangan(e.target.value)} rows={3} />
           </div>
+          {answerType.startsWith('MATRIX_KEGIATAN_') ? (
+            <div className="border rounded-lg p-3 space-y-3">
+              <div>
+                <Label className="mb-2 block font-semibold text-sm">Konfigurasi Matrix Kegiatan</Label>
+                <p className="text-xs text-muted-foreground">Tipe jawaban sudah menentukan preset. Bagian ini hanya mengatur apakah kegiatan tambahan masih boleh dimasukkan.</p>
+              </div>
+              <div>
+                <Label className="mb-2 block">Izinkan Kegiatan Tambahan</Label>
+                <div className="flex items-center gap-2 pt-2">
+                  <Switch checked={allowCustomMatrixRows} onCheckedChange={setAllowCustomMatrixRows} />
+                  <span className="text-sm text-muted-foreground">{allowCustomMatrixRows ? 'Ya' : 'Tidak'}</span>
+                </div>
+              </div>
+              {MATRIX_KEGIATAN_EDITOR_VARIANT_MAP[answerType] !== 'custom' ? (
+                <div className="rounded-md bg-muted/50 p-3">
+                  <p className="text-xs font-medium mb-2">Kegiatan bawaan</p>
+                  <div className="flex flex-wrap gap-2">
+                    {(MATRIX_KEGIATAN_PRESET_DESCRIPTIONS[MATRIX_KEGIATAN_EDITOR_VARIANT_MAP[answerType]] || []).map((item) => (
+                      <Badge key={item} variant="outline" className="text-xs">{item}</Badge>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           <div className="border rounded-lg p-3">
             <Label className="mb-2 block font-semibold text-sm">Kondisi Tampil (show_condition)</Label>
             <p className="text-xs text-muted-foreground mb-3">Pertanyaan ini hanya tampil jika kondisi terpenuhi</p>
@@ -507,22 +612,36 @@ function AddQuestionDialog({
 }) {
   const [code, setCode] = useState('');
   const [questionText, setQuestionText] = useState('');
-  const [answerType, setAnswerType] = useState<QuestionType>('TEXT');
+  const [answerType, setAnswerType] = useState<TemplateEditorAnswerType>('TEXT');
   const [isRequired, setIsRequired] = useState(false);
   const [order, setOrder] = useState(1);
   const [keterangan, setKeterangan] = useState('');
   const [showCondition, setShowCondition] = useState<Record<string, any> | null>(null);
+  const [allowCustomMatrixRows, setAllowCustomMatrixRows] = useState(true);
 
   useEffect(() => {
     if (open) {
       setCode(''); setQuestionText(''); setAnswerType('TEXT'); setIsRequired(false);
       setOrder(existingCodes.length + 1); setKeterangan(''); setShowCondition(null);
+      setAllowCustomMatrixRows(true);
     }
   }, [open, existingCodes.length]);
 
   const handleSave = () => {
     if (!sectionId) return;
-    onSave({ sectionId, data: { code, question_text: questionText, answer_type: answerType, is_required: isRequired, order, keterangan, show_condition: showCondition } });
+    onSave({
+      sectionId,
+      data: {
+        code,
+        question_text: questionText,
+        answer_type: normalizeAnswerTypeForSave(answerType),
+        is_required: isRequired,
+        order,
+        keterangan,
+        show_condition: showCondition,
+        table_config: getMatrixTableConfig(answerType, allowCustomMatrixRows),
+      }
+    });
   };
 
   const codeExists = existingCodes.includes(code);
@@ -553,7 +672,7 @@ function AddQuestionDialog({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Tipe Jawaban</Label>
-              <Select value={answerType} onValueChange={(v) => setAnswerType(v as QuestionType)}>
+              <Select value={answerType} onValueChange={(v) => setAnswerType(v as TemplateEditorAnswerType)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {ANSWER_TYPE_OPTIONS.map((opt) => (
@@ -574,6 +693,31 @@ function AddQuestionDialog({
             <Label>Keterangan / Petunjuk</Label>
             <Textarea value={keterangan} onChange={(e) => setKeterangan(e.target.value)} rows={2} />
           </div>
+          {answerType.startsWith('MATRIX_KEGIATAN_') ? (
+            <div className="border rounded-lg p-3 space-y-3">
+              <div>
+                <Label className="mb-2 block font-semibold text-sm">Konfigurasi Matrix Kegiatan</Label>
+                <p className="text-xs text-muted-foreground">Tipe jawaban sudah menentukan preset. Bagian ini hanya mengatur apakah kegiatan tambahan masih boleh dimasukkan.</p>
+              </div>
+              <div className="space-y-2">
+                <Label>Izinkan Kegiatan Tambahan</Label>
+                <div className="flex items-center gap-2 pt-2">
+                  <Switch checked={allowCustomMatrixRows} onCheckedChange={setAllowCustomMatrixRows} />
+                  <span className="text-sm text-muted-foreground">{allowCustomMatrixRows ? 'Ya' : 'Tidak'}</span>
+                </div>
+              </div>
+              {MATRIX_KEGIATAN_EDITOR_VARIANT_MAP[answerType] !== 'custom' ? (
+                <div className="rounded-md bg-muted/50 p-3">
+                  <p className="text-xs font-medium mb-2">Kegiatan bawaan</p>
+                  <div className="flex flex-wrap gap-2">
+                    {(MATRIX_KEGIATAN_PRESET_DESCRIPTIONS[MATRIX_KEGIATAN_EDITOR_VARIANT_MAP[answerType]] || []).map((item) => (
+                      <Badge key={item} variant="outline" className="text-xs">{item}</Badge>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           <div className="border rounded-lg p-3">
             <Label className="mb-2 block font-semibold text-sm">Kondisi Tampil (show_condition)</Label>
             <ShowConditionEditor value={showCondition} onChange={setShowCondition} allQuestionCodes={allQuestionCodes} />
