@@ -264,8 +264,8 @@ export function getFlowItems(
   const globalCodeMap = allSections ? buildGlobalCodeMap(allSections) : new Map<string, Question>();
 
   const detailGroupPrefix =
-    _forcedStartCode && /[A-Z]$/.test(_forcedStartCode)
-      ? _forcedStartCode.slice(0, -1)
+    _forcedStartCode && /^[A-Z]+Q[A-Z]\d*$/.test(_forcedStartCode)
+      ? _forcedStartCode.replace(/\d+$/, '').slice(0, -1)
       : undefined;
 
   const visibleQuestions = section.questions
@@ -430,21 +430,10 @@ export function getFlowItems(
         nextCode = current.skip_logic[0].goto;
       }
 
-      // Special case: IQC (detail Konsultasi & Asesmen) — next depends on IQ1 answer
-      // IQ1=I1 (konsultasi, no direct patient care) → go to IQD (tarif konsultasi)
-      // IQ1=I2 (penyediaan informasi) → go to IQF (tarif informasi)
-      // IQC is a SINGLE_CHOICE with YA→IQF, TIDAK→IQG by default;
-      // but the IQC→IQD branch is needed only when IQ1=I1.
-      if (current.code === 'IQC' && !nextCode?.startsWith('_iq1_branch')) {
-        const iq1Answer = allResponses['IQ1'];
-        if (iq1Answer === 'I1') {
-          // User chose "Layanan Konsultasi..." → after IQC go to IQD (not IQF)
-          const iqcNext = codeMap.get('IQD');
-          if (iqcNext) {
-            nextCode = 'IQD';
-          }
-        }
-        // If IQ1=I2, default choice-based next (IQF or IQG) is correct
+      // IQC is the extra detail question for interactive information via media.
+      // Continue into the information tariff branch, not the consultation branch.
+      if (current.code === 'IQC' && codeMap.has('IQG')) {
+        nextCode = 'IQG';
       }
 
       // Special case: IQ3 interactive info should go through IQ4 before entering detail.
@@ -535,6 +524,12 @@ export function getFlowItems(
         } else if (_contextKey === 'SI2.1.1' || _contextKey === 'SI2.2') {
           nextCode = 'SIQG';
         }
+      }
+
+      // SIQC is the extra detail question for interactive information via media.
+      // Continue into the information tariff branch, not the consultation branch.
+      if (current.code === 'SIQC' && codeMap.has('SIQG')) {
+        nextCode = 'SIQG';
       }
 
       // Special case: payment-method MULTIPLE_CHOICE questions — show the tariff question
@@ -710,6 +705,9 @@ export function getFlowItems(
               if (!allSelectedBranchesWereCrossSection) {
                 break questionLoop;
               }
+              // All selected branches point to cross-section detail blocks that have
+              // been fully traversed — end the question chain here.
+              break questionLoop;
             }
 
             let nextIdx = triggerIdx + 1;
