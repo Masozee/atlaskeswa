@@ -88,6 +88,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+type TemplateEditorAnswerType =
+  | string
+  | "MATRIX_KEGIATAN_CUSTOM"
+  | "MATRIX_KEGIATAN_KESEHATAN"
+  | "MATRIX_KEGIATAN_PENDIDIKAN"
+  | "MATRIX_KEGIATAN_SOSIAL_BUDAYA";
+
 const breadcrumbs = [
   { label: "Dashboard", href: "/dashboard" },
   { label: "Manajemen Survei", href: "/dashboard/survey" },
@@ -109,19 +116,60 @@ const ANSWER_TYPES = [
   { value: "INTERVENTION_MATRIX", label: "Matriks Intervensi (baris pilih + kolom detail)" },
   { value: "OPERATING_HOURS", label: "Tabel Jadwal" },
   { value: "KEGIATAN_TABLE", label: "Tabel Kegiatan" },
-  { value: "MATRIX_KEGIATAN", label: "Matrix Kegiatan" },
+  { value: "MATRIX_KEGIATAN_CUSTOM", label: "Matrix Kegiatan Custom" },
+  { value: "MATRIX_KEGIATAN_KESEHATAN", label: "Matrix Kegiatan Kesehatan" },
+  { value: "MATRIX_KEGIATAN_PENDIDIKAN", label: "Matrix Kegiatan Pendidikan" },
+  { value: "MATRIX_KEGIATAN_SOSIAL_BUDAYA", label: "Matrix Kegiatan Sosial Budaya" },
   { value: "GPS", label: "GPS" },
   { value: "FILE", label: "File Upload" },
 ];
 
+const MATRIX_KEGIATAN_EDITOR_VARIANT_MAP: Record<string, string> = {
+  MATRIX_KEGIATAN_CUSTOM: "custom",
+  MATRIX_KEGIATAN_KESEHATAN: "kesehatan",
+  MATRIX_KEGIATAN_PENDIDIKAN: "pendidikan",
+  MATRIX_KEGIATAN_SOSIAL_BUDAYA: "sosial_budaya",
+};
+
+const getEditorAnswerType = (question?: Question | null): TemplateEditorAnswerType => {
+  if (!question) return "TEXT";
+  if (question.answer_type !== "MATRIX_KEGIATAN") return question.answer_type;
+
+  const variant = question.table_config?.matrix_variant || "custom";
+  switch (variant) {
+    case "kesehatan":
+      return "MATRIX_KEGIATAN_KESEHATAN";
+    case "pendidikan":
+      return "MATRIX_KEGIATAN_PENDIDIKAN";
+    case "sosial_budaya":
+      return "MATRIX_KEGIATAN_SOSIAL_BUDAYA";
+    default:
+      return "MATRIX_KEGIATAN_CUSTOM";
+  }
+};
+
+const normalizeAnswerTypeForSave = (answerType: TemplateEditorAnswerType) => (
+  String(answerType).startsWith("MATRIX_KEGIATAN_") ? "MATRIX_KEGIATAN" : answerType
+);
+
+const getMatrixTableConfig = (answerType: TemplateEditorAnswerType) => (
+  String(answerType).startsWith("MATRIX_KEGIATAN_")
+    ? {
+        matrix_variant: MATRIX_KEGIATAN_EDITOR_VARIANT_MAP[String(answerType)] || "custom",
+        allow_custom: true,
+      }
+    : null
+);
+
 type DialogTab = "detail" | "pilihan";
 type ImportResult = { created: number; updated: number; errors: { row: number; error: string }[] };
 
-function AnswerTypeBadge({ type }: { type: string }) {
+function AnswerTypeBadge({ type, question }: { type: string; question?: Question }) {
   const choiceTypes = ["SINGLE_CHOICE", "MULTIPLE_CHOICE"];
+  const displayType = question ? getEditorAnswerType(question) : type;
   return (
     <Badge variant="outline" className={`text-xs whitespace-nowrap ${choiceTypes.includes(type) ? "text-primary border-primary" : "text-muted-foreground"}`}>
-      {ANSWER_TYPES.find((t) => t.value === type)?.label ?? type}
+      {ANSWER_TYPES.find((t) => t.value === displayType)?.label ?? displayType}
     </Badge>
   );
 }
@@ -371,14 +419,14 @@ function QuestionDialog({ open, onOpenChange, editTarget, onSubmit, isPending, a
   allQuestions: Question[];
 }) {
   const [activeTab, setActiveTab] = useState<DialogTab>("detail");
-  const [form, setForm] = useState({ section: 0, code: "", question_text: "", answer_type: "TEXT", is_required: true, order: 1, desde_ltc_description: "", introduction_text: "", keterangan: "", skip_logic: null as any });
+  const [form, setForm] = useState({ section: 0, code: "", question_text: "", answer_type: "TEXT" as TemplateEditorAnswerType, is_required: true, order: 1, desde_ltc_description: "", introduction_text: "", keterangan: "", skip_logic: null as any });
 
   const { data: sections = [] } = useQuestionSections();
 
   useMemo(() => {
     setActiveTab("detail");
     if (editTarget) {
-      setForm({ section: editTarget.section, code: editTarget.code, question_text: editTarget.question_text, answer_type: editTarget.answer_type, is_required: editTarget.is_required, order: editTarget.order, desde_ltc_description: editTarget.desde_ltc_description ?? "", introduction_text: editTarget.introduction_text ?? "", keterangan: editTarget.keterangan ?? "", skip_logic: editTarget.skip_logic ?? null });
+      setForm({ section: editTarget.section, code: editTarget.code, question_text: editTarget.question_text, answer_type: getEditorAnswerType(editTarget), is_required: editTarget.is_required, order: editTarget.order, desde_ltc_description: editTarget.desde_ltc_description ?? "", introduction_text: editTarget.introduction_text ?? "", keterangan: editTarget.keterangan ?? "", skip_logic: editTarget.skip_logic ?? null });
     } else {
       setForm({ section: sections[0]?.id || 0, code: "", question_text: "", answer_type: "TEXT", is_required: true, order: 1, desde_ltc_description: "", introduction_text: "", keterangan: "", skip_logic: null });
     }
@@ -416,7 +464,7 @@ function QuestionDialog({ open, onOpenChange, editTarget, onSubmit, isPending, a
 
         {/* Detail tab */}
         {activeTab === "detail" && (
-          <form id="question-form" onSubmit={(e) => { e.preventDefault(); onSubmit(form); }} className="space-y-4 pt-1">
+          <form id="question-form" onSubmit={(e) => { e.preventDefault(); onSubmit({ ...form, answer_type: normalizeAnswerTypeForSave(form.answer_type), table_config: getMatrixTableConfig(form.answer_type) }); }} className="space-y-4 pt-1">
             <div className="space-y-2">
               <Label htmlFor="q-section">Section *</Label>
               <select
@@ -439,7 +487,7 @@ function QuestionDialog({ open, onOpenChange, editTarget, onSubmit, isPending, a
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label htmlFor="q-type">Tipe Jawaban *</Label>
-                <select id="q-type" value={form.answer_type} onChange={(e) => { setForm((f) => ({ ...f, answer_type: e.target.value })); if (!["SINGLE_CHOICE", "MULTIPLE_CHOICE"].includes(e.target.value)) setActiveTab("detail"); }} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring bg-background">
+                <select id="q-type" value={form.answer_type} onChange={(e) => { setForm((f) => ({ ...f, answer_type: e.target.value as TemplateEditorAnswerType })); if (!["SINGLE_CHOICE", "MULTIPLE_CHOICE"].includes(e.target.value)) setActiveTab("detail"); }} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring bg-background">
                   {ANSWER_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
                 </select>
               </div>
@@ -555,7 +603,7 @@ function QuestionsTable({ questions, showMtc, onEdit, onDelete, onView }: {
       )},
       { accessorKey: "order", header: "Urutan", cell: ({ row }) => <span className="text-xs text-muted-foreground font-mono">{row.getValue("order")}</span> },
       { accessorKey: "question_text", header: "Pertanyaan", cell: ({ row }) => <div className="max-w-sm whitespace-normal break-words text-sm">{row.getValue("question_text")}</div> },
-      { accessorKey: "answer_type", header: "Tipe", cell: ({ row }) => <AnswerTypeBadge type={row.getValue("answer_type")} /> },
+      { accessorKey: "answer_type", header: "Tipe", cell: ({ row }) => <AnswerTypeBadge type={row.getValue("answer_type")} question={row.original} /> },
       { accessorKey: "is_required", header: "Wajib", cell: ({ row }) => row.getValue("is_required") ? <Badge variant="outline" className="text-xs text-primary border-primary">Ya</Badge> : <Badge variant="outline" className="text-xs text-muted-foreground">Tidak</Badge> },
       { id: "next_question", header: "Selanjutnya", cell: ({ row }) => {
         const sl = row.original.skip_logic;
@@ -789,12 +837,12 @@ function QuestionDrawer({ question, open, onOpenChange, onSave, allQuestions = [
   const choiceTypes = ["SINGLE_CHOICE", "MULTIPLE_CHOICE"];
   const hasChoices = question && choiceTypes.includes(question?.answer_type);
   const { data: sections = [] } = useQuestionSections();
-  const [form, setForm] = useState({ section: 0, code: "", question_text: "", answer_type: "TEXT", is_required: true, order: 1, desde_ltc_description: "", introduction_text: "", keterangan: "", skip_logic: null as any });
+  const [form, setForm] = useState({ section: 0, code: "", question_text: "", answer_type: "TEXT" as TemplateEditorAnswerType, is_required: true, order: 1, desde_ltc_description: "", introduction_text: "", keterangan: "", skip_logic: null as any });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (question) {
-      setForm({ section: question.section, code: question.code, question_text: question.question_text, answer_type: question.answer_type, is_required: question.is_required, order: question.order, desde_ltc_description: question.desde_ltc_description ?? "", introduction_text: question.introduction_text ?? "", keterangan: question.keterangan ?? "", skip_logic: question.skip_logic ?? null });
+      setForm({ section: question.section, code: question.code, question_text: question.question_text, answer_type: getEditorAnswerType(question), is_required: question.is_required, order: question.order, desde_ltc_description: question.desde_ltc_description ?? "", introduction_text: question.introduction_text ?? "", keterangan: question.keterangan ?? "", skip_logic: question.skip_logic ?? null });
     }
   }, [question]);
 
@@ -802,7 +850,7 @@ function QuestionDrawer({ question, open, onOpenChange, onSave, allQuestions = [
     if (!question) return;
     setSaving(true);
     try {
-      await onSave(question.id, form);
+      await onSave(question.id, { ...form, answer_type: normalizeAnswerTypeForSave(form.answer_type), table_config: getMatrixTableConfig(form.answer_type) });
       toast.success("Pertanyaan berhasil disimpan");
     } catch { toast.error("Gagal menyimpan"); }
     finally { setSaving(false); }
@@ -843,7 +891,7 @@ function QuestionDrawer({ question, open, onOpenChange, onSave, allQuestions = [
                     <div className="space-y-2"><Label className="text-xs">Urutan</Label><Input type="number" value={form.order} onChange={(e) => setForm((f) => ({ ...f, order: parseInt(e.target.value) || 1 }))} /></div>
                     <div className="space-y-2">
                       <Label className="text-xs">Tipe Jawaban *</Label>
-                      <select value={form.answer_type} onChange={(e) => setForm((f) => ({ ...f, answer_type: e.target.value }))} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring bg-background">
+                      <select value={form.answer_type} onChange={(e) => setForm((f) => ({ ...f, answer_type: e.target.value as TemplateEditorAnswerType }))} className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring bg-background">
                         {ANSWER_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
                       </select>
                     </div>

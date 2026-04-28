@@ -426,6 +426,7 @@ export interface Question {
   keterangan?: string;
   show_condition?: { question_code: string; operator: string; value: string } | null;
   skip_logic?: { value: string; goto: string }[] | null;
+  table_config?: Record<string, any> | null;
   choices?: QuestionChoice[];
 }
 

@@ -112,7 +112,8 @@ class QuestionCreateUpdateSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'section', 'code', 'question_text', 'answer_type',
             'is_required', 'order', 'mtc_code', 'desde_ltc_description',
-            'introduction_text', 'keterangan', 'validation_rules', 'show_condition', 'skip_logic'
+            'introduction_text', 'keterangan', 'validation_rules', 'show_condition', 'skip_logic',
+            'table_config'
         ]
         read_only_fields = ['id']
 
