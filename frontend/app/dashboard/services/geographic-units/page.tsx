@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
+import { toast } from 'sonner';
 import { PageHeader } from "@/components/page-header";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -37,9 +38,10 @@ import {
   PaginationState,
   useReactTable,
 } from "@tanstack/react-table";
-import { Separator } from '@/components/ui/separator';
 import {
   Add01Icon,
+  Upload01Icon,
+  Download01Icon,
   MoreHorizontalIcon,
   Edit04Icon,
   Delete01Icon,
@@ -53,8 +55,10 @@ import {
   useCreateGeographicUnit,
   useUpdateGeographicUnit,
   useDeleteGeographicUnit,
+  useImportGeographicUnits,
+  exportGeographicUnits,
 } from '@/hooks/use-geographic-units';
-import { GeographicUnit } from '@/hooks/use-geographic-units';
+import { GeographicUnit, GeographicUnitImportResult } from '@/hooks/use-geographic-units';
 
 const LEVEL_LABELS: Record<string, string> = {
   PROVINSI: 'Provinsi',
@@ -76,6 +80,72 @@ const breadcrumbs = [
   { label: 'Wilayah Geografis' },
 ];
 
+function ImportDialog({ open, onOpenChange, onImport, isPending, result }: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onImport: (file: File, updateExisting: boolean) => void;
+  isPending: boolean;
+  result: GeographicUnitImportResult | null;
+}) {
+  const [file, setFile] = useState<File | null>(null);
+  const [updateExisting, setUpdateExisting] = useState(false);
+
+  function handleClose(v: boolean) {
+    if (!v) {
+      setFile(null);
+      setUpdateExisting(false);
+    }
+    onOpenChange(v);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Import Wilayah Geografis</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <p className="text-sm text-muted-foreground">
+            Upload CSV/XLSX/JSON dengan kolom: <span className="font-mono text-xs bg-muted px-1 rounded">code</span>, <span className="font-mono text-xs bg-muted px-1 rounded">name</span>, <span className="font-mono text-xs bg-muted px-1 rounded">level</span>, <span className="font-mono text-xs bg-muted px-1 rounded">parent</span>
+          </p>
+          <div className="space-y-2">
+            <Label>File * <span className="text-muted-foreground font-normal">(CSV, XLSX, JSON)</span></Label>
+            <div className="flex rounded-md border overflow-hidden">
+              <label htmlFor="geo-import-file" className="flex items-center justify-center px-4 py-1.5 text-sm font-medium hover:bg-accent transition-colors cursor-pointer whitespace-nowrap">Pilih File</label>
+              <div className="w-px bg-border" />
+              <span className="flex items-center px-3 py-1.5 text-sm text-muted-foreground truncate flex-1">{file ? file.name : 'Belum ada file'}</span>
+              <input id="geo-import-file" type="file" accept=".csv,.xlsx,.json" className="sr-only" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <input id="geo-update-existing" type="checkbox" checked={updateExisting} onChange={(e) => setUpdateExisting(e.target.checked)} />
+            <Label htmlFor="geo-update-existing" className="text-sm font-normal cursor-pointer">Update data yang sudah ada</Label>
+          </div>
+          {result && (
+            <div className="rounded-lg border p-3 space-y-2">
+              {result.created > 0 && <p className="text-sm font-medium text-green-600">{result.created} wilayah dibuat.</p>}
+              {result.updated > 0 && <p className="text-sm font-medium text-blue-600">{result.updated} wilayah diperbarui.</p>}
+              {result.created === 0 && result.updated === 0 && <p className="text-sm font-medium text-muted-foreground">Tidak ada data yang diimport.</p>}
+              {result.errors.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-destructive">{result.errors.length} baris dilewati:</p>
+                  <ul className="text-xs text-muted-foreground space-y-0.5 max-h-32 overflow-y-auto">
+                    {result.errors.map((e, i) => <li key={i}>Baris {e.row}: {e.error}</li>)}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{result ? 'Tutup' : 'Batal'}</Button>
+          {!result && <Button onClick={() => file && onImport(file, updateExisting)} disabled={!file || isPending}>{isPending ? 'Mengimport...' : 'Import'}</Button>}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function GeographicUnitsPage() {
   const [search, setSearch] = useState('');
   const [levelFilter, setLevelFilter] = useState('');
@@ -84,6 +154,8 @@ export default function GeographicUnitsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<GeographicUnit | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importResult, setImportResult] = useState<GeographicUnitImportResult | null>(null);
 
   const [form, setForm] = useState({
     code: '',
@@ -100,12 +172,12 @@ export default function GeographicUnitsPage() {
     is_active: true,
   });
 
-  const { data: allUnits = [], isLoading } = useGeographicUnits({ is_active: true });
-  const { data: editUnit } = useGeographicUnits({ is_active: undefined });
+  const { data: allUnits = [], isLoading } = useGeographicUnits({ is_active: undefined });
 
   const createMutation = useCreateGeographicUnit();
   const updateMutation = useUpdateGeographicUnit();
   const deleteMutation = useDeleteGeographicUnit();
+  const importMutation = useImportGeographicUnits();
 
   const filteredData = useMemo(() => {
     let result = allUnits;
@@ -166,11 +238,11 @@ export default function GeographicUnitsPage() {
     setDeleteConfirmId(null);
   }
 
-  async function handleToggleActive(row: GeographicUnit) {
+  const handleToggleActive = useCallback(async (row: GeographicUnit) => {
     await updateMutation.mutateAsync({ id: row.id, data: { is_active: !row.is_active } });
-  }
+  }, [updateMutation]);
 
-  const columns = useMemo<ColumnDef<GeographicUnit, any>[]>(() => [
+  const columns = useMemo<ColumnDef<GeographicUnit>[]>(() => [
     {
       accessorKey: 'code',
       header: 'Kode',
@@ -231,7 +303,7 @@ export default function GeographicUnitsPage() {
         </DropdownMenu>
       ),
     },
-  ], []);
+  ], [handleToggleActive]);
 
   const table = useReactTable({
     data: searchedData,
@@ -263,10 +335,29 @@ export default function GeographicUnitsPage() {
             <h1 className="text-2xl font-bold">Wilayah Geografis</h1>
             <p className="text-muted-foreground">Kelola data Provinsi, Kabupaten/Kota, Kecamatan, dan Desa/Kelurahan</p>
           </div>
-          <Button size="sm" onClick={openAdd}>
-            <Add01Icon className="w-4 h-4 mr-2" />
-            Tambah Wilayah
-          </Button>
+          <div className="flex items-center rounded-md border overflow-hidden">
+            <button onClick={() => { setImportResult(null); setImportOpen(true); }} className="flex items-center justify-center gap-2 w-28 py-1.5 text-sm font-medium hover:bg-accent transition-colors">
+              <Upload01Icon className="w-4 h-4" />Import
+            </button>
+            <div className="w-px bg-border" />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="flex items-center justify-center gap-2 w-32 py-1.5 text-sm font-medium hover:bg-accent transition-colors">
+                  <Download01Icon className="w-4 h-4" />Export All
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => exportGeographicUnits(undefined, 'csv').then(() => toast.success('Export CSV berhasil')).catch((e) => toast.error(e.message))}>Export sebagai CSV</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportGeographicUnits(undefined, 'xlsx').then(() => toast.success('Export XLSX berhasil')).catch((e) => toast.error(e.message))}>Export sebagai XLSX</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportGeographicUnits(undefined, 'json').then(() => toast.success('Export JSON berhasil')).catch((e) => toast.error(e.message))}>Export sebagai JSON</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <div className="w-px bg-border" />
+            <button onClick={openAdd} className="flex items-center justify-center gap-2 w-36 py-1.5 text-sm font-medium hover:bg-accent transition-colors">
+              <Add01Icon className="w-4 h-4" />
+              Tambah Wilayah
+            </button>
+          </div>
         </div>
 
         <div className="flex gap-2 items-center">
@@ -479,6 +570,26 @@ export default function GeographicUnitsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        result={importResult}
+        isPending={importMutation.isPending}
+        onImport={async (file, updateExisting) => {
+          try {
+            const result = await importMutation.mutateAsync({ file, updateExisting });
+            setImportResult(result);
+            if (result.created > 0 || result.updated > 0) {
+              toast.success(`Import berhasil: ${result.created} dibuat, ${result.updated} diperbarui`);
+            } else {
+              toast.message('Import selesai tanpa perubahan');
+            }
+          } catch (e) {
+            toast.error(e instanceof Error ? e.message : 'Import gagal');
+          }
+        }}
+      />
     </>
   );
 }

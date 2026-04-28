@@ -1,8 +1,29 @@
 from import_export import resources, fields
 from import_export.widgets import ForeignKeyWidget
 
-from .models import QuestionChoice, Question
+from .models import GeographicUnit, QuestionChoice, Question
 from apps.directory.models import BasicStableInputsOfCare
+
+
+class GeographicUnitResource(resources.ModelResource):
+    parent = fields.Field(
+        column_name='parent',
+        attribute='parent',
+        widget=ForeignKeyWidget(GeographicUnit, field='code'),
+    )
+
+    class Meta:
+        model = GeographicUnit
+        fields = (
+            'id', 'code', 'name', 'level',
+            'parent', 'latitude', 'longitude', 'is_active',
+        )
+        export_order = (
+            'id', 'code', 'name', 'level',
+            'parent', 'latitude', 'longitude', 'is_active',
+        )
+        import_id_fields = ('code',)
+        skip_unchanged = True
 
 
 class QuestionChoiceResource(resources.ModelResource):

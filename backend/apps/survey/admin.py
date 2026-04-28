@@ -5,7 +5,7 @@ from .models import (
     GeographicUnit, SurveyTemplate, QuestionSection, Question,
     QuestionChoice, DynamicSurveyResponse, QuestionAnswer
 )
-from .resources import QuestionChoiceResource
+from .resources import GeographicUnitResource, QuestionChoiceResource
 
 
 # =============================================================================
@@ -13,7 +13,8 @@ from .resources import QuestionChoiceResource
 # =============================================================================
 
 @admin.register(GeographicUnit)
-class GeographicUnitAdmin(admin.ModelAdmin):
+class GeographicUnitAdmin(ImportExportModelAdmin):
+    resource_class = GeographicUnitResource
     list_display = ('code', 'name', 'level', 'parent', 'is_active')
     list_filter = ('level', 'is_active')
     search_fields = ('code', 'name')

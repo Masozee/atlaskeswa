@@ -3,7 +3,10 @@ from django.contrib.auth import get_user_model
 from datetime import date, timedelta
 from decimal import Decimal
 from apps.directory.models import MainTypeOfCare, BasicStableInputsOfCare, ServiceType, Service
-from .models import Survey, SurveyAttachment, SurveyAuditLog
+from tablib import Dataset
+
+from .models import GeographicUnit, Survey, SurveyAttachment, SurveyAuditLog
+from .resources import GeographicUnitResource
 
 User = get_user_model()
 
@@ -111,3 +114,42 @@ class SurveyWorkflowTests(TestCase):
         survey.verified_by = self.verifier
         survey.save()
         self.assertEqual(survey.verification_status, Survey.Status.VERIFIED)
+
+
+class GeographicUnitResourceTests(TestCase):
+    def test_import_export_roundtrip_uses_parent_code(self):
+        province = GeographicUnit.objects.create(
+            code='33',
+            name='Jawa Tengah',
+            level=GeographicUnit.Level.PROVINSI,
+        )
+        city = GeographicUnit.objects.create(
+            code='3305',
+            name='Kebumen',
+            level=GeographicUnit.Level.KABUPATEN_KOTA,
+            parent=province,
+        )
+
+        resource = GeographicUnitResource()
+        exported = resource.export()
+
+        self.assertEqual(exported.dict[0]['code'], '33')
+        self.assertEqual(exported.dict[1]['code'], '3305')
+        self.assertEqual(exported.dict[1]['parent'], '33')
+
+        GeographicUnit.objects.all().delete()
+
+        dataset = Dataset(
+            ['33', 'Jawa Tengah', GeographicUnit.Level.PROVINSI, '', '', '', True],
+            ['3305', 'Kebumen', GeographicUnit.Level.KABUPATEN_KOTA, '33', '-7.6687000', '109.6538000', True],
+            headers=['code', 'name', 'level', 'parent', 'latitude', 'longitude', 'is_active'],
+        )
+
+        result = resource.import_data(dataset, dry_run=False)
+
+        self.assertFalse(result.has_errors())
+
+        imported_city = GeographicUnit.objects.get(code='3305')
+        self.assertEqual(imported_city.parent.code, '33')
+        self.assertEqual(str(imported_city.latitude), '-7.6687000')
+        self.assertEqual(str(imported_city.longitude), '109.6538000')

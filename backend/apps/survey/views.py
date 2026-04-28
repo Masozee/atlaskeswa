@@ -1,6 +1,7 @@
 import csv
 import io
 import tablib
+from decimal import Decimal, InvalidOperation
 from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
 from rest_framework.parsers import FormParser, MultiPartParser
@@ -30,6 +31,7 @@ from .serializers import (
     DynamicSurveyResponseCreateSerializer
 )
 from apps.accounts.permissions import (
+    IsAdmin,
     IsSurveyorOrAdmin, IsVerifierOrAdmin, IsSurveyOwnerOrReadOnly,
     CanModifySurveyStatus
 )
@@ -358,6 +360,11 @@ class GeographicUnitViewSet(viewsets.ModelViewSet):
             return GeographicUnitCreateUpdateSerializer
         return GeographicUnitSerializer
 
+    def get_permissions(self):
+        if self.action in ['import_data']:
+            return [IsAdmin()]
+        return [IsAuthenticated()]
+
     def get_queryset(self):
         queryset = super().get_queryset()
         # Handle parent filter explicitly since parent is a self-referential FK
@@ -390,6 +397,183 @@ class GeographicUnitViewSet(viewsets.ModelViewSet):
         children = unit.children.filter(is_active=True).order_by('name')
         serializer = self.get_serializer(children, many=True)
         return Response(serializer.data)
+
+    @action(detail=False, methods=['get'], url_path='export', url_name='export')
+    def export_data(self, request):
+        """Export geographic units as CSV/XLSX/JSON."""
+        fmt = request.query_params.get('file_format', 'csv').lower()
+        ids_param = request.query_params.get('ids')
+        qs = self.get_queryset().select_related('parent').order_by('level', 'code')
+        if ids_param:
+            ids = [i for i in ids_param.split(',') if i.strip().isdigit()]
+            qs = qs.filter(id__in=ids)
+
+        headers = ['id', 'code', 'name', 'level', 'parent', 'latitude', 'longitude', 'is_active']
+
+        if fmt == 'json':
+            import json
+            data = []
+            for unit in qs:
+                data.append({
+                    'id': unit.id,
+                    'code': unit.code,
+                    'name': unit.name,
+                    'level': unit.level,
+                    'parent': unit.parent.code if unit.parent else '',
+                    'latitude': str(unit.latitude) if unit.latitude is not None else '',
+                    'longitude': str(unit.longitude) if unit.longitude is not None else '',
+                    'is_active': unit.is_active,
+                })
+            response = HttpResponse(
+                json.dumps(data, ensure_ascii=False, indent=2),
+                content_type='application/json'
+            )
+            response['Content-Disposition'] = 'attachment; filename="geographic-units.json"'
+            return response
+
+        if fmt == 'xlsx':
+            dataset = tablib.Dataset(headers=headers)
+            for unit in qs:
+                dataset.append([
+                    unit.id,
+                    unit.code,
+                    unit.name,
+                    unit.level,
+                    unit.parent.code if unit.parent else '',
+                    str(unit.latitude) if unit.latitude is not None else '',
+                    str(unit.longitude) if unit.longitude is not None else '',
+                    unit.is_active,
+                ])
+            buf = io.BytesIO(dataset.xlsx)
+            response = FileResponse(
+                buf,
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+            response['Content-Disposition'] = 'attachment; filename="geographic-units.xlsx"'
+            return response
+
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="geographic-units.csv"'
+        writer = csv.writer(response)
+        writer.writerow(headers)
+        for unit in qs:
+            writer.writerow([
+                unit.id,
+                unit.code,
+                unit.name,
+                unit.level,
+                unit.parent.code if unit.parent else '',
+                str(unit.latitude) if unit.latitude is not None else '',
+                str(unit.longitude) if unit.longitude is not None else '',
+                unit.is_active,
+            ])
+        return response
+
+    @action(detail=False, methods=['post'], url_path='import')
+    def import_data(self, request):
+        """Import geographic units from CSV/XLSX/JSON."""
+        file = request.FILES.get('file')
+        if not file:
+            return Response({'detail': 'No file provided.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        update_existing = request.data.get('update_existing', 'false')
+        if isinstance(update_existing, str):
+            update_existing = update_existing.lower() in ('true', '1', 'yes')
+
+        filename = file.name.lower()
+        try:
+            if filename.endswith('.xlsx'):
+                dataset = tablib.Dataset().load(file.read(), headers=True, format='xlsx')
+                rows = [dict(zip(dataset.headers, row)) for row in dataset]
+            elif filename.endswith('.json'):
+                import json
+                rows = json.loads(file.read().decode('utf-8'))
+            else:
+                decoded = file.read().decode('utf-8')
+                reader = csv.DictReader(io.StringIO(decoded))
+                rows = list(reader)
+        except Exception as e:
+            return Response({'detail': f'Could not read file: {e}'}, status=status.HTTP_400_BAD_REQUEST)
+
+        valid_levels = {choice[0] for choice in GeographicUnit.Level.choices}
+        created_count = 0
+        updated_count = 0
+        errors = []
+
+        for i, raw_row in enumerate(rows, start=2):
+            norm = {str(k or '').strip().lower(): '' if v is None else str(v).strip() for k, v in raw_row.items()}
+            code = norm.get('code', '')
+            name = norm.get('name', '')
+            level = norm.get('level', '').upper()
+            parent_code = norm.get('parent', '') or norm.get('parent_code', '')
+            latitude_raw = norm.get('latitude', '')
+            longitude_raw = norm.get('longitude', '')
+            is_active_raw = norm.get('is_active', 'true').lower()
+
+            if not code:
+                errors.append({'row': i, 'error': 'Missing required field: code'})
+                continue
+            if not name:
+                errors.append({'row': i, 'error': 'Missing required field: name'})
+                continue
+            if not level:
+                errors.append({'row': i, 'error': 'Missing required field: level'})
+                continue
+            if level not in valid_levels:
+                errors.append({'row': i, 'error': f'Invalid level: {level}'})
+                continue
+
+            parent = None
+            if parent_code:
+                parent = GeographicUnit.objects.filter(code=parent_code).first()
+                if not parent:
+                    errors.append({'row': i, 'error': f'Parent not found with code: {parent_code}'})
+                    continue
+
+            latitude = None
+            if latitude_raw != '':
+                try:
+                    latitude = Decimal(latitude_raw)
+                except (InvalidOperation, ValueError):
+                    errors.append({'row': i, 'error': f'Invalid latitude: {latitude_raw}'})
+                    continue
+
+            longitude = None
+            if longitude_raw != '':
+                try:
+                    longitude = Decimal(longitude_raw)
+                except (InvalidOperation, ValueError):
+                    errors.append({'row': i, 'error': f'Invalid longitude: {longitude_raw}'})
+                    continue
+
+            is_active = is_active_raw in ('true', '1', 'yes')
+            existing = GeographicUnit.objects.filter(code=code).first()
+
+            if existing:
+                if update_existing:
+                    existing.name = name
+                    existing.level = level
+                    existing.parent = parent
+                    existing.latitude = latitude
+                    existing.longitude = longitude
+                    existing.is_active = is_active
+                    existing.save()
+                    updated_count += 1
+                else:
+                    errors.append({'row': i, 'error': f'Duplicate code: {code}'})
+            else:
+                GeographicUnit.objects.create(
+                    code=code,
+                    name=name,
+                    level=level,
+                    parent=parent,
+                    latitude=latitude,
+                    longitude=longitude,
+                    is_active=is_active,
+                )
+                created_count += 1
+
+        return Response({'created': created_count, 'updated': updated_count, 'errors': errors})
 
 
 class SurveyTemplateViewSet(viewsets.ReadOnlyModelViewSet):
