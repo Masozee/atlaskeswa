@@ -30,7 +30,7 @@ export const createUserBaseSchema = z.object({
     .optional(),
   role: z
     .enum(['ADMIN', 'STAFF', 'VIEWER', 'SURVEYOR', 'VERIFIER'], {
-      errorMap: () => ({ message: 'Role tidak valid' }),
+      error: () => 'Role tidak valid',
     }),
   phone_number: z
     .string()

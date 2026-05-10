@@ -43,6 +43,15 @@ from apps.logs.utils import (
 )
 
 
+def _darken(hex_color: str, factor: float = 0.85) -> str:
+    """Darken a 6-char hex RGB color by `factor` (0..1) for header backgrounds."""
+    r = int(hex_color[0:2], 16)
+    g = int(hex_color[2:4], 16)
+    b = int(hex_color[4:6], 16)
+    r, g, b = int(r * factor), int(g * factor), int(b * factor)
+    return f'{r:02X}{g:02X}{b:02X}'
+
+
 def _is_effectively_empty_answer(value):
     if value is None:
         return True
@@ -1171,6 +1180,378 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
             return Response({'detail': 'Provide a list of IDs'}, status=status.HTTP_400_BAD_REQUEST)
         deleted_count, _ = DynamicSurveyResponse.objects.filter(id__in=ids).delete()
         return Response({'deleted': deleted_count})
+
+    @action(detail=False, methods=['get'], url_path='export', url_name='export')
+    def export_data(self, request):
+        """Export survey responses as CSV/XLSX.
+
+        Schema (one row per DynamicSurveyResponse):
+        - Metadata: ID SURVEY, TGL SURVEY, FASILITAS, ENUM, LONGITUDE, LATITUDE.
+        - For every MULTIPLE_CHOICE question Q with choices [v1..vN]:
+            * "Q" (or "Q/<ctx>" for DETAIL section): comma-joined selected values
+            * "Q/v1", "Q/v2", ... (or "Q/<ctx>/vi"): 1 if selected, else 0
+        - For every non-MC question in DETAIL section (the _inline_only_ section):
+            * "Q/<ctx>" repeated per upstream choice value, blank when no answer
+        - All other questions: single "Q" column.
+
+        Query params:
+        - file_format: csv | xlsx (default xlsx)
+        - ids: comma-separated response IDs (optional)
+        """
+        fmt = request.query_params.get('file_format', 'xlsx').lower()
+
+        qs = self.filter_queryset(self.get_queryset())
+        ids_param = request.query_params.get('ids')
+        if ids_param:
+            ids = [i for i in ids_param.split(',') if i.strip().isdigit()]
+            qs = qs.filter(id__in=ids)
+
+        qs = qs.prefetch_related(
+            'answers__question__section',
+            'answers__selected_choices',
+        )
+
+        headers, plan = self._build_export_schema(qs)
+        rows = [self._build_export_row(r, plan) for r in qs]
+
+        if fmt == 'csv':
+            response = HttpResponse(content_type='text/csv; charset=utf-8')
+            response['Content-Disposition'] = 'attachment; filename="surveys.csv"'
+            response.write('﻿')  # UTF-8 BOM for Excel
+            writer = csv.writer(response)
+            writer.writerow(headers)
+            writer.writerows(rows)
+            return response
+
+        buf = self._build_xlsx_with_colors(headers, plan, rows)
+        response = FileResponse(
+            buf,
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = 'attachment; filename="surveys.xlsx"'
+        return response
+
+    @staticmethod
+    def _build_xlsx_with_colors(headers, plan, rows):
+        """Render XLSX via openpyxl with soft per-context column fills.
+
+        Each detail context (e.g. R1, R2, D4.1) gets a unique pastel color so
+        the full RQA/R1..RQL/R1 block is visually grouped, distinct from
+        RQA/R2..RQL/R2, etc. Non-detail columns stay white.
+        """
+        from openpyxl import Workbook
+        from openpyxl.styles import PatternFill, Font
+
+        # Soft pastel palette — cycled by index when more contexts than colors.
+        palette = [
+            'FFF5E6', 'E6F5FF', 'E6FFE6', 'FFE6F0', 'F0E6FF',
+            'FFFAE6', 'E6FFFA', 'FAE6FF', 'F5FFE6', 'E6F0FF',
+            'FFE6E6', 'E6FFE0', 'FFE0F5', 'E0E6FF', 'FFF0E0',
+            'E0FFE6', 'F5E6FF', 'FFFFE0', 'E0FFFF', 'FFE0E0',
+        ]
+
+        # Per-column context key extracted from plan payload.
+        col_ctx: list[str] = []
+        for _label, kind, payload in plan:
+            if kind == 'meta':
+                col_ctx.append('')
+            elif kind in ('value', 'mc_main'):
+                col_ctx.append(payload[1] or '')
+            elif kind == 'mc_indicator':
+                col_ctx.append(payload[1] or '')
+            else:
+                col_ctx.append('')
+
+        # Map ctx → color (first-seen order).
+        ctx_to_color: dict[str, str] = {}
+        for ctx in col_ctx:
+            if ctx and ctx not in ctx_to_color:
+                ctx_to_color[ctx] = palette[len(ctx_to_color) % len(palette)]
+
+        wb = Workbook(write_only=False)
+        ws = wb.active
+        ws.title = 'Surveys'
+
+        # Pre-build PatternFill objects (one per color, reused).
+        fill_cache: dict[str, PatternFill] = {
+            color: PatternFill(start_color=color, end_color=color, fill_type='solid')
+            for color in set(ctx_to_color.values())
+        }
+        header_fill_cache: dict[str, PatternFill] = {
+            color: PatternFill(start_color=_darken(color), end_color=_darken(color), fill_type='solid')
+            for color in fill_cache
+        }
+        header_font = Font(bold=True)
+
+        # Header row.
+        ws.append(headers)
+        for col_idx, ctx in enumerate(col_ctx, start=1):
+            cell = ws.cell(row=1, column=col_idx)
+            cell.font = header_font
+            color = ctx_to_color.get(ctx)
+            if color:
+                cell.fill = header_fill_cache[color]
+
+        # Data rows.
+        for r_idx, row in enumerate(rows, start=2):
+            ws.append(row)
+            for c_idx, ctx in enumerate(col_ctx, start=1):
+                color = ctx_to_color.get(ctx)
+                if color:
+                    ws.cell(row=r_idx, column=c_idx).fill = fill_cache[color]
+
+        ws.freeze_panes = 'A2'
+
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        return buf
+
+    @staticmethod
+    def _build_export_schema(responses_qs):
+        """Return (headers, plan).
+
+        plan is a list of (label, kind, payload). Kinds:
+          - 'meta'           : payload = metadata key (str)
+          - 'value'          : payload = (code, ctx)               # _format_answer
+          - 'mc_main'        : payload = (code, ctx)               # comma-joined values
+          - 'mc_indicator'   : payload = (code, ctx, choice_value) # 1 / 0
+        """
+        meta_labels = ['ID SURVEY', 'TGL SURVEY', 'FASILITAS', 'ENUM',
+                       'LONGITUDE', 'LATITUDE']
+
+        template_ids = list(responses_qs.values_list('template_id', flat=True).distinct())
+        question_qs = Question.objects.select_related('section').prefetch_related('choices')
+        if template_ids:
+            question_qs = question_qs.filter(section__template_id__in=template_ids)
+        question_qs = question_qs.order_by(
+            'section__template_id', 'section__order', 'order'
+        )
+
+        questions = list(question_qs)
+
+        # DETAIL = sections marked with show_condition.question_code == "_inline_only_"
+        detail_section_ids = set()
+        for q in questions:
+            sc = q.section.show_condition or {}
+            if sc.get('question_code') == '_inline_only_':
+                detail_section_ids.add(q.section_id)
+        detail_question_codes = {q.code for q in questions
+                                 if q.section_id in detail_section_ids}
+
+        # Per-DETAIL-question contexts. A DETAIL question's "family" is the
+        # leading uppercase letters before "Q" in its code (RQA→R, SDQB1→SD).
+        # A choice value's family is its leading uppercase letters
+        # (R12→R, SD3.1.1→SD). Contexts for a DETAIL question = pool values
+        # whose family matches.
+        import re as _re
+        _CODE_FAMILY_RE = _re.compile(r'^([A-Z]+)Q')
+        _VALUE_FAMILY_RE = _re.compile(r'^([A-Z]+)')
+
+        def _code_family(code: str) -> str:
+            m = _CODE_FAMILY_RE.match(code or '')
+            return m.group(1) if m else ''
+
+        def _value_family(val: str) -> str:
+            m = _VALUE_FAMILY_RE.match(val or '')
+            return m.group(1) if m else ''
+
+        # Build pool: every choice.value targeting any DETAIL question, ordered.
+        ctx_pool_seen: set[str] = set()
+        ctx_pool_ordered: list[tuple[int, str]] = []
+        for q in questions:
+            if q.section_id in detail_section_ids:
+                continue
+            for c in q.choices.all():
+                if not c.next_question_code:
+                    continue
+                if c.next_question_code in detail_question_codes:
+                    if c.value not in ctx_pool_seen:
+                        ctx_pool_seen.add(c.value)
+                        ctx_pool_ordered.append((q.order * 1000 + c.order, c.value))
+        ctx_pool_ordered.sort()
+        ctx_pool = [v for _, v in ctx_pool_ordered]
+
+        # DETAIL questions in flow order, indexed by family.
+        detail_questions_by_family: dict[str, list] = {}
+        for q in questions:
+            if q.section_id not in detail_section_ids:
+                continue
+            fam = _code_family(q.code)
+            detail_questions_by_family.setdefault(fam, []).append(q)
+        # already in section.order, question.order from main queryset
+
+        # Build per-parent-MC detail block plan: parent_question_id -> (contexts, chain)
+        # Mirrors mobile flow: when a parent MC's choice points into DETAIL, the
+        # detail chain is recursed once per selected value, with context_key=value.
+        # Multiple parent MCs in same family each get their OWN inline detail block
+        # using only their own contexts.
+        parent_detail_blocks: dict[int, tuple[list[str], list]] = {}
+        for q in questions:
+            if q.section_id in detail_section_ids:
+                continue
+            choices_into_detail = [
+                c for c in sorted(q.choices.all(), key=lambda c: c.order)
+                if c.next_question_code in detail_question_codes
+            ]
+            if not choices_into_detail:
+                continue
+            # contexts for this parent = its choice values that target DETAIL
+            seen_v: set[str] = set()
+            contexts: list[str] = []
+            families: set[str] = set()
+            for c in choices_into_detail:
+                if c.value not in seen_v:
+                    seen_v.add(c.value)
+                    contexts.append(c.value)
+                fam = _code_family(c.next_question_code)
+                if fam:
+                    families.add(fam)
+            chain: list = []
+            for fam in families:
+                chain.extend(detail_questions_by_family.get(fam, []))
+            chain.sort(key=lambda dq: (dq.section.order, dq.order))
+            parent_detail_blocks[q.id] = (contexts, chain)
+
+        def _emit_question_columns(q, ctx: str = ''):
+            """Emit columns for one question (optionally scoped to a context)."""
+            is_mc = q.answer_type == Question.AnswerType.MULTIPLE_CHOICE
+            choice_values = [c.value for c in sorted(q.choices.all(), key=lambda c: c.order)]
+            base = f'{q.code}/{ctx}' if ctx else q.code
+            if is_mc:
+                plan.append((base, 'mc_main', (q.code, ctx)))
+                headers.append(base)
+                for v in choice_values:
+                    lab = f'{base}/{v}'
+                    plan.append((lab, 'mc_indicator', (q.code, ctx, v)))
+                    headers.append(lab)
+            else:
+                plan.append((base, 'value', (q.code, ctx)))
+                headers.append(base)
+
+        plan: list = []
+        headers: list = []
+
+        for label in meta_labels:
+            plan.append((label, 'meta', label))
+            headers.append(label)
+
+        seen_codes: set[str] = set()
+        emitted_detail: set[tuple[int, str]] = set()  # (detail_q.id, ctx)
+        for q in questions:
+            if q.section_id in detail_section_ids:
+                continue
+            if q.code in seen_codes:
+                continue
+            seen_codes.add(q.code)
+
+            _emit_question_columns(q, ctx='')
+
+            # Inline detail block right after parent MC. Each (detail_q, ctx)
+            # pair is emitted at most once — first parent wins. Subsequent
+            # parents whose chain overlaps share the existing column.
+            block = parent_detail_blocks.get(q.id)
+            if not block:
+                continue
+            contexts, chain = block
+            for ctx in contexts:
+                for dq in chain:
+                    key = (dq.id, ctx)
+                    if key in emitted_detail:
+                        continue
+                    emitted_detail.add(key)
+                    _emit_question_columns(dq, ctx=ctx)
+
+        return headers, plan
+
+    def _build_export_row(self, response, plan):
+        """Build a single export row using the precomputed schema plan."""
+        metadata = {
+            'ID SURVEY': response.id,
+            'TGL SURVEY': response.survey_date.strftime('%Y-%m-%d') if response.survey_date else '',
+            'FASILITAS': response.service.name if response.service else '',
+            'ENUM': (response.surveyor.get_full_name() or response.surveyor.email) if response.surveyor else '',
+            'LONGITUDE': float(response.longitude) if response.longitude is not None else '',
+            'LATITUDE': float(response.latitude) if response.latitude is not None else '',
+        }
+
+        answer_map: dict[tuple[str, str], QuestionAnswer] = {}
+        for ans in response.answers.all():
+            answer_map[(ans.question.code, ans.context_key or '')] = ans
+
+        row = []
+        for _label, kind, payload in plan:
+            if kind == 'meta':
+                row.append(metadata.get(payload, ''))
+            elif kind == 'value':
+                ans = answer_map.get(payload)
+                row.append(self._format_answer(ans) if ans else '')
+            elif kind == 'mc_main':
+                ans = answer_map.get(payload)
+                row.append(','.join(self._mc_selected_values(ans)) if ans else '')
+            elif kind == 'mc_indicator':
+                code, ctx, value = payload
+                ans = answer_map.get((code, ctx))
+                row.append(1 if ans and value in self._mc_selected_values(ans) else 0)
+            else:
+                row.append('')
+        return row
+
+    @staticmethod
+    def _mc_selected_values(ans) -> list[str]:
+        """Return list of choice.value strings for an MC/SC answer."""
+        if ans is None:
+            return []
+        values = [c.value for c in ans.selected_choices.all()]
+        if values:
+            return values
+        # Fallback: seeder writes JSON list into text_value for MULTIPLE_CHOICE
+        raw = ans.text_value or ''
+        if raw.startswith('['):
+            try:
+                import json as _json
+                parsed = _json.loads(raw)
+                if isinstance(parsed, list):
+                    return [str(v) for v in parsed]
+            except (ValueError, TypeError):
+                pass
+        if raw:
+            return [raw]
+        return []
+
+    @staticmethod
+    def _format_answer(ans):
+        """Format a QuestionAnswer to a single cell value."""
+        q = ans.question
+        t = q.answer_type
+        if t in ('TEXT', 'TEXTAREA', 'PHONE', 'EMAIL', 'URL'):
+            return ans.text_value or ''
+        if t in ('NUMBER', 'INTEGER'):
+            return float(ans.number_value) if ans.number_value is not None else ''
+        if t == 'DATE':
+            return ans.date_value.isoformat() if ans.date_value else ''
+        if t == 'TIME':
+            return ans.time_value.isoformat() if ans.time_value else ''
+        if t == 'BOOLEAN':
+            if ans.boolean_value is True:
+                return 'YA'
+            if ans.boolean_value is False:
+                return 'TIDAK'
+            return ''
+        if t in ('SINGLE_CHOICE', 'MULTIPLE_CHOICE'):
+            labels = [c.label for c in ans.selected_choices.all()]
+            if ans.other_text:
+                labels.append(ans.other_text)
+            return ', '.join(labels)
+        if t.startswith('GEO_'):
+            gu = ans.geographic_unit
+            if gu:
+                getter = getattr(gu, 'get_full_path', None)
+                return getter() if callable(getter) else str(gu)
+            return ans.text_value or ''
+        if t == 'COVERAGE_LEVEL':
+            return ans.coverage_level or ''
+        return ans.text_value or ''
 
     @action(detail=True, methods=['post'], url_path='request-deletion')
     def request_deletion(self, request, pk=None):
