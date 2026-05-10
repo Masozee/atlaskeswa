@@ -3,9 +3,11 @@
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useSurveyResponses, useDeleteSurveyResponse, useBulkDeleteSurveyResponses } from '@/hooks/use-survey-responses';
+import { apiClient } from '@/lib/api-client';
 import { PageHeader } from "@/components/page-header";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from '@/components/ui/separator';
 import {
@@ -42,7 +44,7 @@ import {
 } from "@tanstack/react-table";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { SortingZA01Icon } from "@hugeicons/core-free-icons";
-import { MoreHorizontalIcon, ViewIcon, Delete01Icon } from 'hugeicons-react';
+import { MoreHorizontalIcon, ViewIcon, Delete01Icon, Download04Icon } from 'hugeicons-react';
 import { toast } from 'sonner';
 
 interface SurveyResponseItem {
@@ -83,6 +85,35 @@ export default function AllSurveysPage() {
       toast.success('Survei berhasil dihapus');
     } catch {
       toast.error('Gagal menghapus survei');
+    }
+  };
+
+  const handleExport = async (
+    format: 'csv' | 'xlsx',
+    valueFormat: 'code' | 'label' = 'code',
+  ) => {
+    const params = new URLSearchParams();
+    params.set('file_format', format);
+    params.set('value_format', valueFormat);
+    if (search) params.set('search', search);
+    if (statusFilter !== 'all') params.set('verification_status', statusFilter);
+    const ids = table.getSelectedRowModel().rows.map((r) => r.original.id);
+    if (ids.length > 0) params.set('ids', ids.join(','));
+    try {
+      const res = await apiClient.fetchRaw(`/surveys/responses/export/?${params.toString()}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `surveys-${valueFormat}.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success(`Laporan ${format.toUpperCase()} berhasil diunduh`);
+    } catch (e) {
+      toast.error(`Gagal mengunduh laporan: ${e instanceof Error ? e.message : 'unknown'}`);
     }
   };
 
@@ -264,22 +295,19 @@ export default function AllSurveysPage() {
           )}
 
           <div className="flex gap-2 justify-between items-center">
-            <div className="flex gap-2 items-center">
-              <div className="flex items-center rounded-md border">
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-40 border-0 focus:ring-0" aria-label="Filter berdasarkan status">
-                    <SelectValue placeholder="All" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All</SelectItem>
-                    <SelectItem value="DRAFT">Draf</SelectItem>
-                    <SelectItem value="SUBMITTED">Diajukan</SelectItem>
-                    <SelectItem value="VERIFIED">Terverifikasi</SelectItem>
-                    <SelectItem value="REJECTED">Ditolak</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="w-px h-5 bg-border" />
+            <ButtonGroup aria-label="Filter survei">
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-40 !h-9 rounded-l-lg rounded-r-none border-r-0" aria-label="Filter berdasarkan status">
+                  <SelectValue placeholder="All" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="DRAFT">Draf</SelectItem>
+                  <SelectItem value="SUBMITTED">Diajukan</SelectItem>
+                  <SelectItem value="VERIFIED">Terverifikasi</SelectItem>
+                  <SelectItem value="REJECTED">Ditolak</SelectItem>
+                </SelectContent>
+              </Select>
               <Select value={sorting.length > 0 ? `${sorting[0].id}-${sorting[0].desc ? 'desc' : 'asc'}` : 'default'} onValueChange={(value) => {
                 if (value === 'default') {
                   setSorting([]);
@@ -288,7 +316,7 @@ export default function AllSurveysPage() {
                   setSorting([{ id, desc: dir === 'desc' }]);
                 }
               }}>
-                <SelectTrigger className="w-44" aria-label="Urutkan">
+                <SelectTrigger className="w-44 !h-9 rounded-r-lg rounded-l-none" aria-label="Urutkan">
                   <HugeiconsIcon icon={SortingZA01Icon} size={16} />
                   <SelectValue placeholder="Urutkan" />
                 </SelectTrigger>
@@ -302,14 +330,39 @@ export default function AllSurveysPage() {
                   <SelectItem value="service_city-desc">Kota Z-A</SelectItem>
                 </SelectContent>
               </Select>
+            </ButtonGroup>
+            <div className="flex gap-2 items-center">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="!h-9">
+                    <Download04Icon className="w-4 h-4 mr-2" />
+                    Ekspor
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => handleExport('xlsx', 'code')}>
+                    XLSX — Kode (mis. AKUT)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExport('xlsx', 'label')}>
+                    XLSX — Jawaban Lengkap
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => handleExport('csv', 'code')}>
+                    CSV — Kode
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExport('csv', 'label')}>
+                    CSV — Jawaban Lengkap
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Input
+                placeholder="Cari berdasarkan nama layanan, kota..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-64"
+                aria-label="Cari survei"
+              />
             </div>
-            <Input
-              placeholder="Cari berdasarkan nama layanan, kota..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-64"
-              aria-label="Cari survei"
-            />
           </div>
 
           <div className="rounded-lg border">

@@ -1196,9 +1196,14 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
 
         Query params:
         - file_format: csv | xlsx (default xlsx)
+        - value_format: code | label (default code) — choice cells render as
+          choice.value (e.g. "AKUT") or choice.label (full Indonesian text).
         - ids: comma-separated response IDs (optional)
         """
         fmt = request.query_params.get('file_format', 'xlsx').lower()
+        value_format = request.query_params.get('value_format', 'code').lower()
+        if value_format not in ('code', 'label'):
+            value_format = 'code'
 
         qs = self.filter_queryset(self.get_queryset())
         ids_param = request.query_params.get('ids')
@@ -1212,7 +1217,7 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
         )
 
         headers, plan = self._build_export_schema(qs)
-        rows = [self._build_export_row(r, plan) for r in qs]
+        rows = [self._build_export_row(r, plan, value_format=value_format) for r in qs]
 
         if fmt == 'csv':
             response = HttpResponse(content_type='text/csv; charset=utf-8')
@@ -1464,8 +1469,12 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
 
         return headers, plan
 
-    def _build_export_row(self, response, plan):
-        """Build a single export row using the precomputed schema plan."""
+    def _build_export_row(self, response, plan, value_format: str = 'code'):
+        """Build a single export row using the precomputed schema plan.
+
+        value_format='code'  → choice cells use choice.value (e.g. "AKUT").
+        value_format='label' → choice cells use choice.label (full text).
+        """
         metadata = {
             'ID SURVEY': response.id,
             'TGL SURVEY': response.survey_date.strftime('%Y-%m-%d') if response.survey_date else '',
@@ -1479,23 +1488,36 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
         for ans in response.answers.all():
             answer_map[(ans.question.code, ans.context_key or '')] = ans
 
+        use_label = value_format == 'label'
         row = []
         for _label, kind, payload in plan:
             if kind == 'meta':
                 row.append(metadata.get(payload, ''))
             elif kind == 'value':
                 ans = answer_map.get(payload)
-                row.append(self._format_answer(ans) if ans else '')
+                row.append(self._format_answer(ans, use_label=use_label) if ans else '')
             elif kind == 'mc_main':
                 ans = answer_map.get(payload)
-                row.append(','.join(self._mc_selected_values(ans)) if ans else '')
+                row.append(','.join(self._mc_selected(ans, use_label=use_label)) if ans else '')
             elif kind == 'mc_indicator':
                 code, ctx, value = payload
                 ans = answer_map.get((code, ctx))
+                # indicator matched by VALUE regardless of display format
                 row.append(1 if ans and value in self._mc_selected_values(ans) else 0)
             else:
                 row.append('')
         return row
+
+    @classmethod
+    def _mc_selected(cls, ans, use_label: bool) -> list[str]:
+        """Return labels or values for the answer's selected choices."""
+        if ans is None:
+            return []
+        if use_label:
+            labels = [c.label for c in ans.selected_choices.all()]
+            if labels:
+                return labels
+        return cls._mc_selected_values(ans)
 
     @staticmethod
     def _mc_selected_values(ans) -> list[str]:
@@ -1520,8 +1542,13 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
         return []
 
     @staticmethod
-    def _format_answer(ans):
-        """Format a QuestionAnswer to a single cell value."""
+    def _format_answer(ans, use_label: bool = True):
+        """Format a QuestionAnswer to a single cell value.
+
+        use_label=True  → choice answers render as labels (default for plain
+        single-question columns to keep them readable).
+        use_label=False → choice answers render as choice.value codes.
+        """
         q = ans.question
         t = q.answer_type
         if t in ('TEXT', 'TEXTAREA', 'PHONE', 'EMAIL', 'URL'):
@@ -1539,10 +1566,11 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
                 return 'TIDAK'
             return ''
         if t in ('SINGLE_CHOICE', 'MULTIPLE_CHOICE'):
-            labels = [c.label for c in ans.selected_choices.all()]
+            attr = 'label' if use_label else 'value'
+            parts = [getattr(c, attr) for c in ans.selected_choices.all()]
             if ans.other_text:
-                labels.append(ans.other_text)
-            return ', '.join(labels)
+                parts.append(ans.other_text)
+            return ', '.join(parts)
         if t.startswith('GEO_'):
             gu = ans.geographic_unit
             if gu:
