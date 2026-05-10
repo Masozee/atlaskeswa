@@ -1262,7 +1262,7 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
                 col_ctx.append('')
             elif kind in ('value', 'mc_main'):
                 col_ctx.append(payload[1] or '')
-            elif kind == 'mc_indicator':
+            elif kind in ('mc_indicator', 'mc_other'):
                 col_ctx.append(payload[1] or '')
             else:
                 col_ctx.append('')
@@ -1419,20 +1419,39 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
             parent_detail_blocks[q.id] = (contexts, chain)
 
         def _emit_question_columns(q, ctx: str = ''):
-            """Emit columns for one question (optionally scoped to a context)."""
-            is_mc = q.answer_type == Question.AnswerType.MULTIPLE_CHOICE
-            choice_values = [c.value for c in sorted(q.choices.all(), key=lambda c: c.order)]
+            """Emit columns for one question (optionally scoped to a context).
+
+            For SINGLE/MULTIPLE_CHOICE questions:
+              * main column with comma-joined selected values/labels
+              * one indicator column per choice (1/0/blank)
+              * extra "_other" column for any choice with has_other_input=True
+                — holds QuestionAnswer.other_text when that choice is selected.
+            """
+            t = q.answer_type
+            is_mc = t == Question.AnswerType.MULTIPLE_CHOICE
+            is_choice = is_mc or t == Question.AnswerType.SINGLE_CHOICE
+            choices = sorted(q.choices.all(), key=lambda c: c.order)
             base = f'{q.code}/{ctx}' if ctx else q.code
             if is_mc:
                 plan.append((base, 'mc_main', (q.code, ctx)))
                 headers.append(base)
-                for v in choice_values:
-                    lab = f'{base}/{v}'
-                    plan.append((lab, 'mc_indicator', (q.code, ctx, v)))
+                for c in choices:
+                    lab = f'{base}/{c.value}'
+                    plan.append((lab, 'mc_indicator', (q.code, ctx, c.value)))
                     headers.append(lab)
+                    if c.has_other_input:
+                        olab = f'{base}/{c.value}/_other'
+                        plan.append((olab, 'mc_other', (q.code, ctx, c.value)))
+                        headers.append(olab)
             else:
                 plan.append((base, 'value', (q.code, ctx)))
                 headers.append(base)
+                if is_choice:
+                    for c in choices:
+                        if c.has_other_input:
+                            olab = f'{base}/{c.value}/_other'
+                            plan.append((olab, 'mc_other', (q.code, ctx, c.value)))
+                            headers.append(olab)
 
         plan: list = []
         headers: list = []
@@ -1502,8 +1521,17 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
             elif kind == 'mc_indicator':
                 code, ctx, value = payload
                 ans = answer_map.get((code, ctx))
-                # indicator matched by VALUE regardless of display format
-                row.append(1 if ans and value in self._mc_selected_values(ans) else 0)
+                if ans is None:
+                    row.append('')  # MC unanswered → blank, not 0
+                else:
+                    row.append(1 if value in self._mc_selected_values(ans) else 0)
+            elif kind == 'mc_other':
+                code, ctx, value = payload
+                ans = answer_map.get((code, ctx))
+                if ans and value in self._mc_selected_values(ans):
+                    row.append(ans.other_text or '')
+                else:
+                    row.append('')
             else:
                 row.append('')
         return row
