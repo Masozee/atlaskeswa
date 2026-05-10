@@ -57,8 +57,8 @@
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.15 0 0); /* #1A1A1A */
 
-  /* Primary - Sky #0ea5e9 */
-  --primary: #0ea5e9;
+  /* Primary - #07579E (matches mobile) */
+  --primary: #07579E;
   --primary-foreground: oklch(0.98 0 0); /* White text on primary */
 
   /* Secondary - Gray #6B7280 */
@@ -84,7 +84,7 @@
   --ring: oklch(0.83 0.145 85);
 
   /* Charts */
-  --chart-1: #0ea5e9; /* Sky blue */
+  --chart-1: #07579E; /* Primary blue */
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
@@ -95,9 +95,9 @@
   /* Sidebar */
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.15 0 0); /* #1A1A1A */
-  --sidebar-primary: #0ea5e9; /* Sky #0ea5e9 */
+  --sidebar-primary: #07579E; /* Primary (matches mobile) */
   --sidebar-primary-foreground: oklch(0.98 0 0); /* White */
-  --sidebar-accent: #0ea5e9; /* Sky for active state */
+  --sidebar-accent: #07579E; /* Primary for active state */
   --sidebar-accent-foreground: oklch(0.98 0 0); /* White text on active */
   --sidebar-border: oklch(0.92 0.003 264); /* #E5E7EB */
   --sidebar-ring: oklch(0.83 0.145 85); /* Gold focus */
@@ -111,8 +111,8 @@
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
 
-  /* Primary - Sky #0284c7 */
-  --primary: #0284c7;
+  /* Primary - #07579E (matches mobile) */
+  --primary: #07579E;
   --primary-foreground: oklch(0.98 0 0);
 
   --secondary: oklch(0.269 0 0);
@@ -128,7 +128,7 @@
   /* Focus Ring - Gold */
   --ring: oklch(0.83 0.145 85);
 
-  --chart-1: #0ea5e9; /* Sky blue */
+  --chart-1: #07579E; /* Primary blue */
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
@@ -137,9 +137,9 @@
   /* Sidebar */
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: #0284c7; /* Sky dark */
+  --sidebar-primary: #07579E; /* Primary (matches mobile) */
   --sidebar-primary-foreground: oklch(0.98 0 0);
-  --sidebar-accent: #0284c7; /* Sky dark for active */
+  --sidebar-accent: #07579E; /* Primary for active */
   --sidebar-accent-foreground: oklch(0.98 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.83 0.145 85); /* Gold focus */
