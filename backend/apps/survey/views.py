@@ -1228,7 +1228,7 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
             writer.writerows(rows)
             return response
 
-        buf = self._build_xlsx_with_colors(headers, plan, rows)
+        buf = self._build_xlsx_with_colors(headers, plan, rows, qs)
         response = FileResponse(
             buf,
             content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -1236,13 +1236,19 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
         response['Content-Disposition'] = 'attachment; filename="surveys.xlsx"'
         return response
 
-    @staticmethod
-    def _build_xlsx_with_colors(headers, plan, rows):
+    @classmethod
+    def _build_xlsx_with_colors(cls, headers, plan, rows, responses_qs):
         """Render XLSX via openpyxl with soft per-context column fills.
 
-        Each detail context (e.g. R1, R2, D4.1) gets a unique pastel color so
-        the full RQA/R1..RQL/R1 block is visually grouped, distinct from
-        RQA/R2..RQL/R2, etc. Non-detail columns stay white.
+        Sheets:
+          - "Surveys": wide per-question/per-context layout.
+          - "Tabel Staff": all STAFF_TABLE entries flattened (ID, KODE,
+            JABATAN, LAKI-LAKI, PEREMPUAN).
+          - One sheet per KEGIATAN_TABLE / MATRIX_KEGIATAN question (RQJ,
+            SRQJ, DQB, DQB1..4, OQB1..2, SDQB*, SOQB*) with flattened rows.
+
+        Per-context columns on Surveys carry pastel fills so each detail
+        block (RQA/R1..RQL/R1 vs RQA/R2..RQL/R2) is visually grouped.
         """
         from openpyxl import Workbook
         from openpyxl.styles import PatternFill, Font
@@ -1307,10 +1313,118 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
 
         ws.freeze_panes = 'A2'
 
+        cls._append_table_sheets(wb, responses_qs)
+
         buf = io.BytesIO()
         wb.save(buf)
         buf.seek(0)
         return buf
+
+    @staticmethod
+    def _append_table_sheets(wb, responses_qs):
+        """Add one tab per table-type question, plus aggregated "Tabel Staff".
+
+        STAFF_TABLE rows from every staff-table question go to a single
+        "Tabel Staff" sheet keyed by ID SURVEY + KODE (context_key).
+        Each KEGIATAN_TABLE / MATRIX_KEGIATAN question gets its own sheet
+        named after the question code (e.g. RQJ, DQB, SOQB1).
+        """
+        from openpyxl.styles import Font
+        bold = Font(bold=True)
+
+        # Gather questions of relevant types from involved templates.
+        template_ids = list(responses_qs.values_list('template_id', flat=True).distinct())
+        if not template_ids:
+            return
+        table_types = ['STAFF_TABLE', 'KEGIATAN_TABLE', 'OPERATING_HOURS', 'MATRIX_KEGIATAN']
+        table_questions = list(
+            Question.objects
+            .filter(section__template_id__in=template_ids, answer_type__in=table_types)
+            .select_related('section')
+            .order_by('section__order', 'order')
+        )
+        if not table_questions:
+            return
+
+        # Index answers by question_id → list of (response_id, context_key, table_data)
+        relevant_q_ids = [q.id for q in table_questions]
+        answers = (
+            QuestionAnswer.objects
+            .filter(response__in=responses_qs, question_id__in=relevant_q_ids)
+            .exclude(table_data__isnull=True)
+            .values_list('response_id', 'question_id', 'context_key', 'table_data')
+        )
+        by_question: dict[int, list] = {}
+        for resp_id, qid, ctx, td in answers:
+            if not td:
+                continue
+            by_question.setdefault(qid, []).append((resp_id, ctx, td))
+
+        # ---- Tabel Staff (aggregate all STAFF_TABLE) ----
+        staff_rows: list[list] = []
+        for q in table_questions:
+            if q.answer_type != 'STAFF_TABLE':
+                continue
+            for resp_id, ctx, td in by_question.get(q.id, []):
+                if not isinstance(td, list):
+                    continue
+                for entry in td:
+                    if not isinstance(entry, dict):
+                        continue
+                    staff_rows.append([
+                        resp_id,
+                        ctx,
+                        entry.get('jabatan', ''),
+                        entry.get('laki', entry.get('laki_laki', '')),
+                        entry.get('perempuan', ''),
+                    ])
+        if staff_rows or any(q.answer_type == 'STAFF_TABLE' for q in table_questions):
+            ws = wb.create_sheet('Tabel Staff')
+            ws.append(['ID SURVEY', 'KODE', 'JABATAN', 'LAKI-LAKI', 'PEREMPUAN'])
+            for c in range(1, 6):
+                ws.cell(row=1, column=c).font = bold
+            for r in staff_rows:
+                ws.append(r)
+            ws.freeze_panes = 'A2'
+
+        # ---- Per-question sheets (KEGIATAN_TABLE / OPERATING_HOURS / MATRIX_KEGIATAN) ----
+        for q in table_questions:
+            if q.answer_type == 'STAFF_TABLE':
+                continue
+            entries = by_question.get(q.id, [])
+            if q.answer_type in ('KEGIATAN_TABLE', 'OPERATING_HOURS'):
+                hdr = ['ID SURVEY', 'KODE', 'KEGIATAN', 'MULAI', 'SELESAI']
+                key_a, key_b = 'start', 'stop'
+                name_key = 'kegiatan'
+                second_kind = 'time'
+            elif q.answer_type == 'MATRIX_KEGIATAN':
+                hdr = ['ID SURVEY', 'KODE', 'KEGIATAN', 'HARI']
+                key_a = None
+                name_key = 'nama_kegiatan'
+                second_kind = 'days'
+            else:
+                continue
+            sheet_name = q.code[:31]  # Excel sheet name limit
+            ws = wb.create_sheet(sheet_name)
+            ws.append(hdr)
+            for c in range(1, len(hdr) + 1):
+                ws.cell(row=1, column=c).font = bold
+            for resp_id, ctx, td in entries:
+                if not isinstance(td, list):
+                    continue
+                for entry in td:
+                    if not isinstance(entry, dict):
+                        continue
+                    name = entry.get(name_key, entry.get('kegiatan', ''))
+                    if second_kind == 'time':
+                        ws.append([resp_id, ctx, name,
+                                   entry.get('start', ''), entry.get('stop', '')])
+                    else:  # days
+                        days = entry.get('hari', '')
+                        if isinstance(days, list):
+                            days = ', '.join(days)
+                        ws.append([resp_id, ctx, name, days])
+            ws.freeze_panes = 'A2'
 
     @staticmethod
     def _build_export_schema(responses_qs):
