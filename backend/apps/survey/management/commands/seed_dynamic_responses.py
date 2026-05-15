@@ -55,11 +55,43 @@ class Command(BaseCommand):
         parser.add_argument('--count', type=int, default=50, help='Number of responses to create.')
         parser.add_argument('--template', type=str, default=None, help='Template code (default: all active).')
         parser.add_argument('--seed', type=int, default=None, help='Random seed.')
+        parser.add_argument('--enumerator-count', type=int, default=0,
+                            help='Create N enumerator users named enumerator001..NNN (SURVEYOR role).')
+        parser.add_argument('--faskes-ratio', type=float, default=None,
+                            help='Probability a response is faskes (Q4 in RSU/RSJ/PUSKESMAS/KLINIK/PRAKTEK_DOKTER). '
+                                 'Remaining responses go to non-faskes.')
+        parser.add_argument('--ql1-probs', type=str, default=None,
+                            help='Independent selection probabilities for QL1, e.g. R=0.1,D=0.1,O=0.8,A=0.8,I=1.0')
+        parser.add_argument('--ql2-probs', type=str, default=None,
+                            help='Independent selection probabilities for QL2, e.g. SR=0.1,SD=0.1,SO=0.8,SA=0.5,SI=0.7')
+
+    @staticmethod
+    def _parse_probs(spec: str) -> dict[str, float]:
+        if not spec:
+            return {}
+        out: dict[str, float] = {}
+        for chunk in spec.split(','):
+            chunk = chunk.strip()
+            if not chunk:
+                continue
+            if '=' not in chunk:
+                raise ValueError(f'Bad probs spec: {chunk!r} (expected KEY=FLOAT)')
+            k, v = chunk.split('=', 1)
+            out[k.strip()] = float(v.strip())
+        return out
 
     def handle(self, *args, **opts):
         if opts['seed'] is not None:
             random.seed(opts['seed'])
 
+        # Distribution config (used by _generate_value via self._slot)
+        self.faskes_ratio = opts.get('faskes_ratio')
+        self.ql1_probs = self._parse_probs(opts.get('ql1_probs') or '')
+        self.ql2_probs = self._parse_probs(opts.get('ql2_probs') or '')
+        self._slot: str | None = None  # 'faskes' / 'non_faskes' / None
+
+        if opts.get('enumerator_count'):
+            self._ensure_enumerators(opts['enumerator_count'])
         self._ensure_surveyors()
 
         templates_qs = SurveyTemplate.objects.filter(is_active=True)
@@ -79,8 +111,18 @@ class Command(BaseCommand):
         verifiers = list(User.objects.filter(role=User.Role.VERIFIER))
 
         count = opts['count']
+        # Pre-assign slot per response so faskes_ratio holds exactly.
+        slots: list[str | None] = []
+        if self.faskes_ratio is not None:
+            n_faskes = round(count * self.faskes_ratio)
+            slots = ['faskes'] * n_faskes + ['non_faskes'] * (count - n_faskes)
+            random.shuffle(slots)
+        else:
+            slots = [None] * count
+
         created = 0
         for i in range(count):
+            self._slot = slots[i]
             template = random.choice(templates)
             service = random.choice(services)
             surveyor = random.choice(surveyors)
@@ -97,6 +139,24 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(
             f'Done. {created}/{count} dynamic responses created.'
         ))
+
+    def _ensure_enumerators(self, n: int):
+        """Create enumerator001..N as SURVEYOR users (idempotent)."""
+        for i in range(1, n + 1):
+            email = f'enumerator{i:03d}@yakkum.id'
+            user, created = User.objects.get_or_create(
+                email=email,
+                defaults={
+                    'role': User.Role.SURVEYOR,
+                    'first_name': f'Enumerator',
+                    'last_name': f'{i:03d}',
+                    'organization': 'Field Enumerator',
+                },
+            )
+            if created:
+                user.set_password(f'enumerator{i:03d}')
+                user.save()
+                self.stdout.write(f'  + enumerator {email}')
 
     def _ensure_surveyors(self):
         existing = User.objects.filter(role=User.Role.SURVEYOR).count()
@@ -382,7 +442,38 @@ class Command(BaseCommand):
 
     # ---------- value generation ----------
 
+    @staticmethod
+    def _sample_independent(q: Question, probs: dict[str, float]) -> list[str]:
+        """Pick MC values per independent Bernoulli probability. Ensures at
+        least one value selected (re-rolls if all zero)."""
+        choices = list(q.choices.order_by('order'))
+        for _ in range(5):
+            picked = [c.value for c in choices if random.random() < probs.get(c.value, 0.0)]
+            if picked:
+                return picked
+        # Fallback: pick the highest-probability value
+        if choices and probs:
+            best = max(choices, key=lambda c: probs.get(c.value, 0.0))
+            return [best.value]
+        return []
+
+    FASKES_Q4_VALUES = ('RSU', 'RSJ', 'PUSKESMAS', 'KLINIK', 'PRAKTEK_DOKTER')
+    NON_FASKES_Q4_VALUES = ('BALAI_REHABILITASI', 'PANTI_SOSIAL', 'OBK', 'LSM',
+                            'LKS', 'PRAKTIK_PRIBADI', 'LAINNYA')
+
     def _generate_value(self, q: Question):
+        # Slot-driven overrides for Q4 / QL1 / QL2
+        if self._slot is not None:
+            if q.code == 'Q4':
+                pool = self.FASKES_Q4_VALUES if self._slot == 'faskes' else self.NON_FASKES_Q4_VALUES
+                # restrict to choices that actually exist on this question
+                valid = [c.value for c in q.choices.all() if c.value in pool]
+                return random.choice(valid) if valid else random.choice(pool)
+            if q.code == 'QL1' and self._slot == 'faskes' and self.ql1_probs:
+                return self._sample_independent(q, self.ql1_probs)
+            if q.code == 'QL2' and self._slot == 'non_faskes' and self.ql2_probs:
+                return self._sample_independent(q, self.ql2_probs)
+
         t = q.answer_type
         if t in ('TEXT',):
             return f'{rand_word(5).title()} {rand_word(6)}'
