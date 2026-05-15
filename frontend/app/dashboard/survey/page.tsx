@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useSurveyResponses, useDeleteSurveyResponse, useBulkDeleteSurveyResponses } from '@/hooks/use-survey-responses';
 import { apiClient } from '@/lib/api-client';
@@ -63,18 +63,32 @@ const breadcrumbs = [
   { label: 'Semua Catatan Survei' },
 ];
 
+const PAGE_SIZE = 50;
+
 export default function AllSurveysPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sorting, setSorting] = useState<SortingState>([]);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  const [page, setPage] = useState(1);
+
+  // Reset page when filters change
+  const filterKey = `${search}|${statusFilter}`;
+  const lastFilterKey = useRef(filterKey);
+  if (lastFilterKey.current !== filterKey) {
+    lastFilterKey.current = filterKey;
+    if (page !== 1) setPage(1);
+  }
 
   const { data, isLoading } = useSurveyResponses({
     search,
     verification_status: statusFilter !== 'all' ? statusFilter : undefined,
     ordering: '-survey_date',
-    page_size: 50,
+    page,
+    page_size: PAGE_SIZE,
   });
+
+  const totalPages = data ? Math.max(1, Math.ceil(data.count / PAGE_SIZE)) : 1;
 
   const deleteSurvey = useDeleteSurveyResponse();
   const bulkDelete = useBulkDeleteSurveyResponses();
@@ -408,8 +422,31 @@ export default function AllSurveysPage() {
           {data && data.count > 0 && (
             <div className="flex items-center justify-between">
               <p className="text-sm text-muted-foreground">
-                Menampilkan {data.results.length} dari {data.count} survei
+                Menampilkan {(page - 1) * PAGE_SIZE + 1}
+                {'–'}
+                {Math.min(page * PAGE_SIZE, data.count)} dari {data.count} survei
               </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={!data.previous || page <= 1}
+                >
+                  Sebelumnya
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  Halaman {page} dari {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => p + 1)}
+                  disabled={!data.next || page >= totalPages}
+                >
+                  Selanjutnya
+                </Button>
+              </div>
             </div>
           )}
         </div>
