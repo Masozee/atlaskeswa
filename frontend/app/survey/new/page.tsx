@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useServices } from '@/hooks/use-services';
@@ -44,7 +44,6 @@ export default function SurveyWizardPage() {
   const [hasConsent, setHasConsent] = useState<boolean | null>(null);
 
   // Setup data
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   const [selectedServiceId, setSelectedServiceId] = useState<string>('');
   const [surveyDate, setSurveyDate] = useState(new Date().toISOString().split('T')[0]);
   const [periodStart, setPeriodStart] = useState('');
@@ -53,7 +52,8 @@ export default function SurveyWizardPage() {
 
   // Hooks
   const { data: user } = useCurrentUser();
-  const { data: templates, isLoading: templatesLoading } = useSurveyTemplates();
+  const { data: templates } = useSurveyTemplates();
+  const selectedTemplateId = templates?.[0]?.id.toString() ?? '';
   const { data: selectedTemplate, isLoading: templateLoading } = useSurveyTemplate(
     selectedTemplateId ? parseInt(selectedTemplateId) : undefined
   );
@@ -62,13 +62,6 @@ export default function SurveyWizardPage() {
 
   // Speech text for survey step (updated by DynamicSurveyForm)
   const [surveySpeechText, setSurveySpeechText] = useState('');
-
-  // Auto-select template if there's only one (or always select the first active one)
-  useEffect(() => {
-    if (templates && templates.length > 0 && !selectedTemplateId) {
-      setSelectedTemplateId(templates[0].id.toString());
-    }
-  }, [templates, selectedTemplateId]);
 
   // Get user's full name for introduction
   const enumeratorName = useMemo(() => {
@@ -124,13 +117,6 @@ export default function SurveyWizardPage() {
     setCurrentStep('setup');
   };
 
-  const handleConsentNo = () => {
-    setHasConsent(false);
-    cancel();
-    toast.info('Terima kasih atas waktunya. Wawancara tidak dapat dilanjutkan tanpa persetujuan.');
-    router.push('/dashboard');
-  };
-
   // Validate setup step
   const validateSetup = (): boolean => {
     const errors: Record<string, string> = {};
@@ -173,8 +159,7 @@ export default function SurveyWizardPage() {
 
   // Handle survey success
   const handleSurveySuccess = () => {
-    toast.success('Survei berhasil disimpan!');
-    router.push('/dashboard/survey/responses');
+    cancel();
   };
 
   // Handle back from survey to setup
@@ -481,6 +466,7 @@ export default function SurveyWizardPage() {
                 <DynamicSurveyForm
                   template={selectedTemplate}
                   serviceId={parseInt(selectedServiceId)}
+                  serviceSummary={selectedService}
                   surveyDate={surveyDate}
                   surveyPeriodStart={periodStart}
                   surveyPeriodEnd={periodEnd}

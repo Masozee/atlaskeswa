@@ -88,11 +88,11 @@ export default function SettingsPage() {
           </div>
           <div className="flex gap-2">
             <AlertDialog>
-              <AlertDialogTrigger
-                render={<Button variant="outline" disabled={resetSettings.isPending} />}
-              >
-                <HugeiconsIcon icon={RefreshIcon} size={16} className="mr-2" aria-hidden="true" />
-                {resetSettings.isPending ? 'Resetting...' : 'Reset to Defaults'}
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" disabled={resetSettings.isPending}>
+                  <HugeiconsIcon icon={RefreshIcon} size={16} className="mr-2" aria-hidden="true" />
+                  {resetSettings.isPending ? 'Resetting...' : 'Reset to Defaults'}
+                </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>

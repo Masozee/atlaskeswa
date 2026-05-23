@@ -307,6 +307,15 @@ class Database {
     return result || null;
   }
 
+  async getSurveyByServerId(serverId: number): Promise<any | null> {
+    if (!this.db) throw new Error('Database not initialized');
+    const result = await this.db.getFirstAsync(
+      'SELECT * FROM surveys WHERE server_id = ? ORDER BY updated_at DESC LIMIT 1',
+      [serverId]
+    );
+    return result || null;
+  }
+
   async getPendingSyncCount(): Promise<number> {
     if (!this.db) throw new Error('Database not initialized');
     const result = await this.db.getFirstAsync(
@@ -325,6 +334,20 @@ class Database {
     await this.db.runAsync(
       'UPDATE surveys SET synced = 1, pending_action = NULL, server_id = ? WHERE id = ?',
       [serverId ?? null, localId]
+    );
+  }
+
+  async deleteSurvey(localId: number): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+    await this.db.runAsync('DELETE FROM survey_photos WHERE survey_local_id = ?', [localId]);
+    await this.db.runAsync('DELETE FROM surveys WHERE id = ?', [localId]);
+  }
+
+  async setSurveyServerId(localId: number, serverId: number): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+    await this.db.runAsync(
+      'UPDATE surveys SET server_id = ?, updated_at = ? WHERE id = ?',
+      [serverId, Date.now(), localId]
     );
   }
 
@@ -392,7 +415,7 @@ class Database {
 
   // ── Sync metadata ─────────────────────────────────────────────────────────
 
-  async updateLastSyncTime(status: 'success' | 'failed'): Promise<void> {
+  async updateLastSyncTime(status: 'success' | 'failed' | 'partial'): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
     await this.db.runAsync(
       'INSERT OR REPLACE INTO sync_metadata (id, last_sync_time, last_sync_status) VALUES (1, ?, ?)',
@@ -470,6 +493,14 @@ class Database {
     );
   }
 
+  async getPendingSurveyPhotosForLocalSurvey(localId: number): Promise<any[]> {
+    if (!this.db) throw new Error('Database not initialized');
+    return this.db.getAllAsync(
+      'SELECT * FROM survey_photos WHERE survey_local_id = ? AND synced = 0 ORDER BY created_at ASC',
+      [localId]
+    );
+  }
+
   async getSurveyPhotosForServerSurvey(serverId: number): Promise<any[]> {
     if (!this.db) throw new Error('Database not initialized');
     return this.db.getAllAsync(
@@ -483,6 +514,42 @@ class Database {
     await this.db.runAsync(
       'UPDATE survey_photos SET synced = 1, server_id = ?, server_image_url = ? WHERE id = ?',
       [serverId, serverImageUrl, localId]
+    );
+  }
+
+  async updatePhotoLocal(localId: number, photo: {
+    local_uri?: string;
+    caption?: string | null;
+    synced?: boolean;
+    server_id?: number | null;
+    server_image_url?: string | null;
+  }): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+
+    const fields: string[] = [];
+    const values: any[] = [];
+
+    if (photo.local_uri !== undefined) { fields.push('local_uri = ?'); values.push(photo.local_uri); }
+    if (photo.caption !== undefined) { fields.push('caption = ?'); values.push(photo.caption); }
+    if (photo.synced !== undefined) { fields.push('synced = ?'); values.push(photo.synced ? 1 : 0); }
+    if (photo.server_id !== undefined) { fields.push('server_id = ?'); values.push(photo.server_id); }
+    if (photo.server_image_url !== undefined) { fields.push('server_image_url = ?'); values.push(photo.server_image_url); }
+
+    if (fields.length === 0) return;
+
+    values.push(localId);
+
+    await this.db.runAsync(
+      `UPDATE survey_photos SET ${fields.join(', ')} WHERE id = ?`,
+      values
+    );
+  }
+
+  async setSurveyServerIdForPhotos(localSurveyId: number, serverId: number): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+    await this.db.runAsync(
+      'UPDATE survey_photos SET survey_server_id = ? WHERE survey_local_id = ?',
+      [serverId, localSurveyId]
     );
   }
 

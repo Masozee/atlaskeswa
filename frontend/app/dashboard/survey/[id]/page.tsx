@@ -495,15 +495,16 @@ export default function SurveyDetailPage({
                         return <span className="text-muted-foreground italic">Tidak ada data</span>;
                       };
 
+                      const upper = (text: string) => text.toUpperCase();
                       const formatValue = (answer: any): React.ReactNode =>
                         answer.text_value ||
                         (answer.number_value !== null && answer.number_value !== undefined ? String(answer.number_value) : null) ||
-                        (answer.boolean_value !== null && answer.boolean_value !== undefined ? (answer.boolean_value ? 'Ya' : 'Tidak') : null) ||
-                        answer.geographic_unit_name ||
-                        (answer.selected_choice_labels?.length > 0 ? answer.selected_choice_labels.join(', ') : null) ||
+                        (answer.boolean_value !== null && answer.boolean_value !== undefined ? (answer.boolean_value ? 'YA' : 'TIDAK') : null) ||
+                        (answer.geographic_unit_name ? upper(answer.geographic_unit_name) : null) ||
+                        (answer.selected_choice_labels?.length > 0 ? upper(answer.selected_choice_labels.join(', ')) : null) ||
                         (answer.gps_latitude && answer.gps_longitude ? `${answer.gps_latitude}, ${answer.gps_longitude}` : null) ||
                         (answer.table_data ? formatTableData(answer.table_data) : null) ||
-                        'Tidak ada jawaban';
+                        'TIDAK ADA JAWABAN';
 
                       const nonDetail = answers.filter((a: any) => !/[A-Z]$/.test(a.question_code));
                       const detailAnswers = answers.filter((a: any) => /[A-Z]$/.test(a.question_code));
@@ -526,7 +527,7 @@ export default function SurveyDetailPage({
                         items.push(
                           <div key={answer.id} className="py-1">
                             <div className="text-xs font-bold text-primary mb-0.5">{answer.question_code}</div>
-                            <div className="text-sm font-medium mb-1">{answer.question_text}</div>
+                            <div className="text-sm font-medium mb-1">{upper(answer.question_text || '')}</div>
                             <div className="text-sm text-muted-foreground">{formatValue(answer)}</div>
                           </div>
                         );
@@ -541,7 +542,7 @@ export default function SurveyDetailPage({
                                   <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
                                     Detail untuk <strong>{answer.question_code}</strong>
                                   </p>
-                                  {ctx && <p className="text-sm font-semibold text-primary">{ctx}</p>}
+                                  {ctx && <p className="text-sm font-semibold text-primary">{upper(ctx)}</p>}
                                 </div>
                               </div>
                             );
@@ -550,7 +551,7 @@ export default function SurveyDetailPage({
                               items.push(
                                 <div key={`${dAns.id}-${ctx}`} className="pl-4 border-l-2 border-primary/20 py-1">
                                   <div className="text-xs font-bold text-primary mb-0.5">{dAns.question_code}</div>
-                                  <div className="text-sm font-medium mb-1">{dAns.question_text}</div>
+                                  <div className="text-sm font-medium mb-1">{upper(dAns.question_text || '')}</div>
                                   <div className="text-sm text-muted-foreground">{formatValue(dAns)}</div>
                                 </div>
                               );

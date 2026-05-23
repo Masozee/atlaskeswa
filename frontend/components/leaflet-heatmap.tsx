@@ -43,7 +43,7 @@ export function LeafletHeatmap({ center, zoom, heatmapData, className }: Leaflet
           ? "#FFBF47"
           : normalized > 0.2
           ? "#4DB6AC"
-          : "#00979D"
+          : "#07579E"
 
       L.circle([point.lat, point.lng], {
         color: color,

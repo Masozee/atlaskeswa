@@ -76,7 +76,7 @@ function buildFlowGraph(template: SurveyTemplate) {
 
   if (sections.length === 0) return { nodes, edges };
 
-  const SECTION_PALETTE = ['#4F72E5', '#22C55E', '#8B5CF6', '#F59E0B', '#EF4444', '#EC4899', '#00979D', '#6366F1'];
+  const SECTION_PALETTE = ['#4F72E5', '#22C55E', '#8B5CF6', '#F59E0B', '#EF4444', '#EC4899', '#07579E', '#6366F1'];
   const codeToQuestion = new Map<string, Question>();
   const questionToNodeId = new Map<string, string>();
 

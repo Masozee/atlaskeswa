@@ -45,10 +45,10 @@ interface DashboardStats {
 
 interface User {
   id: string;
-  email: string;
+  email?: string;
   full_name?: string;
-  first_name: string;
-  last_name: string;
+  first_name?: string;
+  last_name?: string;
 }
 
 interface HomePageProps {
@@ -90,7 +90,9 @@ export default function HomePage({ onNavigateToSurveys, onSelectSurvey }: HomePa
   const getFullName = () => {
     if (user?.full_name) return user.full_name;
     if (user?.first_name || user?.last_name) return `${user.first_name} ${user.last_name}`.trim();
-    return user?.email.split('@')[0] || 'User';
+    const email = typeof user?.email === 'string' ? user.email : '';
+    const atIndex = email.indexOf('@');
+    return atIndex > 0 ? email.slice(0, atIndex) : 'User';
   };
 
   const getStatusColor = (status?: string) => {
@@ -131,7 +133,7 @@ export default function HomePage({ onNavigateToSurveys, onSelectSurvey }: HomePa
   if (loading) {
     return (
       <View style={[styles.centered, { backgroundColor: c.background }]}>
-        <ActivityIndicator size="large" color="#03979D" />
+        <ActivityIndicator size="large" color="#07579E" />
         <Text style={[styles.loadingText, { color: c.textMuted, fontSize: fs(12) }]}>Memuat dashboard...</Text>
       </View>
     );
@@ -150,13 +152,13 @@ export default function HomePage({ onNavigateToSurveys, onSelectSurvey }: HomePa
       <TopHeader />
       <ScrollView
         style={styles.scrollContainer}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#03979D']} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#07579E']} />}
       >
         {/* Hero Card */}
         <View style={[styles.heroCard, { backgroundColor: c.heroBg }]}>
           <View style={styles.heroContent}>
             <View>
-              <Text style={[styles.heroSubgreeting, { fontSize: fs(14) }]}>Selamat pagi,</Text>
+              <Text style={[styles.heroSubgreeting, { fontSize: fs(14) }]}>Selamat datang,</Text>
               <Text style={[styles.heroGreeting, { fontSize: fs(22) }]}>{getFullName()}</Text>
               <View style={styles.heroCountRow}>
                 <Text style={[styles.heroSurveyCount, { fontSize: fs(14) }]}>
@@ -188,14 +190,6 @@ export default function HomePage({ onNavigateToSurveys, onSelectSurvey }: HomePa
                 centerValue={String(globalStats?.total ?? 0)}
                 centerLabel="Total"
               />
-              <View style={styles.legend}>
-                {globalChartData.map((d) => (
-                  <View key={d.label} style={styles.legendRow}>
-                    <View style={[styles.legendDot, { backgroundColor: d.color }]} />
-                    <Text style={[styles.legendText, { color: c.textMuted, fontSize: fs(10) }]}>{d.label}: {d.value}</Text>
-                  </View>
-                ))}
-              </View>
             </View>
 
             {/* My surveys */}
@@ -208,17 +202,6 @@ export default function HomePage({ onNavigateToSurveys, onSelectSurvey }: HomePa
                 centerValue={String(myStats?.total ?? 0)}
                 centerLabel="Saya"
               />
-              <View style={styles.legend}>
-                {myChartData.map((d) => (
-                  <View key={d.label} style={styles.legendRow}>
-                    <View style={[styles.legendDot, { backgroundColor: d.color }]} />
-                    <Text style={[styles.legendText, { color: c.textMuted, fontSize: fs(10) }]}>{d.label}: {d.value}</Text>
-                  </View>
-                ))}
-                {myChartData.length === 0 && (
-                  <Text style={[styles.legendText, { color: c.textMuted, fontSize: fs(10) }]}>Belum ada survei</Text>
-                )}
-              </View>
             </View>
           </View>
         </View>

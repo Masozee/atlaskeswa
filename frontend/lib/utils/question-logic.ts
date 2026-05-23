@@ -3,7 +3,7 @@
  * Evaluates which questions and sections should be displayed
  */
 
-import type { Question, QuestionSection, SurveyAnswers } from '@/lib/types/survey-template';
+import type { Question, QuestionOption, QuestionSection, SurveyAnswers } from '@/lib/types/survey-template';
 
 /**
  * Evaluate if an answer matches the expected condition
@@ -220,6 +220,7 @@ export function getFlowBasedQuestions(
   rawAnswers?: SurveyAnswers,          // full answers including "context|code" prefixed keys
   _visitedSectionIds?: Set<number>,   // prevents infinite cross-section recursion
   _forcedStartCode?: string,           // override entry point (used by recursive cross-section call)
+  _contextKey?: string,                // current cabang_mtc context for detail routing
 ): Question[] {
   if (!section.questions || section.questions.length === 0) return [];
 
@@ -300,7 +301,7 @@ export function getFlowBasedQuestions(
   // This handles the case where getFlowBasedQuestions is re-called after an answer change.
   const allAnswered = visibleQuestions.every((q) => {
     const ans = allResponses[q.code];
-    return ans !== null && ans !== undefined && ans !== '';
+    return ans !== null && ans !== undefined && ans !== '' && (!Array.isArray(ans) || ans.length > 0);
   });
   if (allAnswered && !_forcedStartCode) {
     return [];
@@ -324,11 +325,18 @@ export function getFlowBasedQuestions(
     }
 
     let nextCode: string | undefined;
-    let triggeringChoice: NonNullable<typeof current.choices>[0] | undefined;
+    let triggeringChoice: QuestionOption | undefined;
 
     // 1. Check choice-level branching (selected choice's next_question_code)
     if (current.choices && current.choices.length > 0) {
-      triggeringChoice = current.choices.find((c) => c.value === answer);
+      const answerType = questionsMap
+        ? (questionsMap.get(current.id)?.answer_type ?? current.answer_type)
+        : current.answer_type;
+      triggeringChoice = current.choices.find((c) => {
+        return answerType === 'MULTIPLE_CHOICE' && Array.isArray(answer)
+          ? answer.includes(c.value)
+          : evaluateCondition(answer, c.value);
+      });
       if (triggeringChoice?.next_question_code) {
         nextCode = triggeringChoice.next_question_code;
       }
@@ -337,6 +345,51 @@ export function getFlowBasedQuestions(
     // 2. Fallback to question-level skip_logic
     if (!nextCode && current.skip_logic && current.skip_logic.length > 0 && current.skip_logic[0].goto) {
       nextCode = current.skip_logic[0].goto;
+    }
+
+    // IQC is the extra detail question for interactive information via media.
+    // Continue into the information tariff branch, not the consultation branch.
+    if (current.code === 'IQC' && codeMap.has('IQG')) {
+      nextCode = 'IQG';
+    }
+
+    // Special case: IQ3 interactive info should go through IQ4 before entering detail.
+    if (current.code === 'IQ3' && answer === 'I2.1') {
+      nextCode = 'IQ4';
+    }
+
+    // Special case: IQB detail routing depends on the IQ2 / IQ3 / IQ4 context.
+    // I1.x (consultation/assessment) -> IQD
+    // I2.1.2 (interactive via media) -> IQC -> IQG...
+    // I2.1.1 and I2.2 (face-to-face / non-interactive info) -> IQG
+    if (current.code === 'IQB' && _contextKey) {
+      if (/^I1\./.test(_contextKey)) {
+        nextCode = 'IQD';
+      } else if (_contextKey === 'I2.1.2') {
+        nextCode = 'IQC';
+      } else if (_contextKey === 'I2.1.1' || _contextKey === 'I2.2') {
+        nextCode = 'IQG';
+      }
+    }
+
+    // Special case: SIQB detail routing depends on the SIQ2 / SIQ4 context.
+    // SI1.x (consultation/assessment) -> SIQD
+    // SI2.1.2 (interactive via media) -> SIQC -> SIQG...
+    // SI2.1.1 and SI2.2 (face-to-face / non-interactive info) -> SIQG
+    if (current.code === 'SIQB' && _contextKey) {
+      if (/^SI1\./.test(_contextKey)) {
+        nextCode = 'SIQD';
+      } else if (_contextKey === 'SI2.1.2') {
+        nextCode = 'SIQC';
+      } else if (_contextKey === 'SI2.1.1' || _contextKey === 'SI2.2') {
+        nextCode = 'SIQG';
+      }
+    }
+
+    // SIQC is the extra detail question for interactive information via media.
+    // Continue into the information tariff branch, not the consultation branch.
+    if (current.code === 'SIQC' && codeMap.has('SIQG')) {
+      nextCode = 'SIQG';
     }
 
     // 3. Default: next question by order
@@ -362,7 +415,7 @@ export function getFlowBasedQuestions(
         );
         const targetIsSentinel =
           otherSection?.show_condition != null &&
-          (otherSection.show_condition as any).question_code === '_inline_only_';
+          (otherSection.show_condition as Record<string, unknown>).question_code === '_inline_only_';
         if (otherSection && targetIsSentinel) {
           const sectionVisited = _visitedSectionIds ?? new Set<number>();
           if (!sectionVisited.has(otherSection.id)) {
@@ -392,6 +445,7 @@ export function getFlowBasedQuestions(
               rawAnswers,
               newSectionVisited,
               nextCode,
+              cabangMtc,
             );
 
             // Append cross-section questions WITHOUT marking them in `visited`.

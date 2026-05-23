@@ -68,7 +68,7 @@ export default function MTCLayersPage() {
   // MTC layer configurations with colors
   const mtcLayers = useMemo(() => {
     const colors = [
-      { bg: "bg-[#00979D]", border: "border-[#00979D]", hex: "#00979D" },
+      { bg: "bg-[#07579E]", border: "border-[#07579E]", hex: "#07579E" },
       { bg: "bg-[#4DB6AC]", border: "border-[#4DB6AC]", hex: "#4DB6AC" },
       { bg: "bg-[#9575CD]", border: "border-[#9575CD]", hex: "#9575CD" },
       { bg: "bg-[#FFBF47]", border: "border-[#FFBF47]", hex: "#FFBF47" },

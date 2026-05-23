@@ -833,7 +833,7 @@ type MapGeoJSONProps = {
 
 function MapGeoJSON({
   data,
-  fillColor = "#00979D",
+  fillColor = "#07579E",
   fillOpacity = 0.3,
   strokeColor = "#007A80",
   strokeWidth = 2,

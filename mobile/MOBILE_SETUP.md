@@ -64,22 +64,20 @@ Use your existing backend credentials:
 - Email: Your registered email
 - Password: Your password
 
-The app will connect to `http://192.168.1.45:8004/api` automatically.
+The app will connect to `https://api.atlaskeswa.id/v1` automatically.
 
 ## API Configuration
 
 The API endpoint is configured in:
 - **File:** `mobile/services/api.ts`
-- **Current Setting:** `http://192.168.1.45:8004/api` (development)
+- **Current Setting:** `https://api.atlaskeswa.id/v1` (production default)
 
 ### Changing the API Endpoint
 
-If your IP address changes, update line 8-11 in `mobile/services/api.ts`:
+If you need a different backend, update line 8-11 in `mobile/services/api.ts` or set `API_BASE_URL` in `.env`:
 
 ```typescript
-const API_BASE_URL = __DEV__
-  ? 'http://YOUR_NEW_IP:8004/api'  // Update this line
-  : 'https://your-production-url.com/api';
+const API_BASE_URL = normalizeApiBaseUrl(ENV_API_BASE_URL || 'https://api.atlaskeswa.id/v1');
 ```
 
 To find your current IP address:

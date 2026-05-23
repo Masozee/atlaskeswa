@@ -280,7 +280,7 @@ export default function WorkforceCapacityReportPage() {
                   <YAxis />
                   <Tooltip />
                   <Legend />
-                  <Bar dataKey="staff" fill="#00979D" name="Staff" />
+                  <Bar dataKey="staff" fill="#07579E" name="Staff" />
                   <Bar dataKey="beds" fill="#22c55e" name="Beds" />
                 </BarChart>
               </ResponsiveContainer>
@@ -301,7 +301,7 @@ export default function WorkforceCapacityReportPage() {
                   <YAxis dataKey="name" type="category" width={60} />
                   <Tooltip />
                   <Legend />
-                  <Bar dataKey="staff" fill="#00979D" name="Staff" />
+                  <Bar dataKey="staff" fill="#07579E" name="Staff" />
                   <Bar dataKey="beds" fill="#22c55e" name="Beds" />
                 </BarChart>
               </ResponsiveContainer>
@@ -321,7 +321,7 @@ export default function WorkforceCapacityReportPage() {
                   <XAxis dataKey="range" />
                   <YAxis />
                   <Tooltip />
-                  <Bar dataKey="beds" fill="#00979D" name="Number of Services" />
+                  <Bar dataKey="beds" fill="#07579E" name="Number of Services" />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
@@ -378,7 +378,7 @@ export default function WorkforceCapacityReportPage() {
                     return null;
                   }}
                 />
-                <Scatter name="Services" data={staffBedDistribution} fill="#00979D" />
+                <Scatter name="Services" data={staffBedDistribution} fill="#07579E" />
               </ScatterChart>
             </ResponsiveContainer>
           </CardContent>

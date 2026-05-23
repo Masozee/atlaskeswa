@@ -247,7 +247,7 @@ export function KebumenMap({
       >
         <MapGeoJSON
           data="/data/33.05_kecamatan.geojson"
-          fillColor="#00979D"
+          fillColor="#07579E"
           fillOpacity={0.2}
           strokeColor="#007A80"
           strokeWidth={1.5}

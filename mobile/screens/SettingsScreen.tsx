@@ -8,12 +8,11 @@ import {
   StyleSheet,
   Switch,
   Alert,
-  ActivityIndicator,
 } from 'react-native';
 import TopHeader from '../components/TopHeader';
-import { apiClient } from '../services/api';
-import { syncQueue } from '../services/syncQueue';
+import { apiClient, normalizeApiBaseUrl } from '../services/api';
 import { database } from '../services/database';
+import { syncQueue } from '../services/syncQueue';
 import { useSettings, useTheme, useFontScale } from '../contexts/SettingsContext';
 
 interface SettingsScreenProps {
@@ -26,11 +25,11 @@ export default function SettingsScreen({ onLogout }: SettingsScreenProps) {
   const fs = useFontScale();
   const c = theme.colors;
 
-  const [syncing, setSyncing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<number | null>(null);
   const [lastSyncStatus, setLastSyncStatus] = useState<string | null>(null);
   const [serverUrl, setServerUrl] = useState('');
   const [isSavedInDb, setIsSavedInDb] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
     loadLastSyncTime();
@@ -41,7 +40,11 @@ export default function SettingsScreen({ onLogout }: SettingsScreenProps) {
     try {
       const saved = await database.getApiBaseUrl();
       if (saved) {
-        setServerUrl(saved);
+        const normalized = normalizeApiBaseUrl(saved);
+        if (normalized !== saved) {
+          await database.saveApiBaseUrl(normalized);
+        }
+        setServerUrl(normalized);
         setIsSavedInDb(true);
       } else {
         setServerUrl(apiClient.getBaseURL());
@@ -54,7 +57,7 @@ export default function SettingsScreen({ onLogout }: SettingsScreenProps) {
   };
 
   const handleSaveServerUrl = async () => {
-    const trimmed = serverUrl.trim().replace(/\/+$/, '');
+    const trimmed = normalizeApiBaseUrl(serverUrl);
     if (!trimmed) {
       Alert.alert('Error', 'Masukkan URL server yang valid');
       return;
@@ -71,12 +74,29 @@ export default function SettingsScreen({ onLogout }: SettingsScreenProps) {
     }
   };
 
-  const canSaveServerUrl = !isSavedInDb || serverUrl.trim().replace(/\/+$/, '') !== apiClient.getBaseURL();
+  const canSaveServerUrl = !isSavedInDb || normalizeApiBaseUrl(serverUrl) !== apiClient.getBaseURL();
 
   const loadLastSyncTime = async () => {
     const syncData = await database.getLastSyncTime();
     setLastSyncTime(syncData.time);
     setLastSyncStatus(syncData.status);
+  };
+
+  const handleSyncData = async () => {
+    setSyncing(true);
+    try {
+      const result = await syncQueue.processQueue();
+      await loadLastSyncTime();
+      Alert.alert(
+        'Sinkronisasi Selesai',
+        `Berhasil: ${result.success}. Gagal: ${result.failed}.`
+      );
+    } catch (err: any) {
+      await loadLastSyncTime();
+      Alert.alert('Sinkronisasi Gagal', err?.message || 'Gagal menyinkronkan database');
+    } finally {
+      setSyncing(false);
+    }
   };
 
   const formatLastSyncTime = () => {
@@ -112,29 +132,6 @@ export default function SettingsScreen({ onLogout }: SettingsScreenProps) {
     );
   };
 
-  const handleSyncData = async () => {
-    setSyncing(true);
-    try {
-      const result = await syncQueue.processQueue();
-      await loadLastSyncTime();
-
-      if (result.success > 0) {
-        Alert.alert(
-          'Sinkronisasi Selesai',
-          `Berhasil menyinkronkan ${result.success} item(s).${result.failed > 0 ? ` ${result.failed} item gagal.` : ''}`
-        );
-      } else if (result.failed > 0) {
-        Alert.alert('Sinkronisasi Gagal', `Gagal menyinkronkan ${result.failed} item(s).`);
-      } else {
-        Alert.alert('Sinkronisasi Selesai', 'Tidak ada item yang perlu disinkronkan.');
-      }
-    } catch (err: any) {
-      Alert.alert('Error Sinkronisasi', err?.message || 'Gagal menyinkronkan data');
-    } finally {
-      setSyncing(false);
-    }
-  };
-
   return (
     <View style={[styles.container, { backgroundColor: c.background }]}>
       <TopHeader />
@@ -153,8 +150,8 @@ export default function SettingsScreen({ onLogout }: SettingsScreenProps) {
               <Switch
                 value={settings.darkMode}
                 onValueChange={(value) => updateSetting('darkMode', value)}
-                trackColor={{ false: '#d1d5db', true: '#8ed8f8' }}
-                thumbColor={settings.darkMode ? '#03979D' : '#f3f4f6'}
+                trackColor={{ false: '#d1d5db', true: '#07579E' }}
+                thumbColor={settings.darkMode ? '#07579E' : '#f3f4f6'}
               />
             </View>
           </View>
@@ -174,8 +171,8 @@ export default function SettingsScreen({ onLogout }: SettingsScreenProps) {
               <Switch
                 value={settings.largeText}
                 onValueChange={(value) => updateSetting('largeText', value)}
-                trackColor={{ false: '#d1d5db', true: '#8ed8f8' }}
-                thumbColor={settings.largeText ? '#03979D' : '#f3f4f6'}
+                trackColor={{ false: '#d1d5db', true: '#07579E' }}
+                thumbColor={settings.largeText ? '#07579E' : '#f3f4f6'}
               />
             </View>
             <View style={[styles.settingDivider, { backgroundColor: c.border }]} />
@@ -187,8 +184,8 @@ export default function SettingsScreen({ onLogout }: SettingsScreenProps) {
               <Switch
                 value={settings.ttsEnabled}
                 onValueChange={(value) => updateSetting('ttsEnabled', value)}
-                trackColor={{ false: '#d1d5db', true: '#8ed8f8' }}
-                thumbColor={settings.ttsEnabled ? '#03979D' : '#f3f4f6'}
+                trackColor={{ false: '#d1d5db', true: '#07579E' }}
+                thumbColor={settings.ttsEnabled ? '#07579E' : '#f3f4f6'}
               />
             </View>
             {settings.ttsEnabled && (
@@ -202,8 +199,8 @@ export default function SettingsScreen({ onLogout }: SettingsScreenProps) {
                   <Switch
                     value={settings.ttsAutoPlay}
                     onValueChange={(value) => updateSetting('ttsAutoPlay', value)}
-                    trackColor={{ false: '#d1d5db', true: '#8ed8f8' }}
-                    thumbColor={settings.ttsAutoPlay ? '#03979D' : '#f3f4f6'}
+                    trackColor={{ false: '#d1d5db', true: '#07579E' }}
+                    thumbColor={settings.ttsAutoPlay ? '#07579E' : '#f3f4f6'}
                   />
                 </View>
               </>
@@ -224,18 +221,29 @@ export default function SettingsScreen({ onLogout }: SettingsScreenProps) {
                 <Text style={[styles.settingDescription, { color: c.textMuted, fontSize: fs(11) }]}>{formatLastSyncTime()}</Text>
               </View>
             </View>
-          </View>
-
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: c.surface }]}
-            onPress={handleSyncData}
-            disabled={syncing}
-          >
-            {syncing && <ActivityIndicator size="small" color="#03979D" />}
-            <Text style={[styles.actionButtonText, { fontSize: fs(13) }]}>
-              {syncing ? 'Menyinkronkan...' : 'Sinkronkan Data ke Server'}
+            <View style={[styles.settingDivider, { backgroundColor: c.border, marginVertical: 12 }]} />
+            <Text style={[styles.settingDescription, { color: c.textMuted, fontSize: fs(11) }]}>
+              Sinkronisasi survei dilakukan manual dari halaman detail survei lokal yang belum tersinkron.
             </Text>
-          </TouchableOpacity>
+            {lastSyncStatus ? (
+              <Text style={[styles.settingDescription, { color: c.textMuted, fontSize: fs(11), marginTop: 6 }]}>
+                Status terakhir: {lastSyncStatus === 'success' ? 'Berhasil' : 'Gagal'}
+              </Text>
+            ) : null}
+            <TouchableOpacity
+              style={[
+                styles.syncButton,
+                { backgroundColor: c.primary },
+                syncing && styles.syncButtonDisabled,
+              ]}
+              onPress={handleSyncData}
+              disabled={syncing}
+            >
+              <Text style={styles.syncButtonText}>
+                {syncing ? 'Menyinkronkan...' : 'Sinkronkan DB'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Server Configuration Section */}
@@ -338,6 +346,24 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     padding: 14,
   },
+  syncButton: {
+    marginTop: 14,
+    width: '100%',
+    minHeight: 44,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+  syncButtonText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  syncButtonDisabled: {
+    opacity: 0.6,
+  },
   settingItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -362,14 +388,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#03979D',
+    borderColor: '#07579E',
     paddingVertical: 12,
     gap: 6,
     marginTop: 10,
   },
   actionButtonText: {
     fontWeight: '600',
-    color: '#03979D',
+    color: '#07579E',
   },
   logoutButton: {
     flexDirection: 'row',
@@ -401,7 +427,7 @@ const styles = StyleSheet.create({
   serverSaveButton: {
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#03979D',
+    borderColor: '#07579E',
     paddingHorizontal: 14,
     justifyContent: 'center',
   },
@@ -409,7 +435,7 @@ const styles = StyleSheet.create({
     opacity: 0.4,
   },
   serverSaveButtonText: {
-    color: '#03979D',
+    color: '#07579E',
     fontWeight: '600',
   },
 });

@@ -58,7 +58,7 @@ interface User {
 
 const STATUS_COLORS = {
   VERIFIED: '#22c55e',
-  SUBMITTED: '#00979D',
+  SUBMITTED: '#07579E',
   DRAFT: '#f59e0b',
   REJECTED: '#ef4444',
 };
@@ -338,7 +338,7 @@ export default function PerformanceReportPage() {
                   <Line
                     type="monotone"
                     dataKey="surveys"
-                    stroke="#00979D"
+                    stroke="#07579E"
                     name="Total Surveys"
                   />
                   <Line
@@ -368,7 +368,7 @@ export default function PerformanceReportPage() {
                   <Tooltip />
                   <Legend />
                   <Bar dataKey="verified" fill="#22c55e" name="Verified" />
-                  <Bar dataKey="submitted" fill="#00979D" name="Submitted" />
+                  <Bar dataKey="submitted" fill="#07579E" name="Submitted" />
                   <Bar dataKey="draft" fill="#f59e0b" name="Draft" />
                   <Bar dataKey="rejected" fill="#ef4444" name="Rejected" />
                 </BarChart>

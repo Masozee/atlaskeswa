@@ -32,7 +32,7 @@ interface SectionFlow {
 
 const SECTION_PALETTE = [
   '#4F72E5', '#22C55E', '#8B5CF6', '#F59E0B',
-  '#EF4444', '#EC4899', '#00979D', '#6366F1',
+  '#EF4444', '#EC4899', '#07579E', '#6366F1',
 ];
 
 /** Walk a section's questions linearly from a given start code, following next_question_code. */

@@ -31,13 +31,13 @@ export default function BottomNavigation({ onNavigate }: BottomNavigationProps) 
           <LucideIcon
             name="home"
             size={22}
-            color={activeTab === 'home' ? '#03979D' : c.iconDefault}
+            color={activeTab === 'home' ? '#07579E' : c.iconDefault}
           />
           <Text
             style={[
               styles.menuLabel,
               { color: c.iconDefault },
-              activeTab === 'home' && { color: '#03979D' },
+              activeTab === 'home' && { color: '#07579E' },
             ]}
           >
             Home
@@ -48,13 +48,13 @@ export default function BottomNavigation({ onNavigate }: BottomNavigationProps) 
           <LucideIcon
             name="clipboard-list"
             size={22}
-            color={activeTab === 'survey' ? '#03979D' : c.iconDefault}
+            color={activeTab === 'survey' ? '#07579E' : c.iconDefault}
           />
           <Text
             style={[
               styles.menuLabel,
               { color: c.iconDefault },
-              activeTab === 'survey' && { color: '#03979D' },
+              activeTab === 'survey' && { color: '#07579E' },
             ]}
           >
             Survey
@@ -62,7 +62,7 @@ export default function BottomNavigation({ onNavigate }: BottomNavigationProps) 
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.menuItem} onPress={handleNewSurvey}>
-          <View style={[styles.addButton, { backgroundColor: '#03979D' }]}>
+          <View style={[styles.addButton, { backgroundColor: '#07579E' }]}>
             <LucideIcon name="plus" size={22} color="#ffffff" />
           </View>
         </TouchableOpacity>
@@ -71,13 +71,13 @@ export default function BottomNavigation({ onNavigate }: BottomNavigationProps) 
           <LucideIcon
             name="settings"
             size={22}
-            color={activeTab === 'settings' ? '#03979D' : c.iconDefault}
+            color={activeTab === 'settings' ? '#07579E' : c.iconDefault}
           />
           <Text
             style={[
               styles.menuLabel,
               { color: c.iconDefault },
-              activeTab === 'settings' && { color: '#03979D' },
+              activeTab === 'settings' && { color: '#07579E' },
             ]}
           >
             Settings
@@ -88,13 +88,13 @@ export default function BottomNavigation({ onNavigate }: BottomNavigationProps) 
           <LucideIcon
             name="user"
             size={22}
-            color={activeTab === 'profile' ? '#03979D' : c.iconDefault}
+            color={activeTab === 'profile' ? '#07579E' : c.iconDefault}
           />
           <Text
             style={[
               styles.menuLabel,
               { color: c.iconDefault },
-              activeTab === 'profile' && { color: '#03979D' },
+              activeTab === 'profile' && { color: '#07579E' },
             ]}
           >
             Profile

@@ -308,7 +308,7 @@ export default function SurveyFormScreen({ surveyId, onBack, onSave }: SurveyFor
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#03979D" />
+        <ActivityIndicator size="large" color="#07579E" />
         <Text style={styles.loadingText}>Loading survey...</Text>
       </View>
     );
@@ -796,7 +796,7 @@ export default function SurveyFormScreen({ surveyId, onBack, onSave }: SurveyFor
             onPress={captureLocation}
             disabled={capturingLocation}
           >
-            <MaterialIcons name="place" size={20} color="#03979D" />
+            <MaterialIcons name="place" size={20} color="#07579E" />
             <Text style={styles.locationButtonText}>
               {capturingLocation ? 'Capturing...' : formData.latitude ? 'Update Location' : 'Capture Location'}
             </Text>
@@ -986,7 +986,7 @@ const styles = StyleSheet.create({
   },
   locationButtonText: {
     fontSize: 18,
-    color: '#03979D',
+    color: '#07579E',
     fontWeight: '600',
   },
   locationInfo: {
@@ -1052,7 +1052,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   submitButton: {
-    backgroundColor: '#03979D',
+    backgroundColor: '#07579E',
     borderRadius: 8,
     paddingVertical: 14,
     alignItems: 'center',

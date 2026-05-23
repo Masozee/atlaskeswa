@@ -6,10 +6,10 @@ import { useTheme, useFontScale } from '../contexts/SettingsContext';
 import LucideIcon from './LucideIcon';
 
 interface User {
-  first_name: string;
-  last_name: string;
-  email: string;
-  role: string;
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+  role?: string;
 }
 
 export default function TopHeader() {
@@ -42,12 +42,15 @@ export default function TopHeader() {
 
   const getInitials = () => {
     if (!user) return '';
-    return `${user.first_name.charAt(0)}${user.last_name.charAt(0)}`.toUpperCase();
+    const first = user.first_name?.trim()?.charAt(0) || '';
+    const last = user.last_name?.trim()?.charAt(0) || '';
+    const initials = `${first}${last}`.trim();
+    return initials ? initials.toUpperCase() : 'U';
   };
 
   const getFullName = () => {
     if (!user) return 'Loading...';
-    return `${user.first_name} ${user.last_name}`;
+    return `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Pengguna';
   };
 
   const getRoleDisplay = () => {

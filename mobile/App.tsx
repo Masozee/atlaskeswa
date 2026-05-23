@@ -1,5 +1,5 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View, Image, BackHandler } from 'react-native';
+import { StyleSheet, Text, View, Image, BackHandler, Alert } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useState, useEffect } from 'react';
@@ -16,10 +16,12 @@ import DynamicSurveyFormScreen from './screens/DynamicSurveyFormScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import SettingsScreen from './screens/SettingsScreen';
 import BaseLayout from './components/BaseLayout';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { setupGlobalErrorHandler } from './lib/global-error-handler';
 import { apiClient, ENV_CONFIGURED_URL, normalizeApiBaseUrl } from './services/api';
 import { database } from './services/database';
-import { syncQueue } from './services/syncQueue';
-import NetInfo from '@react-native-community/netinfo';
+
+setupGlobalErrorHandler();
 
 type Screen = 'home' | 'survey-list' | 'survey-detail' | 'survey-form' | 'profile' | 'settings';
 
@@ -60,38 +62,26 @@ export default function App() {
     bootstrap();
   }, []);
 
-  // Trigger sync whenever the device comes back online
-  useEffect(() => {
-    const unsubscribe = NetInfo.addEventListener((state) => {
-      if (state.isConnected && state.isInternetReachable) {
-        syncQueue.processQueue().catch((err) =>
-          console.warn('[SyncQueue] processQueue error:', err)
-        );
-      }
-    });
-    return () => unsubscribe();
-  }, []);
-
   const checkAuth = async () => {
-    // Determine API URL: SQLite-saved URL takes priority over .env
-    // .env is only used as fallback when no URL has been saved yet
+    const isLegacyLocalApiUrl = (url: string) => /^(https?:\/\/)?(localhost|127\.0\.0\.1|10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/i.test(url);
+
+    // Determine API URL: a saved explicit URL wins, but legacy local-dev URLs
+    // are migrated to the production default.
     try {
       const savedUrl = await database.getApiBaseUrl();
-      if (savedUrl) {
-        // Saved URL exists — always use it (user explicitly set it)
+      if (savedUrl && !isLegacyLocalApiUrl(savedUrl)) {
+        // Saved URL exists — use it when it is not a legacy local-dev endpoint
         const normalizedSavedUrl = normalizeApiBaseUrl(savedUrl);
         apiClient.setBaseURL(normalizedSavedUrl);
         if (normalizedSavedUrl !== savedUrl) {
           await database.saveApiBaseUrl(normalizedSavedUrl);
         }
         console.log('[API URL] Using SQLite-saved URL:', normalizedSavedUrl);
-      } else if (ENV_CONFIGURED_URL) {
-        // No saved URL — use .env as initial default
-        apiClient.setBaseURL(ENV_CONFIGURED_URL);
-        await database.saveApiBaseUrl(ENV_CONFIGURED_URL);
-        console.log('[API URL] Using .env URL (initial default):', ENV_CONFIGURED_URL);
       } else {
-        console.log('[API URL] Using default URL:', apiClient.getBaseURL());
+        const defaultUrl = ENV_CONFIGURED_URL || apiClient.getBaseURL();
+        apiClient.setBaseURL(defaultUrl);
+        await database.saveApiBaseUrl(defaultUrl);
+        console.log('[API URL] Using default URL:', defaultUrl);
       }
     } catch {
       // Use default URL if loading fails
@@ -179,9 +169,40 @@ export default function App() {
     setSelectedSurveyId(undefined);
   };
 
-  const navigateToSurveyDetail = (surveyId: number) => {
-    setSelectedSurveyId(surveyId);
-    setCurrentScreen('survey-detail');
+  const navigateToSurveyDetail = async (surveyId: number) => {
+    if (surveyId < 0) {
+      setSelectedSurveyId(surveyId);
+      setCurrentScreen('survey-detail');
+      return;
+    }
+
+    try {
+      const localByServerId = await database.getSurveyByServerId(surveyId);
+      if (localByServerId) {
+        if (Number((localByServerId as any).synced) === 0) {
+          setSelectedSurveyId(-Number((localByServerId as any).id));
+          setCurrentScreen('survey-detail');
+          return;
+        }
+
+        Alert.alert(
+          'Detail Tidak Tersedia',
+          'Survei yang sudah tersinkron hanya bisa dilihat di daftar pada aplikasi mobile.'
+        );
+        setCurrentScreen('survey-list');
+        setSelectedSurveyId(undefined);
+        return;
+      }
+    } catch (err) {
+      console.warn('Failed to resolve local survey detail access:', err);
+    }
+
+    Alert.alert(
+      'Detail Tidak Tersedia',
+      'Hanya survei lokal yang belum tersinkron yang bisa dibuka di aplikasi mobile.'
+    );
+    setCurrentScreen('survey-list');
+    setSelectedSurveyId(undefined);
   };
 
   const navigateToSurveyForm = (surveyId?: number) => {
@@ -202,10 +223,6 @@ export default function App() {
       </View>
     );
   }
-
-  // Set default font family globally
-  if (Text.defaultProps == null) Text.defaultProps = {};
-  Text.defaultProps.style = { fontFamily: 'System' };
 
   const renderScreen = () => {
     switch (currentScreen) {
@@ -244,18 +261,23 @@ export default function App() {
 
   return (
     <GestureHandlerRootView style={styles.gestureHandler}>
-      <SettingsProvider>
-        <SafeAreaProvider>
-          {isAuthenticated ? (
-            <BaseLayout onNavigate={handleBottomNavigation}>
-              {renderScreen()}
-            </BaseLayout>
-          ) : (
-            <LoginScreen onLoginSuccess={handleLoginSuccess} />
-          )}
-          <StatusBar style="auto" />
-        </SafeAreaProvider>
-      </SettingsProvider>
+      <ErrorBoundary onReset={() => {
+        setCurrentScreen('home');
+        setSelectedSurveyId(undefined);
+      }}>
+        <SettingsProvider>
+          <SafeAreaProvider>
+            {isAuthenticated ? (
+              <BaseLayout onNavigate={handleBottomNavigation}>
+                {renderScreen()}
+              </BaseLayout>
+            ) : (
+              <LoginScreen onLoginSuccess={handleLoginSuccess} />
+            )}
+            <StatusBar style="auto" />
+          </SafeAreaProvider>
+        </SettingsProvider>
+      </ErrorBoundary>
     </GestureHandlerRootView>
   );
 }

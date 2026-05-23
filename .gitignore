@@ -1,0 +1,57 @@
+# macOS
+.DS_Store
+
+# Office lock files
+~$*.docx
+~$*.xlsx
+
+# SQLite databases
+*.sqlite3
+*.sqlite3-journal
+*.sqlite3.bak.*
+*.sqlite3.backup_*
+*.sqlite3.before_*
+*.sqlite3.local_backup_*
+*.sqlite3.current
+db.sqlite3
+db copy.sqlite3
+
+# Database dumps
+*mei.json
+db2204*.json
+data_dump.json
+dump.json
+
+# Build artifacts / archives
+backend/apps.zip
+*.log
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Node
+node_modules/
+.next/
+dist/
+build/
+
+# Android build outputs
+mobile/android/app/build/
+mobile/android/build/
+mobile/android/.gradle/
+mobile/android/local.properties
+
+# iOS
+mobile/ios/build/
+mobile/ios/Pods/
+
+# Expo
+mobile/.expo/
+
+# Env
+.env.local
+.env.*.local

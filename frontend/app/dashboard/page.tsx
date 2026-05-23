@@ -26,8 +26,8 @@ import {
   LabelList,
 } from 'recharts';
 
-// Chart colors based on primary teal #00979D
-const COLORS = ['#00979D', '#4DB6AC', '#FFBF47', '#FF8A65', '#9575CD', '#81C784'];
+// Chart colors based on primary teal #07579E
+const COLORS = ['#07579E', '#4DB6AC', '#FFBF47', '#FF8A65', '#9575CD', '#81C784'];
 
 
 const breadcrumbs = [
@@ -173,7 +173,7 @@ export default function DashboardPage() {
             <CardContent className="pl-2 pb-2">
               <div className="flex items-center gap-4 px-4 mb-3">
                 <div className="flex items-center gap-1.5">
-                  <div className="h-3 w-3 rounded-sm" style={{ backgroundColor: '#00979D' }} />
+                  <div className="h-3 w-3 rounded-sm" style={{ backgroundColor: '#07579E' }} />
                   <span className="text-xs text-muted-foreground">Login</span>
                 </div>
                 <div className="flex items-center gap-1.5">
@@ -209,7 +209,7 @@ export default function DashboardPage() {
                       name === 'logins' ? 'Login' : 'Pengajuan Survei',
                     ]}
                   />
-                  <Bar dataKey="logins" fill="#00979D" radius={[4, 4, 0, 0]} maxBarSize={24} />
+                  <Bar dataKey="logins" fill="#07579E" radius={[4, 4, 0, 0]} maxBarSize={24} />
                   <Bar dataKey="submissions" fill="#FFBF47" radius={[4, 4, 0, 0]} maxBarSize={24} />
                 </BarChart>
               </ResponsiveContainer>
@@ -311,8 +311,8 @@ export default function DashboardPage() {
                 >
                   <defs>
                     <linearGradient id="colorServices" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#00979D" stopOpacity={1}/>
-                      <stop offset="100%" stopColor="#00979D" stopOpacity={0.7}/>
+                      <stop offset="0%" stopColor="#07579E" stopOpacity={1}/>
+                      <stop offset="100%" stopColor="#07579E" stopOpacity={0.7}/>
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted-foreground))" strokeOpacity={0.15} strokeWidth={0.5} vertical={false} />

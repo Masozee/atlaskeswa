@@ -14,7 +14,7 @@
 - Material Icons (`@expo/vector-icons`)
 - SQLite local database (offline queue)
 - SettingsContext — provides `useTheme()`, `useFontScale()`, `useSettings()`
-- Primary color: `#03979D` (teal)
+- Primary color: `#07579E` (brand blue)
 - Dark mode + large text accessibility support
 
 ---
@@ -525,7 +525,7 @@ Persistent top bar shown on every authenticated screen.
 ## Design Tokens
 
 ```
-Primary:        #03979D
+Primary:        #07579E
 Background:     #F5F6F7  (light) / #121212 (dark)
 Surface:        #FFFFFF  (light) / #1E1E1E (dark)
 Card:           #FFFFFF  (light) / #2A2A2A (dark)

@@ -109,7 +109,7 @@ export default function ProfileScreen() {
       <View style={[styles.container, { backgroundColor: c.background }]}>
         <TopHeader />
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#03979D" />
+          <ActivityIndicator size="large" color="#07579E" />
           <Text style={[styles.loadingText, { color: c.textMuted, fontSize: fs(12) }]}>Loading profile...</Text>
         </View>
       </View>
@@ -291,7 +291,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   cancelButtonText: { fontWeight: '600' },
-  saveButton: { backgroundColor: '#03979D' },
+  saveButton: { backgroundColor: '#07579E' },
   saveButtonText: { color: '#ffffff', fontWeight: '600' },
   floatingButton: {
     position: 'absolute',
@@ -300,7 +300,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 6,
-    backgroundColor: '#03979D',
+    backgroundColor: '#07579E',
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 4,

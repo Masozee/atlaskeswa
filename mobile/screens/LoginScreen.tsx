@@ -30,6 +30,8 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   const [serverUrl, setServerUrl] = useState('');
   const [isSavedInDb, setIsSavedInDb] = useState(false);
 
+  const logoSource = require('../assets/logo.png');
+
   useEffect(() => {
     loadServerUrl();
   }, []);
@@ -114,7 +116,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       >
         {/* Logo */}
         <View style={styles.logoContainer}>
-          <Image source={require('../assets/logo.png')} style={styles.logoImage} resizeMode="contain" />
+          <Image source={logoSource} style={styles.logoImage} resizeMode="contain" />
           <Text style={styles.logoText}>OMMHA</Text>
           <Text style={styles.logoSubtitle}>One Map for Mental Health Atlas</Text>
         </View>
@@ -333,7 +335,7 @@ const styles = StyleSheet.create({
   },
   eyeButtonText: {
     fontSize: 13,
-    color: '#03979D',
+    color: '#07579E',
     fontWeight: '500',
   },
   forgotPassword: {
@@ -342,11 +344,11 @@ const styles = StyleSheet.create({
   },
   forgotPasswordText: {
     fontSize: 12,
-    color: '#03979D',
+    color: '#07579E',
     fontWeight: '500',
   },
   loginButton: {
-    backgroundColor: '#03979D',
+    backgroundColor: '#07579E',
     paddingVertical: 15,
     borderRadius: 6,
     alignItems: 'center',
@@ -385,7 +387,7 @@ const styles = StyleSheet.create({
   },
   signupLink: {
     fontSize: 13,
-    color: '#03979D',
+    color: '#07579E',
     fontWeight: '600',
   },
   // Server config styles
@@ -418,7 +420,7 @@ const styles = StyleSheet.create({
     padding: 0,
   },
   serverSaveButton: {
-    backgroundColor: '#03979D',
+    backgroundColor: '#07579E',
     borderRadius: 6,
     paddingHorizontal: 14,
     justifyContent: 'center',

@@ -1,25 +1,25 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { DynamicQuestion } from './DynamicQuestion';
-import type { SurveyTemplate, SurveyAnswers } from '@/lib/types/survey-template';
+import type { Question, QuestionOption, SurveyTemplate, SurveyAnswers } from '@/lib/types/survey-template';
+import type { ServiceListItem } from '@/lib/types/api';
 import { buildQuestionsMap, getActiveSections, getFlowBasedQuestions, calculateProgress } from '@/lib/utils/question-logic';
-import { useCreateSurveyResponse, useSaveProgress } from '@/hooks/use-survey-responses';
+import { useCreateSurveyResponse } from '@/hooks/use-survey-responses';
 import { toast } from 'sonner';
 
 interface DynamicSurveyFormProps {
   template: SurveyTemplate;
   serviceId: number;
+  serviceSummary?: ServiceListItem;
   surveyDate: string;
   surveyPeriodStart: string;
   surveyPeriodEnd: string;
   initialAnswers?: SurveyAnswers;
-  mode?: 'create' | 'edit';
-  surveyResponseId?: number;
   onSuccess?: () => void;
   onBack?: () => void;
   onSpeechTextChange?: (text: string) => void;
@@ -28,17 +28,15 @@ interface DynamicSurveyFormProps {
 export function DynamicSurveyForm({
   template,
   serviceId,
+  serviceSummary,
   surveyDate,
   surveyPeriodStart,
   surveyPeriodEnd,
   initialAnswers = {},
-  mode = 'create',
-  surveyResponseId,
   onSuccess,
   onBack,
   onSpeechTextChange,
 }: DynamicSurveyFormProps) {
-  const router = useRouter();
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
   const [answers, setAnswers] = useState<SurveyAnswers>(() => {
     // Strip __other_text keys from initialAnswers
@@ -52,7 +50,21 @@ export function DynamicSurveyForm({
     const texts: Record<string, string> = {};
     for (const [k, v] of Object.entries(initialAnswers)) {
       if (k.endsWith('__other_text') && typeof v === 'string') {
-        texts[k.replace('__other_text', '')] = v;
+        const baseKey = k.replace('__other_text', '');
+        try {
+          const parsed = JSON.parse(v);
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            for (const [choiceValue, choiceText] of Object.entries(parsed)) {
+              if (typeof choiceText === 'string') {
+                texts[`${baseKey}__choice_${choiceValue}`] = choiceText;
+              }
+            }
+            continue;
+          }
+        } catch {
+          // Older saved responses store a single plain other_text value.
+        }
+        texts[baseKey] = v;
       }
     }
     return texts;
@@ -64,7 +76,6 @@ export function DynamicSurveyForm({
   const [currentMtcLabel, setCurrentMtcLabel] = useState<string>('');
 
   const createSurvey = useCreateSurveyResponse();
-  const saveProgress = surveyResponseId ? useSaveProgress(surveyResponseId) : null;
 
   // Build questions map for conditional logic
   const questionsMap = useMemo(() => {
@@ -105,29 +116,77 @@ export function DynamicSurveyForm({
   // each question belongs to. Non-detail questions always get '' (no prefix). Detail questions get
   // the context set by the most recent FASKSES question whose answer had a cabang_mtc.
   // This correctly handles multiple inline DETAIL loops (one per classification answer).
-  const questionContexts = useMemo<string[]>(() => {
+  const getQuestionContexts = useCallback((questions: Question[]): string[] => {
     const allQDefs = template.sections?.flatMap(s => s.questions || []) ?? [];
     let ctxTracker = '';
-    return activeQuestions.map((question) => {
+    return questions.map((question) => {
       const isDetail = /[A-Z]$/.test(question.code);
       if (!isDetail) {
         const rawAns = answers[question.code];
         if (rawAns !== null && rawAns !== undefined && rawAns !== '') {
           const qDef = allQDefs.find(q => q.code === question.code);
-          const choice = (qDef?.choices as any[])?.find((c: any) => c.value === rawAns);
+          const choice = qDef?.choices?.find((c) => c.value === rawAns);
           ctxTracker = choice?.cabang_mtc ?? '';
         }
         return '';
       }
       return ctxTracker;
     });
-  }, [activeQuestions, answers, template.sections]);
+  }, [answers, template.sections]);
+
+  const questionContexts = useMemo<string[]>(() => {
+    return getQuestionContexts(activeQuestions);
+  }, [activeQuestions, getQuestionContexts]);
 
   // Calculate progress
   const progress = useMemo(() => {
     if (!template.sections) return 0;
     return calculateProgress(template.sections, resolvedAnswers, questionsMap, answers);
   }, [template.sections, resolvedAnswers, questionsMap, answers]);
+
+  const formatDate = useCallback((value: string) => {
+    if (!value) return '-';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+  }, []);
+
+  const surveySummary = useMemo(() => ([
+    { label: 'Nama Faskes', value: serviceSummary?.name || `Fasilitas #${serviceId}` },
+    {
+      label: 'Lokasi',
+      value: [serviceSummary?.city, serviceSummary?.province].filter(Boolean).join(', ') || '-',
+    },
+    { label: 'Kode BSIC', value: serviceSummary?.bsic_code || '-' },
+    { label: 'Nama BSIC', value: serviceSummary?.bsic_name || '-' },
+    { label: 'Jenis Layanan', value: serviceSummary?.service_type_name || '-' },
+    { label: 'Tanggal Survei', value: formatDate(surveyDate) },
+    {
+      label: 'Periode Data',
+      value: surveyPeriodStart && surveyPeriodEnd
+        ? `${formatDate(surveyPeriodStart)} - ${formatDate(surveyPeriodEnd)}`
+        : '-',
+    },
+    { label: 'Template', value: template.name || '-' },
+    { label: 'Status', value: 'Diajukan' },
+  ]), [
+    formatDate,
+    serviceId,
+    serviceSummary?.bsic_code,
+    serviceSummary?.bsic_name,
+    serviceSummary?.city,
+    serviceSummary?.name,
+    serviceSummary?.province,
+    serviceSummary?.service_type_name,
+    surveyDate,
+    surveyPeriodEnd,
+    surveyPeriodStart,
+    template.name,
+  ]);
 
   // Build text for speech synthesis (current section content)
   const speechText = useMemo(() => {
@@ -165,7 +224,7 @@ export function DynamicSurveyForm({
 
       // Add choices if available
       if (question.choices && question.choices.length > 0) {
-        const choiceTexts = question.choices.map((c: any) => c.label || c.choice_text || c.text).filter(Boolean);
+        const choiceTexts = question.choices.map((c) => c.label).filter(Boolean);
         if (choiceTexts.length > 0) {
           text += ` Pilihan: ${choiceTexts.join(', ')}.`;
         }
@@ -185,8 +244,24 @@ export function DynamicSurveyForm({
   // Build answers with other_text keys merged in
   const buildAnswersPayload = () => {
     const payload = { ...answers };
+    const groupedChoiceTexts: Record<string, Record<string, string>> = {};
     for (const [code, text] of Object.entries(otherTexts)) {
-      if (text) payload[`${code}__other_text`] = text;
+      if (!text) continue;
+      const choiceMarker = '__choice_';
+      const markerIndex = code.indexOf(choiceMarker);
+      if (markerIndex >= 0) {
+        const baseKey = code.slice(0, markerIndex);
+        const choiceValue = code.slice(markerIndex + choiceMarker.length);
+        groupedChoiceTexts[baseKey] = {
+          ...(groupedChoiceTexts[baseKey] || {}),
+          [choiceValue]: text,
+        };
+      } else {
+        payload[`${code}__other_text`] = text;
+      }
+    }
+    for (const [baseKey, values] of Object.entries(groupedChoiceTexts)) {
+      payload[`${baseKey}__other_text`] = JSON.stringify(values);
     }
     return payload;
   };
@@ -197,7 +272,7 @@ export function DynamicSurveyForm({
   // Handle answer change
   // ctxOverride: the MTC context for this specific question instance (from questionContexts).
   // Falls back to currentMtcContext when not provided (e.g., speech/other callers).
-  const handleAnswerChange = (questionCode: string, value: any, ctxOverride?: string) => {
+  const handleAnswerChange = (questionCode: string, value: SurveyAnswers[string], ctxOverride?: string) => {
     const ctx = ctxOverride !== undefined ? ctxOverride : currentMtcContext;
     // For detail questions, prefix storage key with MTC context
     const storageKey = isDetailQuestion(questionCode) && ctx
@@ -207,7 +282,7 @@ export function DynamicSurveyForm({
     // Detect MTC context change from a choice with cabang_mtc
     const allQuestions = template.sections?.flatMap(s => s.questions || []) || [];
     const q = allQuestions.find(q => q.code === questionCode);
-    const selectedChoice = q?.choices?.find((c: any) => c.value === value);
+    const selectedChoice = q?.choices?.find((c) => c.value === value);
 
     // Store the answer — always accumulate, never clear previous context answers
     // (each context uses a different prefixed key, so they don't collide)
@@ -224,17 +299,29 @@ export function DynamicSurveyForm({
     }
 
     // Clear other_text if user deselects the "other" choice
-    if (otherTexts[questionCode]) {
+    const choiceOtherTextKeys = Object.keys(otherTexts).filter((key) => key.startsWith(`${storageKey}__choice_`));
+    if (otherTexts[storageKey] || choiceOtherTextKeys.length > 0) {
       if (q?.choices) {
-        const otherChoice = q.choices.find((c: any) => c.has_other_input);
-        if (otherChoice) {
-          const isOtherSelected = Array.isArray(value)
-            ? value.includes(otherChoice.value)
-            : value === otherChoice.value;
-          if (!isOtherSelected) {
-            setOtherTexts((prev) => { const n = { ...prev }; delete n[questionCode]; return n; });
+        setOtherTexts((prev) => {
+          const n = { ...prev };
+          for (const choice of q.choices || []) {
+            if (!choice.has_other_input) continue;
+            const isOtherSelected = Array.isArray(value)
+              ? value.includes(choice.value)
+              : value === choice.value;
+            if (!isOtherSelected) {
+              delete n[`${storageKey}__choice_${choice.value}`];
+            }
           }
-        }
+          const firstOtherChoice = q.choices?.find((c) => c.has_other_input);
+          if (firstOtherChoice) {
+            const isOtherSelected = Array.isArray(value)
+              ? value.includes(firstOtherChoice.value)
+              : value === firstOtherChoice.value;
+            if (!isOtherSelected) delete n[storageKey];
+          }
+          return n;
+        });
       }
     }
 
@@ -248,13 +335,28 @@ export function DynamicSurveyForm({
     }
   };
 
-  // Validate current section
-  const validateSection = (): boolean => {
+  const getOtherInputType = (questionCode: string, choice: QuestionOption): string => {
+    if (questionCode === 'Q15' && choice.value === 'TANGGAL') return 'date';
+    if (questionCode === 'Q15' && choice.value === 'TIDAK_DIKETAHUI') return 'integer';
+    return choice.other_input_type || 'text';
+  };
+
+  const selectedOtherInputChoices = (question: Question, answer: SurveyAnswers[string]) => {
+    const choices = question.choices || question.options || [];
+    return choices.filter((choice) => {
+      if (!choice.has_other_input) return false;
+      return Array.isArray(answer)
+        ? answer.includes(choice.value)
+        : answer === choice.value;
+    });
+  };
+
+  const validateQuestions = (questions: Question[], contexts: string[]): boolean => {
     const newErrors: Record<string, string> = {};
 
-    activeQuestions.forEach((question, idx) => {
+    questions.forEach((question, idx) => {
       const questionType = question.answer_type || question.question_type;
-      const ctx = questionContexts[idx] ?? '';
+      const ctx = contexts[idx] ?? '';
       const storageKey = isDetailQuestion(question.code) && ctx
         ? `${ctx}|${question.code}`
         : question.code;
@@ -263,6 +365,22 @@ export function DynamicSurveyForm({
       if (question.is_required) {
         if (answer === null || answer === undefined || answer === '' || (Array.isArray(answer) && answer.length === 0)) {
           newErrors[storageKey] = 'Pertanyaan ini wajib diisi';
+        }
+      }
+
+      const otherInputChoices = selectedOtherInputChoices(question, answer);
+      for (const otherInputChoice of otherInputChoices) {
+        const choiceTextKey = `${storageKey}__choice_${otherInputChoice.value}`;
+        const otherInputValue = String(otherTexts[choiceTextKey] ?? otherTexts[storageKey] ?? '').trim();
+        if (!otherInputValue) {
+          newErrors[storageKey] = 'Input tambahan wajib diisi';
+          break;
+        } else if (getOtherInputType(question.code, otherInputChoice) === 'integer' && !/^\d{4}$/.test(otherInputValue)) {
+          newErrors[storageKey] = 'Perkiraan tahun harus 4 digit';
+          break;
+        } else if (getOtherInputType(question.code, otherInputChoice) === 'date' && !/^\d{4}-\d{2}-\d{2}$/.test(otherInputValue)) {
+          newErrors[storageKey] = 'Tanggal harus diisi dari pemilih tanggal';
+          break;
         }
       }
 
@@ -291,6 +409,11 @@ export function DynamicSurveyForm({
     return Object.keys(newErrors).length === 0;
   };
 
+  // Validate current section
+  const validateSection = (): boolean => {
+    return validateQuestions(activeQuestions, questionContexts);
+  };
+
   // Navigate to next section
   const handleNext = () => {
     if (!validateSection()) {
@@ -312,42 +435,19 @@ export function DynamicSurveyForm({
     }
   };
 
-  // Save draft
-  const handleSaveDraft = async () => {
-    setIsSaving(true);
-    try {
-      if (mode === 'create') {
-        const result = await createSurvey.mutateAsync({
-          template: template.id,
-          service: serviceId,
-          survey_date: surveyDate,
-          survey_period_start: surveyPeriodStart,
-          survey_period_end: surveyPeriodEnd,
-          answers: buildAnswersPayload(),
-        });
-
-        toast.success('Survey berhasil disimpan sebagai draft');
-
-        // Redirect to edit mode
-        router.push(`/dashboard/survey/responses/${result.id}/edit`);
-      } else if (saveProgress) {
-        await saveProgress.mutateAsync({ answers: buildAnswersPayload() });
-        toast.success('Perubahan berhasil disimpan');
-      }
-    } catch (error: any) {
-      toast.error(error.message || 'Gagal menyimpan');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
   // Submit survey
   const handleSubmit = async () => {
     // Validate all sections
-    const allValid = activeSections.every((_section, index) => {
-      setCurrentSectionIndex(index);
-      return validateSection();
-    });
+    let allValid = true;
+    for (let index = 0; index < activeSections.length; index += 1) {
+      const sectionQuestions = getFlowBasedQuestions(activeSections[index], resolvedAnswers, questionsMap, template.sections, answers);
+      const contexts = getQuestionContexts(sectionQuestions);
+      if (!validateQuestions(sectionQuestions, contexts)) {
+        setCurrentSectionIndex(index);
+        allValid = false;
+        break;
+      }
+    }
 
     if (!allValid) {
       toast.error('Mohon lengkapi semua pertanyaan yang wajib diisi di semua bagian');
@@ -365,10 +465,11 @@ export function DynamicSurveyForm({
         answers: buildAnswersPayload(),
       });
 
-        toast.success('Survey berhasil disimpan dan siap untuk disubmit');
-        setIsSubmitted(true);
-    } catch (error: any) {
-      toast.error(error.message || 'Gagal menyimpan survey');
+      toast.success('Survei berhasil direkam.');
+      setIsSubmitted(true);
+      onSuccess?.();
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Gagal menyimpan survei');
     } finally {
       setIsSaving(false);
     }
@@ -376,7 +477,7 @@ export function DynamicSurveyForm({
 
   if (isSubmitted) {
     return (
-      <div className="flex flex-col items-center justify-center gap-6 py-20 text-center">
+      <div className="flex flex-col items-center justify-center gap-6 py-12 text-center">
         <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/10">
           <svg className="h-10 w-10 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -384,16 +485,29 @@ export function DynamicSurveyForm({
         </div>
         <div className="space-y-2">
           <h2 className="text-2xl font-bold">Terima Kasih!</h2>
-          <p className="text-muted-foreground max-w-sm">
-            Jawaban Anda telah berhasil disimpan. Terima kasih telah mengisi survei ini.
+          <p className="text-muted-foreground max-w-2xl">
+            Data survei berhasil direkam. Berikut ringkasan fasilitas dan klasifikasi yang dipilih.
           </p>
         </div>
-        <div className="flex gap-3">
-          <Button variant="outline" onClick={() => router.push('/dashboard/survey/responses')}>
-            Lihat Semua Respons
+
+        <div className="w-full max-w-3xl rounded-xl border bg-card p-6 text-left">
+          <h3 className="text-lg font-semibold">Ringkasan Survei</h3>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            {surveySummary.map((item) => (
+              <div key={item.label} className="rounded-lg border bg-muted/30 p-4">
+                <p className="text-sm text-muted-foreground">{item.label}</p>
+                <p className="mt-1 font-medium">{item.value}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <Button asChild variant="outline">
+            <Link href="/survey/new">Isi Survei Baru</Link>
           </Button>
-          <Button onClick={() => router.push('/dashboard')}>
-            Kembali ke Dashboard
+          <Button asChild>
+            <Link href="/dashboard/survey">Lihat Daftar Survei</Link>
           </Button>
         </div>
       </div>
@@ -410,6 +524,7 @@ export function DynamicSurveyForm({
 
   const toSentenceCase = (text: string) =>
     text ? text.charAt(0).toUpperCase() + text.slice(1).toLowerCase() : '';
+  const toUpper = (text: string) => text ? text.toUpperCase() : '';
 
   // Use backend field names with fallback to aliases
   const sectionTitle = toSentenceCase(currentSection.name || currentSection.title || 'Bagian Survei');
@@ -445,7 +560,7 @@ export function DynamicSurveyForm({
         <div className="flex items-center gap-2 bg-primary/10 border border-primary/30 rounded-lg px-4 py-2 text-sm">
           <span className="text-muted-foreground">Sedang mengisi detail untuk:</span>
           <span className="font-semibold text-primary">{currentMtcContext}</span>
-          {currentMtcLabel && <span className="text-muted-foreground">— {toSentenceCase(currentMtcLabel)}</span>}
+          {currentMtcLabel && <span className="text-muted-foreground">— {toUpper(currentMtcLabel)}</span>}
         </div>
       )}
 
@@ -453,7 +568,7 @@ export function DynamicSurveyForm({
       {currentSection.introduction_text && (
         <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-4">
           <p className="text-sm font-medium text-yellow-900 whitespace-pre-line">
-            {toSentenceCase(currentSection.introduction_text)}
+            {toUpper(currentSection.introduction_text)}
           </p>
         </div>
       )}
@@ -471,8 +586,18 @@ export function DynamicSurveyForm({
               question={question}
               value={answers[storageKey]}
               onChange={(value) => handleAnswerChange(question.code, value, ctx)}
-              onOtherTextChange={(text) => setOtherTexts((prev) => ({ ...prev, [question.code]: text }))}
-              otherText={otherTexts[question.code]}
+              onOtherTextChange={(text, optionValue) => {
+                const otherTextKey = optionValue ? `${storageKey}__choice_${optionValue}` : storageKey;
+                setOtherTexts((prev) => ({ ...prev, [otherTextKey]: text }));
+              }}
+              otherText={(() => {
+                const choiceTexts = Object.fromEntries(
+                  Object.entries(otherTexts)
+                    .filter(([key]) => key.startsWith(`${storageKey}__choice_`))
+                    .map(([key, text]) => [key.slice(`${storageKey}__choice_`.length), text])
+                );
+                return Object.keys(choiceTexts).length > 0 ? choiceTexts : otherTexts[storageKey];
+              })()}
               error={errors[storageKey]}
             />
           );
@@ -488,21 +613,15 @@ export function DynamicSurveyForm({
           ← Sebelumnya
         </Button>
 
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={handleSaveDraft} disabled={isSaving}>
-            Simpan Draft
+        {currentSectionIndex < activeSections.length - 1 ? (
+          <Button onClick={handleNext}>
+            Selanjutnya →
           </Button>
-
-          {currentSectionIndex < activeSections.length - 1 ? (
-            <Button onClick={handleNext}>
-              Selanjutnya →
-            </Button>
-          ) : (
-            <Button onClick={handleSubmit} disabled={isSaving}>
-              Selesai
-            </Button>
-          )}
-        </div>
+        ) : (
+          <Button onClick={handleSubmit} disabled={isSaving}>
+            {isSaving ? 'Menyimpan...' : 'Terima Kasih'}
+          </Button>
+        )}
       </div>
     </div>
   );

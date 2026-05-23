@@ -14,8 +14,8 @@ export const normalizeApiBaseUrl = (url: string) => {
 
 // API Configuration
 // Configure the API_BASE_URL in the .env file
-// For local development, use your computer's local IP address (not localhost)
-const API_BASE_URL = normalizeApiBaseUrl(ENV_API_BASE_URL || 'http://192.168.0.101:8000/v1');
+// For production/mobile builds, use the public API by default.
+const API_BASE_URL = normalizeApiBaseUrl(ENV_API_BASE_URL || 'https://api.atlaskeswa.id/v1');
 
 // Export the env-configured URL so App.tsx can determine if .env was explicitly set
 export const ENV_CONFIGURED_URL = normalizeApiBaseUrl(ENV_API_BASE_URL || '');
@@ -356,6 +356,10 @@ class ApiClient {
     imageUri: UploadFileSource,
     contextKey?: string
   ): Promise<any> {
+    if (!this.accessToken) {
+      await this.loadTokensFromStorage();
+    }
+
     const formData = new FormData();
     formData.append('file', this.buildMultipartFile(imageUri, questionCode));
     formData.append('question_code', questionCode);
@@ -365,6 +369,7 @@ class ApiClient {
 
     const url = `${this.baseURL}/surveys/responses/${responseId}/upload-answer-file/`;
     const headers: Record<string, string> = {
+      Accept: 'application/json',
       ...(this.accessToken ? { Authorization: `Bearer ${this.accessToken}` } : {}),
     };
 
@@ -383,6 +388,10 @@ class ApiClient {
   }
 
   async uploadSurveyPhoto(surveyId: number, imageUri: UploadFileSource, caption?: string): Promise<any> {
+    if (!this.accessToken) {
+      await this.loadTokensFromStorage();
+    }
+
     debugLog('uploadSurveyPhoto called', { surveyId, imageUri, caption });
 
     const file = this.buildMultipartFile(imageUri, 'photo');
@@ -397,6 +406,7 @@ class ApiClient {
 
     const url = `${this.baseURL}/surveys/photos/`;
     const headers: Record<string, string> = {
+      Accept: 'application/json',
       ...(this.accessToken ? { Authorization: `Bearer ${this.accessToken}` } : {}),
     };
 

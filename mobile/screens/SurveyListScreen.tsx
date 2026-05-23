@@ -16,11 +16,13 @@ import { apiClient } from '../services/api';
 import { database } from '../services/database';
 import { useTheme, useFontScale } from '../contexts/SettingsContext';
 import LucideIcon from '../components/LucideIcon';
-import type { SurveyResponseItem, PaginatedResponse } from '../lib/types';
-import PLACEHOLDER_IMAGE from '../assets/OMMHA.png';
+import type { SurveyResponseItem } from '../lib/types';
+
+const PLACEHOLDER_IMAGE = require('../assets/OMMHA.png');
 
 // Extended type for local surveys with sync info
 interface LocalSurvey extends SurveyResponseItem {
+  local_id: number;
   server_id?: number | null;
   is_local_only?: boolean;
   synced?: number;
@@ -53,45 +55,78 @@ export default function SurveyListScreen({ onSelectSurvey, onAddNew }: SurveyLis
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('date_desc');
 
-  const fetchSurveys = async () => {
+  const hydrateSurveyPhotos = async (items: LocalSurvey[]) => {
+    const serverTargets = items
+      .map((survey) => ({ survey, serverId: survey.server_id || survey.id }))
+      .filter(({ serverId }) => serverId > 0)
+      .slice(0, 12);
+
     try {
-      // Log user info for debugging
-      try {
-        const userData = await apiClient.get<any>('/accounts/users/me/');
-        console.log('[SurveyList] Logged-in user:', userData);
-        console.log('[SurveyList] User role:', userData.role);
-      } catch (userErr) {
-        console.error('[SurveyList] Failed to get user info:', userErr);
-      }
+      const photoEntries = await Promise.all(
+        serverTargets.map(async ({ survey, serverId }) => {
+          const [photosData, localPhotos] = await Promise.all([
+            apiClient.get<any>('/surveys/photos/', { survey: serverId }).catch(() => null),
+            database.getSurveyPhotosForServerSurvey(serverId).catch(() => []),
+          ]);
 
-      const ordering = sortBy === 'date_desc' ? '-survey_date' : sortBy === 'date_asc' ? 'survey_date' : sortBy === 'name_asc' ? 'service_name' : '-service_name';
+          const serverPhotos = Array.isArray(photosData) ? photosData : photosData?.results;
+          const serverPhotoIds = new Set<number>(
+            (Array.isArray(serverPhotos) ? serverPhotos : [])
+              .map((sp: any) => (typeof sp?.id === 'number' ? sp.id : null))
+              .filter((id: number | null): id is number => id !== null)
+          );
+          const localPhotoItems = localPhotos
+            .filter((p: any) => {
+              if (typeof p.server_id === 'number' && p.server_id > 0) {
+                return !serverPhotoIds.has(p.server_id);
+              }
+              return Number(p.synced) !== 1;
+            })
+            .map((p: any) => ({
+              id: p.id,
+              image_url: p.server_image_url || p.local_uri,
+              caption: p.caption,
+              local_uri: p.local_uri,
+            }));
+          const photos = [
+            ...(Array.isArray(serverPhotos) ? serverPhotos : []),
+            ...localPhotoItems,
+          ];
 
-      // Fetch server surveys
-      let serverSurveys: SurveyResponseItem[] = [];
-      try {
-        console.log('[SurveyList] Fetching from API, baseURL:', apiClient.getBaseURL());
-        const data = await apiClient.get<PaginatedResponse<SurveyResponseItem> | SurveyResponseItem[]>(
-          '/surveys/responses/',
-          { ordering, page_size: 50 }
-        );
-        console.log('[SurveyList] API response type:', Array.isArray(data) ? 'array' : 'paginated');
-        console.log('[SurveyList] Count:', Array.isArray(data) ? data.length : data?.results?.length);
-        serverSurveys = Array.isArray(data)
-          ? data
-          : Array.isArray(data?.results)
-            ? data.results
-            : [];
-        console.log('[SurveyList] serverSurveys count:', serverSurveys.length);
-      } catch (err) {
-        console.error('[SurveyList] Failed to load server surveys:', err);
-      }
+          return { id: survey.id, photos };
+        })
+      );
 
-      // Fetch local unsynced surveys
+      const photosBySurveyId = new Map(
+        photoEntries
+          .filter((entry) => entry.photos.length > 0)
+          .map((entry) => [entry.id, entry.photos])
+      );
+
+      if (photosBySurveyId.size === 0) return;
+
+      setSurveys((prev) =>
+        prev.map((survey) => {
+          const photos = photosBySurveyId.get(survey.id);
+          return photos
+            ? { ...survey, photos, photoCount: photos.length }
+            : survey;
+        })
+      );
+    } catch (err) {
+      console.error('[SurveyList] Failed to hydrate photos:', err);
+    }
+  };
+
+  const fetchSurveys = async (sortOverride?: SortOption) => {
+    try {
+      const activeSort = sortOverride ?? sortBy;
       let localSurveys: LocalSurvey[] = [];
       try {
-        const localRows = await database.getPendingSurveys() as any[];
+        const localRows = await database.getSurveys() as any[];
         localSurveys = localRows.map((row: any): LocalSurvey => ({
-          id: row.id,
+          id: row.server_id ?? -row.id,
+          local_id: row.id,
           server_id: row.server_id,
           template: row.template_id || 0,
           template_name: undefined,
@@ -113,56 +148,20 @@ export default function SurveyListScreen({ onSelectSurvey, onAddNew }: SurveyLis
         console.error('Failed to load local surveys:', err);
       }
 
-      // Merge: add local-only surveys to server surveys (local-first for unsynced)
-      const merged: LocalSurvey[] = [...(serverSurveys || [])];
-      for (const local of localSurveys) {
-        // If not synced (synced=0) and not already in server list, add it
-        if (local.synced === 0 && !merged.find(s => (s as LocalSurvey).server_id === local.id)) {
-          merged.push({ ...local, id: local.server_id ?? -local.id } as LocalSurvey);
-        }
-      }
-
-      // Fetch photos for each survey
-      for (const survey of merged) {
-        try {
-          const serverId = (survey as LocalSurvey).server_id || survey.id;
-          if (serverId > 0) {
-            // Fetch from server
-            const photosData = await apiClient.get<any>('/surveys/photos/', { survey: serverId });
-            const serverPhotos = Array.isArray(photosData) ? photosData : photosData?.results;
-            if (Array.isArray(serverPhotos) && serverPhotos.length > 0) {
-              (survey as LocalSurvey).photos = serverPhotos;
-              (survey as LocalSurvey).photoCount = serverPhotos.length;
-            }
-          }
-          // Fetch local photos
-          const localPhotos = await database.getSurveyPhotosForServerSurvey(serverId);
-          if (localPhotos.length > 0) {
-            const localPhotoItems = localPhotos.map((p: any) => ({
-              id: p.id,
-              image_url: p.server_image_url || p.local_uri,
-              caption: p.caption,
-              local_uri: p.local_uri,
-            }));
-            (survey as LocalSurvey).photos = [
-              ...((survey as LocalSurvey).photos || []),
-              ...localPhotoItems,
-            ];
-            (survey as LocalSurvey).photoCount = ((survey as LocalSurvey).photoCount || 0) + localPhotoItems.length;
-          }
-        } catch (err) {
-          console.error('Failed to fetch photos for survey', survey.id, err);
-        }
-      }
-
-      // Sort by survey_date
-      merged.sort((a, b) => {
+      localSurveys.sort((a, b) => {
         const dateA = new Date(a.survey_date).getTime();
         const dateB = new Date(b.survey_date).getTime();
-        return sortBy === 'date_desc' || sortBy === 'date_asc' ? (sortBy === 'date_desc' ? dateB - dateA : dateA - dateB) : 0;
+        if (activeSort === 'date_desc') return dateB - dateA;
+        if (activeSort === 'date_asc') return dateA - dateB;
+        const nameA = (a.service_name || '').toLowerCase();
+        const nameB = (b.service_name || '').toLowerCase();
+        return activeSort === 'name_desc'
+          ? nameB.localeCompare(nameA)
+          : nameA.localeCompare(nameB);
       });
 
-      setSurveys(merged);
+      setSurveys(localSurveys);
+      void hydrateSurveyPhotos(localSurveys);
     } catch (err: any) {
       console.error('Failed to load surveys:', err);
     } finally {
@@ -192,27 +191,25 @@ export default function SurveyListScreen({ onSelectSurvey, onAddNew }: SurveyLis
   const handleSortChange = (option: SortOption) => {
     setSortBy(option);
     setRefreshing(true);
-    fetchSurveys();
+    fetchSurveys(option);
   };
 
-  const handleRequestDeletion = (surveyId: number) => {
+  const handleDeleteLocalSurvey = (survey: LocalSurvey) => {
     Alert.alert(
-      'Ajukan Penghapusan',
-      'Permintaan hapus akan dikirim ke verifikator untuk disetujui.',
+      'Hapus Survei',
+      'Survei lokal ini akan dihapus dari perangkat.',
       [
         { text: 'Batal', style: 'cancel' },
         {
-          text: 'Ajukan',
+          text: 'Hapus',
           style: 'destructive',
           onPress: async () => {
             try {
-              await apiClient.post(`/surveys/responses/${surveyId}/request-deletion/`, { reason: '' });
-              setSurveys((prev) =>
-                prev.map((s) => s.id === surveyId ? { ...s, deletion_requested: true } : s)
-              );
-              Alert.alert('Berhasil', 'Permintaan hapus telah dikirim ke verifikator');
+              await database.deleteSurvey(survey.local_id);
+              setSurveys((prev) => prev.filter((item) => item.local_id !== survey.local_id));
+              Alert.alert('Berhasil', 'Survei lokal berhasil dihapus');
             } catch (err: any) {
-              Alert.alert('Error', err?.message || 'Gagal mengajukan penghapusan');
+              Alert.alert('Error', err?.message || 'Gagal menghapus survei lokal');
             }
           },
         },
@@ -248,6 +245,18 @@ export default function SurveyListScreen({ onSelectSurvey, onAddNew }: SurveyLis
       default:
         return 'Draft';
     }
+  };
+
+  const handleOpenSurvey = (survey: LocalSurvey) => {
+    if (survey.synced === 1) {
+      Alert.alert(
+        'Detail Tidak Tersedia',
+        'Survei yang sudah tersinkron hanya ditampilkan di daftar pada aplikasi mobile.'
+      );
+      return;
+    }
+
+    onSelectSurvey(-survey.local_id);
   };
 
   const isDark = theme.dark;
@@ -308,9 +317,9 @@ export default function SurveyListScreen({ onSelectSurvey, onAddNew }: SurveyLis
           {filteredSurveys.length > 0 ? (
             filteredSurveys.map((survey) => (
               <TouchableOpacity
-                key={survey.id}
+                key={survey.local_id}
                 style={[styles.surveyCard, { backgroundColor: c.surface, borderColor: c.border }]}
-                onPress={() => onSelectSurvey(survey.id)}
+                onPress={() => handleOpenSurvey(survey)}
                 activeOpacity={0.7}
               >
                 {/* Photo Card - Above Title */}
@@ -354,9 +363,13 @@ export default function SurveyListScreen({ onSelectSurvey, onAddNew }: SurveyLis
                     {survey.service_name || 'Layanan'}
                   </Text>
                   {/* Show sync icon for local-only unsynced surveys */}
-                  {survey.is_local_only && (
+                  {survey.is_local_only ? (
                     <View style={styles.syncBadge}>
                       <LucideIcon name="refresh-ccw" size={12} color="#f59e0b" />
+                    </View>
+                  ) : (
+                    <View style={[styles.syncBadge, { borderColor: '#10b981' }]}>
+                      <LucideIcon name="check-check" size={12} color="#10b981" />
                     </View>
                   )}
                 </View>
@@ -391,24 +404,30 @@ export default function SurveyListScreen({ onSelectSurvey, onAddNew }: SurveyLis
                 ) : null}
 
                 <View style={[styles.cardActions, { borderTopColor: c.border }]}>
-                  <TouchableOpacity
-                    style={[styles.actionButtonEdit, { borderColor: c.primary }]}
-                    onPress={(e) => { e.stopPropagation(); onSelectSurvey(survey.id); }}
-                  >
-                    <Text style={[styles.actionButtonEditText, { color: c.primary }]}>Edit</Text>
-                  </TouchableOpacity>
-                  {survey.deletion_requested ? (
+                  {survey.synced === 0 ? (
+                    <TouchableOpacity
+                      style={[styles.actionButtonEdit, { borderColor: c.primary }]}
+                      onPress={(e) => { e.stopPropagation(); handleOpenSurvey(survey); }}
+                    >
+                      <Text style={[styles.actionButtonEditText, { color: c.primary }]}>Detail</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={[styles.actionButtonPending, { borderColor: '#10b981' }]}>
+                      <Text style={[styles.actionButtonPendingText, { color: '#10b981' }]}>Tersinkron</Text>
+                    </View>
+                  )}
+                  {survey.synced === 0 && survey.deletion_requested ? (
                     <View style={[styles.actionButtonPending, { borderColor: '#f59e0b' }]}>
                       <Text style={[styles.actionButtonPendingText, { color: '#f59e0b' }]}>Menunggu Persetujuan</Text>
                     </View>
-                  ) : (
+                  ) : survey.synced === 0 ? (
                     <TouchableOpacity
                       style={[styles.actionButtonDelete, { borderColor: '#ef4444' }]}
-                      onPress={(e) => { e.stopPropagation(); handleRequestDeletion(survey.id); }}
+                      onPress={(e) => { e.stopPropagation(); handleDeleteLocalSurvey(survey); }}
                     >
                       <Text style={[styles.actionButtonDeleteText, { color: '#ef4444' }]}>Hapus</Text>
                     </TouchableOpacity>
-                  )}
+                  ) : null}
                 </View>
               </TouchableOpacity>
             ))
@@ -488,7 +507,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: '#03979D',
+    backgroundColor: '#07579E',
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 4,
@@ -578,12 +597,12 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#03979D',
+    borderColor: '#07579E',
   },
   actionButtonEditText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#03979D',
+    color: '#07579E',
       },
   actionButtonDelete: {
     flex: 1,

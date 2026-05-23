@@ -98,9 +98,11 @@ function CardExample() {
         </CardHeader>
         <CardFooter>
           <AlertDialog>
-            <AlertDialogTrigger render={<Button />}>
-              <HugeiconsIcon icon={PlusSignIcon} strokeWidth={2} data-icon="inline-start" />
-              Show Dialog
+            <AlertDialogTrigger asChild>
+              <Button>
+                <HugeiconsIcon icon={PlusSignIcon} strokeWidth={2} data-icon="inline-start" />
+                Show Dialog
+              </Button>
             </AlertDialogTrigger>
             <AlertDialogContent size="sm">
               <AlertDialogHeader>
@@ -411,7 +413,7 @@ function FormExample() {
                 </Field>
                 <Field>
                   <FieldLabel htmlFor="small-form-role">Role</FieldLabel>
-                  <Select items={roleItems} defaultValue={null}>
+                  <Select>
                     <SelectTrigger id="small-form-role">
                       <SelectValue />
                     </SelectTrigger>

@@ -18,8 +18,11 @@ import TopHeader from '../components/TopHeader';
 import { useTheme, useFontScale } from '../contexts/SettingsContext';
 import { apiClient } from '../services/api';
 import { database } from '../services/database';
+import { syncQueue } from '../services/syncQueue';
 import type { SurveyResponseItem } from '../lib/types';
-import PLACEHOLDER_IMAGE from '../assets/OMMHA.png';
+import { prepareImageForUpload } from '../lib/upload-image';
+
+const PLACEHOLDER_IMAGE = require('../assets/OMMHA.png');
 
 interface SurveyPhoto {
   id: number;
@@ -38,6 +41,23 @@ interface PendingUploadImage {
   fileName?: string | null;
   mimeType?: string | null;
 }
+
+const getPhotoDisplayName = (uri: string) => {
+  const cleanUri = uri.split('?')[0];
+  return cleanUri.split('/').pop() || `photo_${Date.now()}.jpg`;
+};
+
+const mapLocalPhotoToItem = (surveyLocalId: number, photo: any): SurveyPhoto => ({
+  id: photo.server_id || photo.id,
+  survey: surveyLocalId,
+  image_url: photo.server_image_url || photo.local_uri,
+  caption: photo.caption || '',
+  uploaded_by_name: null,
+  uploaded_at: new Date(photo.created_at).toISOString(),
+  local_uri: photo.local_uri,
+  local_id: photo.id,
+  synced: photo.synced === 1,
+});
 
 interface AnswerItem {
   question_code: string;
@@ -62,6 +82,10 @@ interface SurveyDetail extends SurveyResponseItem {
   answers?: AnswerItem[];
   surveyor_notes?: string;
   template_name?: string;
+  is_local?: boolean;
+  synced?: number;
+  local_id?: number;
+  server_id?: number | null;
 }
 
 interface SurveyDetailScreenProps {
@@ -69,6 +93,10 @@ interface SurveyDetailScreenProps {
   onBack: () => void;
   onEdit: (surveyId: number) => void;
 }
+
+const isDetailQuestionCode = (code: string) => (
+  /^[A-Z]+Q[A-Z]\d*$/.test(code) || /^SDBQ\d+$/.test(code)
+);
 
 const formatNumberDisplay = (value: number | string): string => {
   const raw = String(value).trim();
@@ -90,43 +118,183 @@ export default function SurveyDetailScreen({ surveyId, onBack, onEdit }: SurveyD
   const [photos, setPhotos] = useState<SurveyPhoto[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [captionModalVisible, setCaptionModalVisible] = useState(false);
   const [captionText, setCaptionText] = useState('');
   const [pendingImage, setPendingImage] = useState<PendingUploadImage | null>(null);
+  const [editingPhoto, setEditingPhoto] = useState<SurveyPhoto | null>(null);
+  const [localSurveyId, setLocalSurveyId] = useState<number | null>(null);
   // Maps cabang_mtc value → question code that triggered it (e.g. "Pemantauan Intensitas Tinggi" → "RQ3")
   const [cabangMtcToTrigger, setCabangMtcToTrigger] = useState<Map<string, string>>(new Map());
+  const [questionOrderByCode, setQuestionOrderByCode] = useState<Map<string, number>>(new Map());
 
   useEffect(() => {
     fetchSurveyDetail();
   }, [surveyId]);
 
+  const refreshLocalPhotos = async (surveyLocalId: number) => {
+    const localPhotos = await database.getSurveyPhotosForLocalSurvey(surveyLocalId);
+    const mappedLocalPhotos = localPhotos.map((photo: any) => mapLocalPhotoToItem(surveyLocalId, photo));
+
+    setPhotos((prev) => {
+      const remoteOnly = prev.filter((photo) => !photo.local_id && photo.synced);
+      return [...mappedLocalPhotos, ...remoteOnly];
+    });
+  };
+
+  const buildLocalAnswers = (rawAnswers: Record<string, any>, tpl: any): AnswerItem[] => {
+    const questionMap = new Map<string, any>();
+    (tpl?.sections || []).forEach((section: any) => {
+      (section.questions || []).forEach((question: any) => {
+        questionMap.set(question.code, question);
+      });
+    });
+
+    const otherTextMap = new Map<string, any>();
+    Object.entries(rawAnswers).forEach(([key, value]) => {
+      if (!key.endsWith('__other_text')) return;
+      const baseKey = key.replace('__other_text', '');
+      if (typeof value !== 'string') {
+        otherTextMap.set(baseKey, value);
+        return;
+      }
+      try {
+        otherTextMap.set(baseKey, JSON.parse(value));
+      } catch {
+        otherTextMap.set(baseKey, value);
+      }
+    });
+
+    return Object.entries(rawAnswers)
+      .filter(([key]) => !key.endsWith('__other_text'))
+      .map(([storageKey, value]) => {
+        const [contextKey, questionCode] = storageKey.includes('|')
+          ? storageKey.split('|', 2)
+          : ['', storageKey];
+        const question = questionMap.get(questionCode);
+        const answer: AnswerItem = {
+          question_code: questionCode,
+          question_text: question?.question_text || questionCode,
+          context_key: contextKey || undefined,
+        };
+
+        if (question?.answer_type === 'SINGLE_CHOICE' || question?.answer_type === 'MULTIPLE_CHOICE') {
+          const values = Array.isArray(value) ? value.map(String) : value != null && value !== '' ? [String(value)] : [];
+          const otherData = otherTextMap.get(storageKey);
+          const labels = values.map((choiceValue) => {
+            const choice = question?.choices?.find((item: any) => String(item.value) === choiceValue);
+            const otherText = otherData && typeof otherData === 'object' ? otherData[choiceValue] : undefined;
+            return otherText ? `${choice?.label || choiceValue}: ${otherText}` : (choice?.label || choiceValue);
+          });
+          answer.selected_choice_values = values;
+          answer.selected_choice_labels = labels;
+          return answer;
+        }
+
+        if (typeof value === 'boolean') {
+          answer.boolean_value = value;
+          return answer;
+        }
+
+        if (typeof value === 'number') {
+          answer.number_value = value;
+          return answer;
+        }
+
+        if (question?.answer_type === 'DATE' && typeof value === 'string') {
+          answer.date_value = value;
+          return answer;
+        }
+
+        if (question?.answer_type === 'TIME' && typeof value === 'string') {
+          answer.time_value = value;
+          return answer;
+        }
+
+        if (question?.answer_type === 'LOCATION' && value && typeof value === 'object') {
+          answer.table_data = value;
+          return answer;
+        }
+
+        if (
+          value &&
+          typeof value === 'object' &&
+          typeof value.latitude === 'number' &&
+          typeof value.longitude === 'number'
+        ) {
+          answer.gps_latitude = value.latitude;
+          answer.gps_longitude = value.longitude;
+          return answer;
+        }
+
+        if (value && typeof value === 'object') {
+          answer.table_data = value;
+          return answer;
+        }
+
+        answer.text_value = value == null ? '' : String(value);
+        return answer;
+      });
+  };
+
   const fetchSurveyDetail = async () => {
     try {
-      const data = await apiClient.get<any>(`/surveys/responses/${surveyId}/`);
-      // Normalize nested objects to flat fields for display
+      const requestedLocalId = surveyId < 0 ? Math.abs(surveyId) : surveyId;
+      let local = await database.getSurvey(requestedLocalId);
+      if (!local && surveyId > 0) {
+        local = await database.getSurveyByServerId(surveyId);
+      }
+      if (!local) {
+        setSurvey(null);
+        return;
+      }
+
       const normalized: SurveyDetail = {
-        ...data,
-        service_name: typeof data.service === 'object' ? data.service?.name : data.service_name,
-        service_city: typeof data.service === 'object' ? data.service?.city : data.service_city,
-        template_name: typeof data.template === 'object' ? data.template?.name : data.template_name,
+        id: Number(local.id),
+        local_id: Number(local.id),
+        server_id: typeof local.server_id === 'number' ? local.server_id : null,
+        template: local.template_id || 0,
+        service: local.service_id || 0,
+        service_name: local.service_name || 'Layanan',
+        service_city: local.service_city || '-',
+        survey_date: local.survey_date,
+        survey_period_start: local.survey_period_start || '',
+        survey_period_end: local.survey_period_end || '',
+        latitude: local.gps_latitude ?? null,
+        longitude: local.gps_longitude ?? null,
+        verification_status: local.verification_status || 'DRAFT',
+        status_display: local.verification_status === 'SUBMITTED' ? 'Siap Sync' : 'Draft Lokal',
+        answers: [],
+        is_local: true,
+        synced: Number(local.synced ?? 0),
       };
       setSurvey(normalized);
+      setLocalSurveyId(Number(local.id));
+
+      const tpl = local.template_id
+        ? await database.getTemplate(Number(local.template_id))
+        : await database.getLatestTemplate();
+
+      if (tpl && local.answers_json) {
+        normalized.template_name = tpl.name;
+        normalized.answers = buildLocalAnswers(JSON.parse(local.answers_json), tpl);
+      }
+
+      setSurvey({ ...normalized });
 
       // Load cached template to build context_key → trigger question map
-      // context_key stores the raw choice VALUE (e.g. "R2", "R13"), NOT cabang_mtc (which is human-readable)
-      // We need to map these back to the question that triggered the detail block
       try {
-        const tplId = typeof data.template === 'object' ? data.template?.id : data.template;
-        const tpl = tplId ? await database.getTemplate(tplId) : await database.getLatestTemplate();
         if (tpl) {
           const map = new Map<string, string>();
+          const orderMap = new Map<string, number>();
           (tpl.sections || []).forEach((section: any) => {
             (section.questions || []).forEach((q: any) => {
-              // Skip detail questions (ending in letter A-Z)
-              if (/[A-Z]$/.test(q.code)) return;
+              orderMap.set(q.code, Number(q.order) || 0);
+              // Skip detail questions.
+              if (isDetailQuestionCode(q.code)) return;
               (q.choices || []).forEach((c: any) => {
-                // Only map choices that lead to detail questions (next_question_code ends in letter)
-                if (c.next_question_code && /[A-Z]$/.test(c.next_question_code)) {
+                // Only map choices that lead to detail questions.
+                if (c.next_question_code && isDetailQuestionCode(c.next_question_code)) {
                   // Use choice VALUE as key (context_key stores the value, not cabang_mtc)
                   if (c.value) map.set(c.value, q.code);
                 }
@@ -134,39 +302,41 @@ export default function SurveyDetailScreen({ surveyId, onBack, onEdit }: SurveyD
             });
           });
           setCabangMtcToTrigger(map);
+          setQuestionOrderByCode(orderMap);
         }
       } catch {
         // Template not cached yet — fall back to family label
       }
 
-      // Fetch photos
+      const photoItems: SurveyPhoto[] = [];
+      const localServerIds = new Set<number>();
       try {
-        const photosData = await apiClient.get<any>('/surveys/photos/', { survey: surveyId });
-        setPhotos(photosData.results || []);
-      } catch (err) {
-        console.error('Failed to load photos:', err);
-      }
-
-      // Also load local photos for this survey
-      try {
-        const localPhotos = await database.getSurveyPhotosForServerSurvey(surveyId);
+        const localPhotos = await database.getSurveyPhotosForLocalSurvey(Number(local.id));
         if (localPhotos.length > 0) {
-          const localPhotoItems: SurveyPhoto[] = localPhotos.map((p: any) => ({
-            id: p.server_id || p.id,
-            survey: surveyId,
-            image_url: p.server_image_url || p.local_uri,
-            caption: p.caption || '',
-            uploaded_by_name: null,
-            uploaded_at: new Date(p.created_at).toISOString(),
-            local_uri: p.local_uri,
-            local_id: p.id,
-            synced: p.synced === 1,
-          }));
-          setPhotos(prev => [...localPhotoItems, ...prev]);
+          for (const p of localPhotos as any[]) {
+            if (typeof p.server_id === 'number' && p.server_id > 0) {
+              localServerIds.add(p.server_id);
+            }
+            photoItems.push(mapLocalPhotoToItem(Number(local.id), p));
+          }
         }
       } catch (err) {
         console.error('Failed to load local photos:', err);
       }
+
+      if (typeof local.server_id === 'number') {
+        try {
+          const photosData = await apiClient.get<any>('/surveys/photos/', { survey: local.server_id });
+          const remotePhotos = Array.isArray(photosData?.results) ? photosData.results : [];
+          for (const rp of remotePhotos) {
+            if (typeof rp?.id === 'number' && localServerIds.has(rp.id)) continue;
+            photoItems.push(rp);
+          }
+        } catch (err) {
+          console.error('Failed to load server photos:', err);
+        }
+      }
+      setPhotos(photoItems);
     } catch (err: any) {
       console.error('Failed to load survey:', err);
     } finally {
@@ -183,33 +353,101 @@ export default function SurveyDetailScreen({ surveyId, onBack, onEdit }: SurveyD
     }
   };
 
-  const pickImage = async () => {
+  const chooseImage = async (): Promise<PendingUploadImage | null> => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert('Izin Diperlukan', 'Aplikasi memerlukan akses ke galeri foto untuk mengunggah gambar.');
-      return;
+      return null;
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: false,
       quality: 0.8,
+      base64: true,
     });
 
-    if (!result.canceled && result.assets[0]) {
-      setPendingImage({
-        uri: result.assets[0].uri,
-        fileName: result.assets[0].fileName,
-        mimeType: result.assets[0].mimeType,
-      });
+    if (result.canceled || !result.assets[0]) {
+      return null;
+    }
+
+    return prepareImageForUpload(result.assets[0], 'survey_photo');
+  };
+
+  const pickImage = async () => {
+    try {
+      const preparedImage = await chooseImage();
+      if (!preparedImage) return;
+      setEditingPhoto(null);
+      setPendingImage(preparedImage);
       setCaptionText('');
       setCaptionModalVisible(true);
+    } catch (err: any) {
+      console.error('[PhotoUpload] pickImage error:', err);
+      Alert.alert('Gagal Memilih Foto', err?.message || String(err));
+    }
+  };
+
+  const handleEditPhoto = (photo: SurveyPhoto) => {
+    if (!photo.local_id) return;
+    if (photo.synced) {
+      Alert.alert('Tidak Bisa Diedit', 'Foto yang sudah tersinkron belum bisa diedit dari aplikasi mobile.');
+      return;
+    }
+
+    setEditingPhoto(photo);
+    setPendingImage({
+      uri: photo.local_uri || photo.image_url,
+      fileName: getPhotoDisplayName(photo.local_uri || photo.image_url),
+      mimeType: null,
+    });
+    setCaptionText(photo.caption || '');
+    setCaptionModalVisible(true);
+  };
+
+  const handleReplaceEditingImage = async () => {
+    try {
+      const preparedImage = await chooseImage();
+      if (!preparedImage) return;
+      setPendingImage(preparedImage);
+    } catch (err: any) {
+      console.error('[PhotoUpload] replace image error:', err);
+      Alert.alert('Gagal Memilih Foto', err?.message || String(err));
     }
   };
 
   const handleUploadPhoto = async () => {
-    if (!pendingImage) {
-      console.error('[PhotoUpload] No pending image to upload');
+    if (editingPhoto?.local_id) {
+      const nextUri = pendingImage?.uri || editingPhoto.local_uri || editingPhoto.image_url;
+      if (!nextUri) {
+        Alert.alert('Error', 'Gambar foto tidak tersedia');
+        return;
+      }
+
+      setUploading(true);
+      setCaptionModalVisible(false);
+
+      try {
+        await database.updatePhotoLocal(editingPhoto.local_id, {
+          local_uri: nextUri,
+          caption: captionText,
+          synced: false,
+        });
+        await refreshLocalPhotos(localSurveyId!);
+
+        Alert.alert('Berhasil', 'Foto berhasil diperbarui di perangkat.');
+      } catch (uploadErr: any) {
+        Alert.alert('Gagal', uploadErr?.message || 'Gagal memperbarui foto');
+      } finally {
+        setUploading(false);
+        setPendingImage(null);
+        setEditingPhoto(null);
+      }
+      return;
+    }
+
+    if (!pendingImage || !localSurveyId) {
+      Alert.alert('Gagal', 'Foto belum bisa disimpan untuk survei ini.');
       return;
     }
 
@@ -224,20 +462,14 @@ export default function SurveyDetailScreen({ surveyId, onBack, onEdit }: SurveyD
     setCaptionModalVisible(false);
 
     try {
-      const serverPhoto = await apiClient.uploadSurveyPhoto(surveyId, pendingImage, captionText);
-      console.log('[PhotoUpload] Upload success:', serverPhoto);
-
-      const newPhoto: SurveyPhoto = {
-        id: serverPhoto.id,
-        survey: surveyId,
-        image_url: serverPhoto.image_url || serverPhoto.image,
+      await database.saveSurveyPhotoLocal({
+        survey_local_id: localSurveyId,
+        survey_server_id: survey?.server_id ?? null,
+        local_uri: pendingImage.uri,
         caption: captionText,
-        uploaded_by_name: null,
-        uploaded_at: new Date().toISOString(),
-        synced: true,
-      };
-      setPhotos(prev => [newPhoto, ...prev]);
-      Alert.alert('Berhasil', 'Foto berhasil diunggah');
+      });
+      await refreshLocalPhotos(localSurveyId);
+      Alert.alert('Berhasil', 'Foto disimpan lokal. Foto akan ikut tersinkron saat survei disinkronkan.');
     } catch (uploadErr: any) {
       console.error('[PhotoUpload] Upload error:', uploadErr);
       let errorMsg = 'Gagal mengunggah foto';
@@ -248,6 +480,7 @@ export default function SurveyDetailScreen({ surveyId, onBack, onEdit }: SurveyD
     } finally {
       setUploading(false);
       setPendingImage(null);
+      setEditingPhoto(null);
     }
   };
 
@@ -262,13 +495,14 @@ export default function SurveyDetailScreen({ surveyId, onBack, onEdit }: SurveyD
           style: 'destructive',
           onPress: async () => {
             try {
-              // Delete from server if not local-only draft
-              if (!survey?.is_local) {
-                await apiClient.delete(`/surveys/responses/${surveyId}/`);
-              } else {
-                // Delete from local database for local drafts
-                await database.deleteSurvey(surveyId);
+              if (survey?.server_id) {
+                try {
+                  await apiClient.delete(`/surveys/responses/${survey.server_id}/`);
+                } catch (err) {
+                  console.error('Failed to delete survey from server:', err);
+                }
               }
+              if (localSurveyId) await database.deleteSurvey(localSurveyId);
               Alert.alert('Berhasil', 'Survei berhasil dihapus');
               onBack();
             } catch (err) {
@@ -350,6 +584,51 @@ export default function SurveyDetailScreen({ surveyId, onBack, onEdit }: SurveyD
     return '-';
   };
 
+  const handleSyncSurvey = async () => {
+    if (!localSurveyId) return;
+    setSyncing(true);
+    try {
+      const result = await syncQueue.processSurvey(localSurveyId);
+
+      const lines: string[] = ['Survei berhasil dikirim ke server.'];
+      if (result.uploadedPhotos > 0) {
+        lines.push(`${result.uploadedPhotos} foto berhasil terunggah.`);
+      }
+      if (result.uploadedAnswerFiles > 0) {
+        lines.push(`${result.uploadedAnswerFiles} lampiran jawaban terunggah.`);
+      }
+
+      const hasMediaFailure = result.failedPhotos > 0 || result.failedAnswerFiles > 0;
+      if (hasMediaFailure) {
+        if (result.failedPhotos > 0) {
+          lines.push('');
+          lines.push(`${result.failedPhotos} foto GAGAL diunggah:`);
+          result.photoErrors.slice(0, 5).forEach((e) => lines.push(`• ${e}`));
+          if (result.photoErrors.length > 5) {
+            lines.push(`…dan ${result.photoErrors.length - 5} lainnya`);
+          }
+        }
+        if (result.failedAnswerFiles > 0) {
+          lines.push('');
+          lines.push(`${result.failedAnswerFiles} lampiran GAGAL diunggah:`);
+          result.answerFileErrors.slice(0, 5).forEach((e) => lines.push(`• ${e}`));
+          if (result.answerFileErrors.length > 5) {
+            lines.push(`…dan ${result.answerFileErrors.length - 5} lainnya`);
+          }
+        }
+        lines.push('');
+        lines.push('Foto/lampiran yang gagal akan dicoba ulang pada sinkronisasi berikutnya.');
+        Alert.alert('Sinkronisasi Selesai Sebagian', lines.join('\n'), [{ text: 'OK' }]);
+      } else {
+        Alert.alert('Sinkronisasi Berhasil', lines.join(' '), [{ text: 'OK', onPress: onBack }]);
+      }
+    } catch (err: any) {
+      Alert.alert('Sinkronisasi Gagal', err?.message || 'Gagal menyinkronkan survei ke server');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   if (loading) {
     return (
       <View style={[styles.centered, { backgroundColor: c.background }]}>
@@ -382,14 +661,18 @@ export default function SurveyDetailScreen({ surveyId, onBack, onEdit }: SurveyD
             </TouchableOpacity>
             <Text style={[styles.headerTitle, { color: c.text }]}>Detail Survei</Text>
           </View>
-          <TouchableOpacity onPress={() => onEdit(surveyId)} style={[styles.editButton, { backgroundColor: c.primary }]}>
-            <Text style={styles.editButtonText}>Edit</Text>
-          </TouchableOpacity>
-          {(survey?.verification_status === 'DRAFT' || survey?.verification_status === 'draft' || survey?.is_local) && (
-            <TouchableOpacity onPress={handleDeleteSurvey} style={[styles.deleteButton, { backgroundColor: '#ef4444' }]}>
-              <MaterialIcons name="delete" size={18} color="#fff" />
-            </TouchableOpacity>
-          )}
+          <View style={styles.headerActions}>
+            {survey?.synced === 0 && localSurveyId ? (
+              <TouchableOpacity onPress={() => onEdit(-localSurveyId)} style={[styles.compactActionButton, { backgroundColor: c.primary }]}>
+                <Text style={styles.compactActionText}>Edit</Text>
+              </TouchableOpacity>
+            ) : null}
+            {survey?.synced === 0 ? (
+              <TouchableOpacity onPress={handleDeleteSurvey} style={[styles.compactActionButton, { backgroundColor: '#ef4444' }]}>
+                <Text style={styles.compactActionText}>Hapus</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
         </View>
 
         <ScrollView style={[styles.content, { backgroundColor: c.background }]}>
@@ -430,6 +713,13 @@ export default function SurveyDetailScreen({ surveyId, onBack, onEdit }: SurveyD
                 </Text>
               </View>
             </View>
+            <View style={[styles.divider, { backgroundColor: c.border }]} />
+            <View style={styles.infoRow}>
+              <Text style={[styles.infoLabel, { color: c.textMuted }]}>Sinkronisasi</Text>
+              <Text style={[styles.infoValue, { color: survey.synced === 1 ? '#10b981' : '#f59e0b' }]}>
+                {survey.synced === 1 ? 'Tersinkron' : 'Belum tersinkron'}
+              </Text>
+            </View>
           </View>
 
           {/* Photos Section */}
@@ -453,6 +743,7 @@ export default function SurveyDetailScreen({ surveyId, onBack, onEdit }: SurveyD
                       <TouchableOpacity
                         key={photo.id}
                         style={styles.photoContainer}
+                        onPress={() => handleEditPhoto(photo)}
                         onLongPress={() => handleDeletePhoto(photo)}
                       >
                         <Image
@@ -474,7 +765,7 @@ export default function SurveyDetailScreen({ surveyId, onBack, onEdit }: SurveyD
                     ))}
                   </View>
                 </ScrollView>
-                <Text style={[styles.photoHint, { color: c.textPlaceholder }]}>Tekan lama untuk hapus</Text>
+                <Text style={[styles.photoHint, { color: c.textPlaceholder }]}>Ketuk untuk edit, tekan lama untuk hapus</Text>
               </>
             ) : (
               <View style={styles.photoPlaceholderContainer}>
@@ -483,6 +774,13 @@ export default function SurveyDetailScreen({ surveyId, onBack, onEdit }: SurveyD
                   style={styles.photoPlaceholderImageLarge}
                   resizeMode="contain"
                 />
+                <TouchableOpacity
+                  style={[styles.photoPlaceholderButton, { backgroundColor: c.primary }]}
+                  onPress={pickImage}
+                >
+                  <MaterialIcons name="add-a-photo" size={18} color="#fff" />
+                  <Text style={styles.photoPlaceholderButtonText}>Tambah Foto</Text>
+                </TouchableOpacity>
               </View>
             )}
           </View>
@@ -493,15 +791,26 @@ export default function SurveyDetailScreen({ surveyId, onBack, onEdit }: SurveyD
               <Text style={[styles.sectionTitle, { color: c.textMuted }]}>Jawaban Survei</Text>
               <View style={[styles.infoCard, { backgroundColor: c.surface, borderColor: c.border }]}>
                 {(() => {
+                  const byTemplateOrder = (a: AnswerItem, b: AnswerItem) => {
+                    const orderA = questionOrderByCode.get(a.question_code) ?? Number.MAX_SAFE_INTEGER;
+                    const orderB = questionOrderByCode.get(b.question_code) ?? Number.MAX_SAFE_INTEGER;
+                    if (orderA !== orderB) return orderA - orderB;
+                    return a.question_code.localeCompare(b.question_code);
+                  };
+
                   // Separate non-detail and detail answers
-                  const nonDetail = survey.answers!.filter(a => !/[A-Z]$/.test(a.question_code));
-                  const detailAnswers = survey.answers!.filter(a => /[A-Z]$/.test(a.question_code));
+                  const nonDetail = survey.answers!
+                    .filter(a => !isDetailQuestionCode(a.question_code))
+                    .sort(byTemplateOrder);
+                  const detailAnswers = survey.answers!
+                    .filter(a => isDetailQuestionCode(a.question_code))
+                    .sort(byTemplateOrder);
 
                   // Group detail answers by trigger code → ctx → items (preserving API order)
                   const detailByTrigger = new Map<string, Map<string, AnswerItem[]>>();
                   for (const ans of detailAnswers) {
                     const ctx = ans.context_key || '';
-                    const triggerCode = cabangMtcToTrigger.get(ctx) || ans.question_code.slice(0, -1);
+                    const triggerCode = cabangMtcToTrigger.get(ctx) || ans.question_code.replace(/\d+$/, '').slice(0, -1);
                     if (!detailByTrigger.has(triggerCode)) detailByTrigger.set(triggerCode, new Map());
                     const ctxMap = detailByTrigger.get(triggerCode)!;
                     if (!ctxMap.has(ctx)) ctxMap.set(ctx, []);
@@ -555,6 +864,21 @@ export default function SurveyDetailScreen({ surveyId, onBack, onEdit }: SurveyD
                   return nodes;
                 })()}
               </View>
+              {survey?.synced === 0 ? (
+                <View style={styles.syncSection}>
+                  <TouchableOpacity
+                    onPress={handleSyncSurvey}
+                    style={[styles.syncButtonBottom, { backgroundColor: '#10b981' }, syncing && styles.syncButtonDisabled]}
+                    disabled={syncing}
+                  >
+                    {syncing ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text style={styles.syncButtonBottomText}>Unggah ke Server</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              ) : null}
             </View>
           )}
 
@@ -579,7 +903,14 @@ export default function SurveyDetailScreen({ surveyId, onBack, onEdit }: SurveyD
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: c.surface }]}>
-            <Text style={[styles.modalTitle, { color: c.text }]}>Tambah Caption</Text>
+            <Text style={[styles.modalTitle, { color: c.text }]}>{editingPhoto ? 'Edit Foto' : 'Tambah Foto'}</Text>
+            {pendingImage?.uri ? (
+              <Image
+                source={{ uri: pendingImage.uri }}
+                style={styles.modalPreviewImage}
+                resizeMode="cover"
+              />
+            ) : null}
             <TextInput
               style={[styles.captionInput, { borderColor: c.border, color: c.text }]}
               placeholder="Masukkan caption (opsional)"
@@ -588,12 +919,22 @@ export default function SurveyDetailScreen({ surveyId, onBack, onEdit }: SurveyD
               onChangeText={setCaptionText}
               multiline
             />
+            {editingPhoto ? (
+              <TouchableOpacity
+                style={[styles.replaceImageButton, { borderColor: c.primary }]}
+                onPress={handleReplaceEditingImage}
+              >
+                <MaterialIcons name="photo-library" size={16} color={c.primary} />
+                <Text style={[styles.replaceImageButtonText, { color: c.primary }]}>Ganti Gambar</Text>
+              </TouchableOpacity>
+            ) : null}
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={[styles.modalButton, { borderColor: c.border }]}
                 onPress={() => {
                   setCaptionModalVisible(false);
                   setPendingImage(null);
+                  setEditingPhoto(null);
                 }}
               >
                 <Text style={[styles.modalButtonText, { color: c.text }]}>Batal</Text>
@@ -602,7 +943,7 @@ export default function SurveyDetailScreen({ surveyId, onBack, onEdit }: SurveyD
                 style={[styles.modalButton, { backgroundColor: c.primary }]}
                 onPress={handleUploadPhoto}
               >
-                <Text style={[styles.modalButtonText, { color: '#fff' }]}>Unggah</Text>
+                <Text style={[styles.modalButtonText, { color: '#fff' }]}>{editingPhoto ? 'Simpan' : 'Unggah'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -622,11 +963,11 @@ const styles = StyleSheet.create({
   backButtonText: { color: '#fff', fontSize: 13, fontWeight: '600' },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 12 },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   backIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 16, fontWeight: '600' },
-  editButton: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, gap: 6 },
-  editButtonText: { fontSize: 13, fontWeight: '600', color: '#ffffff' },
-  deleteButton: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
+  compactActionButton: { minWidth: 72, height: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  compactActionText: { fontSize: 13, fontWeight: '600', color: '#ffffff' },
   content: { flex: 1, paddingHorizontal: 20, paddingTop: 4 },
   statusBadge: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, marginTop: 12 },
   statusDot: { width: 6, height: 6, borderRadius: 3 },
@@ -653,6 +994,10 @@ const styles = StyleSheet.create({
   notesCard: { borderRadius: 6, padding: 14, marginBottom: 12, borderWidth: 1 },
   notesTitle: { fontSize: 13, fontWeight: '600', marginBottom: 6 },
   notesText: { fontSize: 12, lineHeight: 18 },
+  syncSection: { marginTop: 12, width: '100%' },
+  syncButtonBottom: { width: '100%', height: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
+  syncButtonBottomText: { fontSize: 13, fontWeight: '600', color: '#ffffff' },
+  syncButtonDisabled: { opacity: 0.6 },
   photosSection: { marginBottom: 12 },
   photosSectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   photosScroll: { marginHorizontal: -20, paddingHorizontal: 20 },
@@ -726,6 +1071,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   modalTitle: { fontSize: 16, fontWeight: '600', marginBottom: 16 },
+  modalPreviewImage: { width: '100%', height: 180, borderRadius: 10, backgroundColor: '#f3f4f6', marginBottom: 12 },
   captionInput: {
     borderWidth: 1,
     borderRadius: 8,
@@ -735,6 +1081,17 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
     marginBottom: 16,
   },
+  replaceImageButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingVertical: 10,
+    marginBottom: 16,
+  },
+  replaceImageButtonText: { fontSize: 13, fontWeight: '600' },
   modalButtons: { flexDirection: 'row', gap: 12 },
   modalButton: {
     flex: 1,
