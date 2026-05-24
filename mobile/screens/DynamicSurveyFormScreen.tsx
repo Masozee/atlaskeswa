@@ -258,11 +258,7 @@ const hasCompleteStaffTable = (question: Question, value: any): boolean => {
 
 const hasCompleteMatrixKegiatan = (value: any): boolean => {
   if (!Array.isArray(value) || value.length === 0) return false;
-  return value.every((row) =>
-    !isBlankValue(row?.nama_kegiatan)
-    && Array.isArray(row?.hari)
-    && row.hari.length > 0
-  );
+  return value.every((row) => !isBlankValue(row?.nama_kegiatan));
 };
 
 const hasCompleteInterventionMatrix = (question: Question, value: any): boolean => {
@@ -3449,11 +3445,9 @@ export default function DynamicSurveyFormScreen({
     );
   };
 
-  // --- MATRIX KEGIATAN (activity name + day multi-select) ---
-  const DAY_OPTIONS = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
-
+  // --- MATRIX KEGIATAN (activity name list, day selector removed) ---
   const renderMatrixKegiatan = (question: Question, value: any, ctx: string = '') => {
-    type MatrixRow = { nama_kegiatan: string; hari: string[] };
+    type MatrixRow = { nama_kegiatan: string };
     const config = question.table_config ?? {};
     const presetActivities: Record<string, string[]> = {
       kesehatan: [
@@ -3478,15 +3472,16 @@ export default function DynamicSurveyFormScreen({
         'KEGIATAN KEAGAMAAN/SPIRITUAL',
       ],
     };
-    const dayOptions = config.day_options?.length ? config.day_options : DAY_OPTIONS;
     const predefinedOptions = config.activity_options?.length
       ? config.activity_options
       : (config.matrix_variant ? presetActivities[config.matrix_variant] ?? [] : []);
     const allowCustom = config.allow_custom !== false;
     const usesPredefinedActivities = predefinedOptions.length > 0;
-    const storedRows: MatrixRow[] = Array.isArray(value) ? value : [];
+    const storedRows: MatrixRow[] = Array.isArray(value)
+      ? value.map((r: any) => ({ nama_kegiatan: r?.nama_kegiatan ?? '' }))
+      : [];
     const rows: MatrixRow[] = !usesPredefinedActivities && storedRows.length === 0
-      ? [{ nama_kegiatan: '', hari: [] }]
+      ? [{ nama_kegiatan: '' }]
       : storedRows;
     const customRows = rows.filter((row) => !predefinedOptions.includes(row.nama_kegiatan));
 
@@ -3498,31 +3493,16 @@ export default function DynamicSurveyFormScreen({
       updateRows([...predefinedRows, ...nextCustomRows]);
     };
 
-    const toggleDays = (currentDays: string[], day: string) =>
-      currentDays.includes(day)
-        ? currentDays.filter((item) => item !== day)
-        : [...currentDays, day];
-
     const togglePredefinedActivity = (activity: string) => {
       const exists = rows.some((row) => row.nama_kegiatan === activity);
       if (exists) {
         updateRows(rows.filter((row) => row.nama_kegiatan !== activity));
         return;
       }
-      updateRows([...rows, { nama_kegiatan: activity, hari: [] }]);
+      updateRows([...rows, { nama_kegiatan: activity }]);
     };
 
-    const togglePredefinedDay = (activity: string, day: string) => {
-      updateRows(
-        rows.map((row) =>
-          row.nama_kegiatan === activity
-            ? { ...row, hari: toggleDays(row.hari || [], day) }
-            : row
-        )
-      );
-    };
-
-    const addCustomRow = () => updateRows([...rows, { nama_kegiatan: '', hari: [] }]);
+    const addCustomRow = () => updateRows([...rows, { nama_kegiatan: '' }]);
 
     const removeCustomRow = (index: number) => {
       const nextCustomRows = customRows.filter((_, i) => i !== index);
@@ -3535,7 +3515,7 @@ export default function DynamicSurveyFormScreen({
         {/* Header */}
         <View style={styles.sectionHeaderContainer}>
           <Text style={styles.sectionHeader}>MATRIX KEGIATAN</Text>
-          <Text style={styles.sectionSubtitle}>ISILAH NAMA KEGIATAN DAN HARI BEKERJA</Text>
+          <Text style={styles.sectionSubtitle}>PILIH ATAU TAMBAHKAN KEGIATAN</Text>
         </View>
 
         <View style={[styles.opHoursContainer]}>
@@ -3543,8 +3523,7 @@ export default function DynamicSurveyFormScreen({
             <View style={styles.matrixSection}>
               <Text style={styles.matrixSectionTitle}>Daftar Kegiatan</Text>
               {predefinedOptions.map((activity) => {
-                const selectedRow = rows.find((row) => row.nama_kegiatan === activity);
-                const isSelected = !!selectedRow;
+                const isSelected = rows.some((row) => row.nama_kegiatan === activity);
                 return (
                   <View key={activity} style={styles.matrixOptionCard}>
                     <TouchableOpacity
@@ -3556,28 +3535,6 @@ export default function DynamicSurveyFormScreen({
                       </View>
                       <Text style={styles.matrixOptionLabel}>{activity}</Text>
                     </TouchableOpacity>
-
-                    {isSelected && (
-                      <View style={styles.matrixDaysWrap}>
-                        {dayOptions.map((day) => {
-                          const daySelected = (selectedRow.hari || []).includes(day);
-                          return (
-                            <TouchableOpacity
-                              key={`${activity}-${day}`}
-                              onPress={() => togglePredefinedDay(activity, day)}
-                              style={[
-                                styles.matrixDayChip,
-                                daySelected && { backgroundColor: c.primary, borderColor: c.primary },
-                              ]}
-                            >
-                              <Text style={[styles.matrixDayChipText, daySelected && { color: '#fff' }]}>
-                                {day.substring(0, 3)}
-                              </Text>
-                            </TouchableOpacity>
-                          );
-                        })}
-                      </View>
-                    )}
                   </View>
                 );
               })}
@@ -3591,7 +3548,7 @@ export default function DynamicSurveyFormScreen({
               </Text>
               {customRows.length === 0 && !usesPredefinedActivities ? (
                 <View style={styles.matrixOptionCard}>
-                  <Text style={styles.sectionSubtitle}>Tambahkan kegiatan dan pilih hari pelaksanaannya.</Text>
+                  <Text style={styles.sectionSubtitle}>Tambahkan nama kegiatan.</Text>
                 </View>
               ) : null}
               {customRows.map((row, idx) => (
@@ -3610,26 +3567,6 @@ export default function DynamicSurveyFormScreen({
                     >
                       <MaterialIcons name="delete-outline" size={20} color="#ef4444" />
                     </TouchableOpacity>
-                  </View>
-
-                  <View style={styles.matrixDaysWrap}>
-                    {dayOptions.map((day) => {
-                      const isSelected = (row.hari || []).includes(day);
-                      return (
-                        <TouchableOpacity
-                          key={`custom-${idx}-${day}`}
-                          onPress={() => updateCustomRow(idx, { hari: toggleDays(row.hari || [], day) })}
-                          style={[
-                            styles.matrixDayChip,
-                            isSelected && { backgroundColor: c.primary, borderColor: c.primary },
-                          ]}
-                        >
-                          <Text style={[styles.matrixDayChipText, isSelected && { color: '#fff' }]}>
-                            {day.substring(0, 3)}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
                   </View>
                 </View>
               ))}

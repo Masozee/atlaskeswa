@@ -473,16 +473,11 @@ export function getFlowItems(
       // D4.1 / D8.1 -> DQB1
       // D4.2 / D8.2 -> DQB2
       // D4.3 / D8.3 -> DQB3
-      // D4.4 / D8.4 -> DQB3
+      // D4.4 / D8.4 -> DQB4
       if (current.code === 'DQA' && _contextKey) {
         const ctxMatch = _contextKey.match(/^D(?:4|8)\.([1-4])$/);
         if (ctxMatch) {
-          const branch = ctxMatch[1] === '1'
-            ? 'DQB1'
-            : ctxMatch[1] === '2'
-            ? 'DQB2'
-            : 'DQB3';
-          nextCode = branch;
+          nextCode = `DQB${ctxMatch[1]}`;
         }
       }
 
@@ -536,7 +531,11 @@ export function getFlowItems(
       // only when PEMBAYARAN MANDIRI is among the selected values, else skip past it.
       // This must be code-driven (not show_condition) because show_condition is evaluated once
       // at the start of the detail block flow, before the payment question may have been answered.
-      const MANDIRI_VALUE = 'PEMBAYARAN MANDIRI OLEH KLIEN/PASIEN/KELUARGA';
+      // PEMBAYARAN MANDIRI is order=3 across all 6 payment questions. Match by either the
+      // canonical label string (legacy data) or value '3' (current schema where choice values
+      // are stored as their order index).
+      const MANDIRI_LABEL = 'PEMBAYARAN MANDIRI OLEH KLIEN/PASIEN/KELUARGA';
+      const MANDIRI_VALUE = '3';
       const paymentRouting = {
         RQH: { tariff: 'RQI', next: 'RQJ' },
         SRQH: { tariff: 'SRQI', next: 'SRQJ' },
@@ -547,7 +546,7 @@ export function getFlowItems(
       } as const;
       const paymentRoute = paymentRouting[current.code as keyof typeof paymentRouting];
       if (paymentRoute && Array.isArray(answer)) {
-        const hasMandiri = answer.includes(MANDIRI_VALUE);
+        const hasMandiri = answer.includes(MANDIRI_LABEL) || answer.includes(MANDIRI_VALUE);
         nextCode = hasMandiri ? paymentRoute.tariff : paymentRoute.next;
       }
 

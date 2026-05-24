@@ -635,8 +635,10 @@ function KegiatanTableInput({ question, value, onChange, error }: KegiatanTableI
 }
 
 /**
- * MatrixKegiatanInput — table with activity name and day multi-select
- * Structure: Array<{ nama_kegiatan: string; hari: string[] }>
+ * MatrixKegiatanInput — list of activity names. Day selector removed per
+ * stakeholder request; legacy `hari` field is ignored on read but preserved
+ * if already present in stored answers.
+ * Structure (new): Array<{ nama_kegiatan: string }>
  */
 interface MatrixKegiatanInputProps {
   question: Question;
@@ -645,7 +647,6 @@ interface MatrixKegiatanInputProps {
   error?: string;
 }
 
-const DAY_OPTIONS = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
 const MATRIX_KEGIATAN_PRESETS: Record<string, string[]> = {
   kesehatan: [
     'PSIKOTERAPI',
@@ -672,31 +673,24 @@ const MATRIX_KEGIATAN_PRESETS: Record<string, string[]> = {
 
 function MatrixKegiatanInput({ question, value, onChange, error }: MatrixKegiatanInputProps) {
   const config = question.table_config ?? {};
-  const dayOptions = config.day_options?.length ? config.day_options : DAY_OPTIONS;
   const predefinedOptions = config.activity_options?.length
     ? config.activity_options
     : (config.matrix_variant ? MATRIX_KEGIATAN_PRESETS[config.matrix_variant] ?? [] : []);
   const allowCustom = config.allow_custom !== false;
   const usesPredefinedActivities = predefinedOptions.length > 0;
-  const storedRows: Array<{ nama_kegiatan: string; hari: string[] }> =
+  const storedRows: Array<{ nama_kegiatan: string }> =
     Array.isArray(value)
-      ? value.map((r: any) => ({ nama_kegiatan: r.nama_kegiatan ?? '', hari: r.hari ?? [] }))
+      ? value.map((r: any) => ({ nama_kegiatan: r?.nama_kegiatan ?? '' }))
       : [];
-  const rows: Array<{ nama_kegiatan: string; hari: string[] }> =
+  const rows: Array<{ nama_kegiatan: string }> =
     !usesPredefinedActivities && storedRows.length === 0
-      ? [{ nama_kegiatan: '', hari: [] }]
+      ? [{ nama_kegiatan: '' }]
       : storedRows;
   const customRows = rows.filter((row) => !predefinedOptions.includes(row.nama_kegiatan));
 
-  const updateRows = (next: Array<{ nama_kegiatan: string; hari: string[] }>) => onChange(next);
+  const updateRows = (next: Array<{ nama_kegiatan: string }>) => onChange(next);
 
-  const toggleDays = (currentDays: string[], day: string) => (
-    currentDays.includes(day)
-      ? currentDays.filter((item) => item !== day)
-      : [...currentDays, day]
-  );
-
-  const updateCustomRow = (index: number, patch: Partial<{ nama_kegiatan: string; hari: string[] }>) => {
+  const updateCustomRow = (index: number, patch: Partial<{ nama_kegiatan: string }>) => {
     const nextCustomRows = customRows.map((row, i) => (i === index ? { ...row, ...patch } : row));
     const predefinedRows = rows.filter((row) => predefinedOptions.includes(row.nama_kegiatan));
     updateRows([...predefinedRows, ...nextCustomRows]);
@@ -708,20 +702,10 @@ function MatrixKegiatanInput({ question, value, onChange, error }: MatrixKegiata
       updateRows(rows.filter((row) => row.nama_kegiatan !== activity));
       return;
     }
-    updateRows([...rows, { nama_kegiatan: activity, hari: [] }]);
+    updateRows([...rows, { nama_kegiatan: activity }]);
   };
 
-  const togglePredefinedDay = (activity: string, day: string) => {
-    updateRows(
-      rows.map((row) =>
-        row.nama_kegiatan === activity
-          ? { ...row, hari: toggleDays(row.hari || [], day) }
-          : row
-      )
-    );
-  };
-
-  const addCustomRow = () => updateRows([...rows, { nama_kegiatan: '', hari: [] }]);
+  const addCustomRow = () => updateRows([...rows, { nama_kegiatan: '' }]);
 
   const removeCustomRow = (index: number) => {
     const nextCustomRows = customRows.filter((_, i) => i !== index);
@@ -735,11 +719,10 @@ function MatrixKegiatanInput({ question, value, onChange, error }: MatrixKegiata
         <div className="space-y-3 rounded-lg border p-4">
           <div>
             <p className="text-sm font-semibold">Daftar Kegiatan</p>
-            <p className="text-xs text-muted-foreground">Pilih kegiatan, lalu tentukan hari pelaksanaannya.</p>
+            <p className="text-xs text-muted-foreground">Pilih kegiatan yang dilakukan.</p>
           </div>
           {predefinedOptions.map((activity) => {
-            const selectedRow = rows.find((row) => row.nama_kegiatan === activity);
-            const isSelected = !!selectedRow;
+            const isSelected = rows.some((row) => row.nama_kegiatan === activity);
             return (
               <div key={activity} className="rounded-lg border bg-card p-3">
                 <button
@@ -755,28 +738,6 @@ function MatrixKegiatanInput({ question, value, onChange, error }: MatrixKegiata
                   </div>
                   <span className="text-sm font-medium">{activity}</span>
                 </button>
-                {isSelected ? (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {dayOptions.map((day) => {
-                      const daySelected = (selectedRow.hari || []).includes(day);
-                      return (
-                        <button
-                          key={`${activity}-${day}`}
-                          type="button"
-                          onClick={() => togglePredefinedDay(activity, day)}
-                          className={cn(
-                            'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
-                            daySelected
-                              ? 'border-primary bg-primary text-white'
-                              : 'border-border bg-muted text-muted-foreground hover:bg-muted/80'
-                          )}
-                        >
-                          {day.substring(0, 3)}
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : null}
               </div>
             );
           })}
@@ -791,7 +752,6 @@ function MatrixKegiatanInput({ question, value, onChange, error }: MatrixKegiata
                 <tr>
                   <th className="border p-2 bg-muted text-center font-medium w-10">No</th>
                   <th className="border p-2 bg-muted text-left font-medium">KEGIATAN</th>
-                  <th className="border p-2 bg-muted text-left font-medium">HARI</th>
                   <th className="border p-2 bg-muted w-10" />
                 </tr>
               </thead>
@@ -806,31 +766,6 @@ function MatrixKegiatanInput({ question, value, onChange, error }: MatrixKegiata
                         placeholder="Nama kegiatan"
                         className="h-8 border-0 focus-visible:ring-1"
                       />
-                    </td>
-                    <td className="border p-2">
-                      <div className="flex flex-wrap gap-1">
-                        {dayOptions.map((day) => {
-                          const isSelected = (row.hari || []).includes(day);
-                          return (
-                            <label
-                              key={`${idx}-${day}`}
-                              className={cn(
-                                'inline-flex items-center gap-1 px-2 py-1 rounded text-xs cursor-pointer transition-colors',
-                                isSelected
-                                  ? 'bg-primary text-white'
-                                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                              )}
-                            >
-                              <Checkbox
-                                checked={isSelected}
-                                onCheckedChange={() => updateCustomRow(idx, { hari: toggleDays(row.hari || [], day) })}
-                                className="sr-only"
-                              />
-                              {day.substring(0, 3)}
-                            </label>
-                          );
-                        })}
-                      </div>
                     </td>
                     <td className="border p-1 text-center">
                       <button
