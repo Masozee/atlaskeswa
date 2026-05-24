@@ -125,7 +125,7 @@ def revert_to_string_conditions(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('survey', '0047_alter_question_answer_type'),
+        ('survey', '0045_q15_other_input_types'),
     ]
 
     operations = [
