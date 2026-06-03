@@ -92,8 +92,10 @@ type TemplateEditorAnswerType =
   | string
   | "MATRIX_KEGIATAN_CUSTOM"
   | "MATRIX_KEGIATAN_KESEHATAN"
+  | "MATRIX_KEGIATAN_TERKAIT_KESEHATAN"
   | "MATRIX_KEGIATAN_PENDIDIKAN"
-  | "MATRIX_KEGIATAN_SOSIAL_BUDAYA";
+  | "MATRIX_KEGIATAN_SOSIAL_BUDAYA"
+  | "MATRIX_KEGIATAN_TERKAIT_SOSIAL";
 
 const breadcrumbs = [
   { label: "Dashboard", href: "/dashboard" },
@@ -118,8 +120,10 @@ const ANSWER_TYPES = [
   { value: "KEGIATAN_TABLE", label: "Tabel Kegiatan" },
   { value: "MATRIX_KEGIATAN_CUSTOM", label: "Matrix Kegiatan Custom" },
   { value: "MATRIX_KEGIATAN_KESEHATAN", label: "Matrix Kegiatan Kesehatan" },
+  { value: "MATRIX_KEGIATAN_TERKAIT_KESEHATAN", label: "Matrix Kegiatan Terkait Kesehatan" },
   { value: "MATRIX_KEGIATAN_PENDIDIKAN", label: "Matrix Kegiatan Pendidikan" },
   { value: "MATRIX_KEGIATAN_SOSIAL_BUDAYA", label: "Matrix Kegiatan Sosial Budaya" },
+  { value: "MATRIX_KEGIATAN_TERKAIT_SOSIAL", label: "Matrix Kegiatan Terkait Sosial" },
   { value: "GPS", label: "GPS" },
   { value: "FILE", label: "File Upload" },
 ];
@@ -127,8 +131,10 @@ const ANSWER_TYPES = [
 const MATRIX_KEGIATAN_EDITOR_VARIANT_MAP: Record<string, string> = {
   MATRIX_KEGIATAN_CUSTOM: "custom",
   MATRIX_KEGIATAN_KESEHATAN: "kesehatan",
+  MATRIX_KEGIATAN_TERKAIT_KESEHATAN: "terkait_kesehatan",
   MATRIX_KEGIATAN_PENDIDIKAN: "pendidikan",
   MATRIX_KEGIATAN_SOSIAL_BUDAYA: "sosial_budaya",
+  MATRIX_KEGIATAN_TERKAIT_SOSIAL: "terkait_sosial",
 };
 
 const getEditorAnswerType = (question?: Question | null): TemplateEditorAnswerType => {
@@ -139,10 +145,14 @@ const getEditorAnswerType = (question?: Question | null): TemplateEditorAnswerTy
   switch (variant) {
     case "kesehatan":
       return "MATRIX_KEGIATAN_KESEHATAN";
+    case "terkait_kesehatan":
+      return "MATRIX_KEGIATAN_TERKAIT_KESEHATAN";
     case "pendidikan":
       return "MATRIX_KEGIATAN_PENDIDIKAN";
     case "sosial_budaya":
       return "MATRIX_KEGIATAN_SOSIAL_BUDAYA";
+    case "terkait_sosial":
+      return "MATRIX_KEGIATAN_TERKAIT_SOSIAL";
     default:
       return "MATRIX_KEGIATAN_CUSTOM";
   }

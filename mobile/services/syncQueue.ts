@@ -109,6 +109,7 @@ class SyncQueue {
     if (survey.survey_period_end) payload.survey_period_end = survey.survey_period_end;
     if (survey.gps_latitude != null) payload.gps_latitude = survey.gps_latitude;
     if (survey.gps_longitude != null) payload.gps_longitude = survey.gps_longitude;
+    if (survey.started_at) payload.started_at = survey.started_at;
 
     let serverId = typeof survey.server_id === 'number' ? survey.server_id : undefined;
     let shouldSubmitAfterUploads = false;

@@ -199,13 +199,22 @@ class ApiClient {
       const errorText = await response.text();
       debugError('Error response:', response.status, response.statusText, errorText);
       if (isJson) {
-        const errorData = await response.json();
-        const apiError: ApiError = {
-          message: errorData.detail || errorData.message || 'An error occurred',
-          status: response.status,
-          errors: errorData,
-        };
-        throw apiError;
+        try {
+          const errorData = JSON.parse(errorText);
+          // Extract first field-level error message if no top-level detail/message
+          const fieldErrors = Object.entries(errorData)
+            .filter(([k]) => k !== 'detail' && k !== 'message')
+            .flatMap(([k, v]) => (Array.isArray(v) ? v.map((e: any) => `${k}: ${e}`) : [`${k}: ${v}`]));
+          const apiError: ApiError = {
+            message: errorData.detail || errorData.message || fieldErrors[0] || 'An error occurred',
+            status: response.status,
+            errors: errorData,
+          };
+          throw apiError;
+        } catch (parseErr) {
+          if ((parseErr as any)?.status) throw parseErr; // re-throw ApiError
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
       } else {
         throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
       }

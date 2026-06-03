@@ -673,7 +673,7 @@ class SurveyPhotoSerializer(serializers.ModelSerializer):
             'id', 'survey', 'image', 'image_url', 'caption',
             'uploaded_by', 'uploaded_by_name', 'uploaded_at'
         ]
-        read_only_fields = ['id', 'uploaded_by', 'uploaded_at']
+        read_only_fields = ['id', 'survey', 'uploaded_by', 'uploaded_at']
 
     def get_uploaded_by_name(self, obj):
         if obj.uploaded_by:

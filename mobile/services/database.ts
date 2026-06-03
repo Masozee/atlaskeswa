@@ -22,6 +22,7 @@ class Database {
 
     this.db = await SQLite.openDatabaseAsync(DB_NAME);
     await this.createTables();
+    await this.runMigrations();
     this.ready = true;
   }
 
@@ -79,7 +80,8 @@ class Database {
         synced INTEGER DEFAULT 0,
         pending_action TEXT,
         created_at INTEGER,
-        updated_at INTEGER
+        updated_at INTEGER,
+        started_at TEXT
       );
     `);
 
@@ -123,6 +125,15 @@ class Database {
         created_at INTEGER
       );
     `);
+  }
+
+  private async runMigrations(): Promise<void> {
+    if (!this.db) return;
+    try {
+      await this.db.execAsync('ALTER TABLE surveys ADD COLUMN started_at TEXT');
+    } catch {
+      // column already exists — safe to ignore
+    }
   }
 
   // ── Services ──────────────────────────────────────────────────────────────
@@ -214,6 +225,7 @@ class Database {
     answers_json: string;
     verification_status?: string;
     pending_action: 'create' | 'update';
+    started_at?: string | null;
   }): Promise<number> {
     if (!this.db) throw new Error('Database not initialized');
 
@@ -223,8 +235,9 @@ class Database {
         server_id, template_id, service_id, service_name, service_city,
         survey_date, survey_period_start, survey_period_end,
         gps_latitude, gps_longitude, answers_json,
-        verification_status, synced, pending_action, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`,
+        verification_status, synced, pending_action, created_at, updated_at,
+        started_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`,
       [
         survey.server_id ?? null,
         survey.template_id,
@@ -241,6 +254,7 @@ class Database {
         survey.pending_action,
         now,
         now,
+        survey.started_at ?? null,
       ]
     );
     return result.lastInsertRowId;

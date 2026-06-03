@@ -843,6 +843,7 @@ export default function DynamicSurveyFormScreen({
         setLocalSurveyId(Number(local.id));
         if (local.template_id) tplId = local.template_id;
         if (local.survey_date) setSurveyDate(local.survey_date);
+        if (local.started_at) setStartedAt(local.started_at);
         savedLatitude = typeof local.gps_latitude === 'number' && !isNaN(local.gps_latitude) ? local.gps_latitude : null;
         savedLongitude = typeof local.gps_longitude === 'number' && !isNaN(local.gps_longitude) ? local.gps_longitude : null;
         savedService = {
@@ -1174,9 +1175,11 @@ export default function DynamicSurveyFormScreen({
       new Map(mtcEntries.map((entry) => [entry.code, entry])).values()
     );
 
-    const leafMtcEntries = uniqueMtcEntries.filter((entry) => (
-      !uniqueMtcEntries.some((other) => other.code !== entry.code && other.code.startsWith(entry.code))
-    ));
+    const leafMtcEntries = uniqueMtcEntries.filter((entry) =>
+      !uniqueMtcEntries.some(
+        (other) => other.code !== entry.code && other.code.startsWith(entry.code + '.')
+      )
+    );
 
     const q3 = getQuestionByCode('Q3');
     const q3RawValue = getAnswerValue('Q3');
@@ -1213,6 +1216,7 @@ export default function DynamicSurveyFormScreen({
 
     return {
       klasifikasi,
+      klasifikasiList: leafMtcEntries.length > 0 ? leafMtcEntries.map((e) => e.title) : [],
       bentukKelembagaan: bentukKelembagaan === '—' ? (selectedService?.kategori_fasilitas_display || '—') : bentukKelembagaan,
     };
   }, [resolvedAnswers, selectedService?.kategori_fasilitas_display, template?.sections]);
@@ -1858,6 +1862,7 @@ export default function DynamicSurveyFormScreen({
           answers_json: answersJson,
           verification_status: dbStatus,
           pending_action: responseId ? 'update' : 'create',
+          started_at: startedAt ?? null,
         });
         setLocalSurveyId(newLocalId);
         currentLocalId = newLocalId;
@@ -3457,6 +3462,20 @@ export default function DynamicSurveyFormScreen({
         'PEMANTAUAN PENGGUNAAN OBAT',
         'EDUKASI KESEHATAN JIWA',
       ],
+      terkait_kesehatan: [
+        'KONSELING',
+        'PSIKOTERAPI',
+        'TERAPI FARMAKOLOGIS (PEMBERIAN OBAT PSIKIATRI)',
+        'EDUKASI PSIKOSOSIAL (PSYCHOEDUCATION)',
+        'TERAPI AKTIVITAS/REHABILITASI PSIKOSOSIAL',
+        'MANAJEMEN KASUS/PENDAMPINGAN',
+      ],
+      terkait_sosial: [
+        'PEMBERIAN NASIHAT',
+        'DOA, RITUAL, ATAU PENDEKATAN SPIRITUAL',
+        'PENGOBATAN TRADISIONAL/ALTERNATIF',
+        'MENGARAHKAN ATAU MERUJUK KE LAYANAN LAIN',
+      ],
       pendidikan: [
         'PELATIHAN MENJAHIT',
         'PELATIHAN MEMASAK',
@@ -4040,7 +4059,15 @@ export default function DynamicSurveyFormScreen({
             {surveySummary.map((item) => (
               <View key={item.label} style={[styles.summaryItem, { borderColor: c.border }]}>
                 <Text style={[styles.summaryLabel, { color: c.textSecondary }]}>{item.label}</Text>
-                <Text style={[styles.summaryValue, { color: c.text }]}>{item.value}</Text>
+                {item.label === 'Klasifikasi' && summaryClassificationValue.klasifikasiList.length > 0 ? (
+                  <View style={{ gap: 2 }}>
+                    {summaryClassificationValue.klasifikasiList.map((entry, i) => (
+                      <Text key={i} style={[styles.summaryValue, { color: c.text }]}>{'• ' + entry}</Text>
+                    ))}
+                  </View>
+                ) : (
+                  <Text style={[styles.summaryValue, { color: c.text }]}>{item.value}</Text>
+                )}
               </View>
             ))}
           </View>

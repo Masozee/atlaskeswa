@@ -1979,13 +1979,8 @@ class SurveyPhotoViewSet(viewsets.ModelViewSet):
 
         return queryset
 
-    def perform_create(self, serializer):
-        # Set uploaded_by to current user
-        serializer.save(uploaded_by=self.request.user)
-
     def create(self, request, *args, **kwargs):
         """Handle photo upload"""
-        # Check if user is admin/verifier or surveyor (surveyor can upload to their own surveys)
         user = request.user
         survey_id = request.data.get('survey')
 
@@ -1995,23 +1990,25 @@ class SurveyPhotoViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Get the survey to check ownership
         try:
-            survey = DynamicSurveyResponse.objects.get(id=survey_id)
-        except DynamicSurveyResponse.DoesNotExist:
+            survey_obj = DynamicSurveyResponse.objects.get(id=survey_id)
+        except (DynamicSurveyResponse.DoesNotExist, ValueError, TypeError):
             return Response(
                 {'detail': 'Survey not found'},
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        # Only admin/verifier or the surveyor can upload photos
-        if user.role not in ['ADMIN', 'VERIFIER'] and survey.surveyor != user:
+        if user.role not in ['ADMIN', 'VERIFIER'] and survey_obj.surveyor != user:
             return Response(
                 {'detail': 'You do not have permission to upload photos for this survey'},
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        return super().create(request, *args, **kwargs)
+        # survey is read-only in the serializer; pass the validated instance directly
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(survey=survey_obj, uploaded_by=user)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def get_permissions(self):
         from apps.accounts.permissions import IsAdmin, IsVerifierOrAdmin
