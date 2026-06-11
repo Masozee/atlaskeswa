@@ -887,7 +887,7 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
         'service__mtc', 'service__bsic', 'service__service_type',
     ).prefetch_related(
         'answers__question',
-        'answers__selected_choices',
+        'answers__selected_choices__mtc_code',
         'answers__geographic_unit__parent__parent__parent',
     )
     permission_classes = [IsAuthenticated]

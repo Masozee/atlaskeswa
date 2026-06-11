@@ -234,6 +234,10 @@ class DynamicSurveyResponseListSerializer(serializers.ModelSerializer):
     service_kecamatan = serializers.SerializerMethodField()
     surveyor_name = serializers.SerializerMethodField()
     status_display = serializers.CharField(source='get_verification_status_display', read_only=True)
+    kategori = serializers.SerializerMethodField()
+    jenis_fasilitas = serializers.SerializerMethodField()
+    jenis_layanan = serializers.SerializerMethodField()
+    kode_desde_ltc = serializers.SerializerMethodField()
 
     class Meta:
         model = DynamicSurveyResponse
@@ -242,11 +246,54 @@ class DynamicSurveyResponseListSerializer(serializers.ModelSerializer):
             'survey_date', 'surveyor', 'surveyor_name',
             'verification_status', 'status_display',
             'deletion_requested',
+            'kategori', 'jenis_fasilitas', 'jenis_layanan', 'kode_desde_ltc',
             'latitude', 'longitude', 'created_at', 'started_at', 'submitted_at'
         ]
 
     def get_surveyor_name(self, obj):
         return obj.surveyor.get_full_name() or obj.surveyor.email
+
+    def _choice_labels(self, obj, codes):
+        """Selected choice labels for the given question codes (uses prefetched answers)."""
+        labels = []
+        for answer in obj.answers.all():
+            if answer.question.code in codes:
+                for choice in answer.selected_choices.all():
+                    label = (choice.label or '').strip()
+                    if label and label not in labels:
+                        labels.append(label)
+        return labels
+
+    def get_kategori(self, obj):
+        """FASKES if Q3 answer is 'Kesehatan', otherwise NON FASKES (mirrors mobile logic)."""
+        q3_labels = self._choice_labels(obj, {'Q3'})
+        if not q3_labels:
+            return None
+        return 'FASKES' if any(l.lower() == 'kesehatan' for l in q3_labels) else 'NON FASKES'
+
+    def get_jenis_fasilitas(self, obj):
+        labels = self._choice_labels(obj, {'Q4'})
+        return ', '.join(labels) if labels else None
+
+    def get_jenis_layanan(self, obj):
+        labels = self._choice_labels(obj, {'QL1', 'QL2'})
+        return ', '.join(labels) if labels else None
+
+    def get_kode_desde_ltc(self, obj):
+        """Final DESDE-LTC classification: leaf-most MTC entries ("code — name")
+        across all selected choices, identical to the 'Klasifikasi' list shown at
+        the end of the survey in the OMMHA mobile app."""
+        entries = {}
+        for answer in obj.answers.all():
+            for choice in answer.selected_choices.all():
+                if choice.mtc_code:
+                    entries[choice.mtc_code.code] = f"{choice.mtc_code.code} — {choice.mtc_code.name}"
+        codes = list(entries)
+        leaves = [
+            entries[c] for c in codes
+            if not any(other != c and other.startswith(c + '.') for other in codes)
+        ]
+        return leaves or None
 
     def get_service_kecamatan(self, obj):
         # Get Q7 answer's geographic_unit for this response

@@ -224,8 +224,13 @@ export interface SurveyResponse {
   legacy_data?: any;
   question_responses?: QuestionResponse[];
   answers?: QuestionResponse[];
+  kategori?: string | null;
+  jenis_fasilitas?: string | null;
+  jenis_layanan?: string | null;
+  kode_desde_ltc?: string[] | null;
   created_at?: string;
   updated_at?: string;
+  started_at?: string | null;
   submitted_at?: string | null;
 }
 

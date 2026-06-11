@@ -55,7 +55,24 @@ interface SurveyResponseItem {
   surveyor_name: string;
   verification_status: string;
   status_display: string;
+  kategori: string | null;
+  jenis_fasilitas: string | null;
+  jenis_layanan: string | null;
+  kode_desde_ltc: string[] | null;
+  started_at: string | null;
+  submitted_at: string | null;
   created_at: string;
+}
+
+function formatDuration(startedAt: string | null, submittedAt: string | null): string {
+  if (!startedAt || !submittedAt) return '—';
+  const ms = new Date(submittedAt).getTime() - new Date(startedAt).getTime();
+  if (isNaN(ms) || ms < 0) return '—';
+  const totalMinutes = Math.round(ms / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours > 0) return `${hours} jam ${minutes} mnt`;
+  return `${minutes} mnt`;
 }
 
 const breadcrumbs = [
@@ -167,13 +184,13 @@ export default function AllSurveysPage() {
     },
     {
       accessorKey: "service_name",
-      header: "Nama Layanan",
+      header: "Nama Fasilitas",
       cell: ({ row }) => {
         const survey = row.original;
         return (
           <Link
             href={`/dashboard/survey/${survey.id}`}
-            className="font-medium max-w-xs truncate text-primary hover:underline"
+            className="block font-medium max-w-[200px] whitespace-normal break-words text-primary hover:underline"
           >
             {row.getValue("service_name")}
           </Link>
@@ -181,39 +198,87 @@ export default function AllSurveysPage() {
       },
     },
     {
-      accessorKey: "service_city",
-      header: "Kota",
+      accessorKey: "kategori",
+      header: "Kategori",
+      cell: ({ row }) => {
+        const kategori = row.getValue("kategori") as string | null;
+        if (!kategori) return <span className="text-muted-foreground">—</span>;
+        return (
+          <Badge variant={kategori === 'FASKES' ? 'outline-info' : 'outline-muted'}>
+            {kategori === 'FASKES' ? 'Faskes' : 'Non-Faskes'}
+          </Badge>
+        );
+      },
+    },
+    {
+      accessorKey: "jenis_fasilitas",
+      header: "Jenis Fasilitas",
+      cell: ({ row }) => (
+        <div className="max-w-[200px] whitespace-normal break-words text-sm">
+          {row.getValue("jenis_fasilitas") || '—'}
+        </div>
+      ),
+    },
+    {
+      accessorKey: "jenis_layanan",
+      header: "Jenis Layanan",
+      cell: ({ row }) => (
+        <div
+          className="max-w-[280px] whitespace-normal break-words text-sm line-clamp-3"
+          title={(row.getValue("jenis_layanan") as string) ?? undefined}
+        >
+          {row.getValue("jenis_layanan") || '—'}
+        </div>
+      ),
+    },
+    {
+      accessorKey: "kode_desde_ltc",
+      header: "Kode DESDE-LTC",
+      cell: ({ row }) => {
+        const raw = row.getValue("kode_desde_ltc") as string[] | string | null;
+        const entries = Array.isArray(raw) ? raw : typeof raw === 'string' && raw ? [raw] : null;
+        if (!entries || entries.length === 0) return <span className="text-muted-foreground">—</span>;
+        return (
+          <div className="max-w-[240px] whitespace-normal break-words text-sm flex flex-col gap-0.5">
+            {entries.map((entry) => {
+              const sep = entry.indexOf(' — ');
+              const code = sep >= 0 ? entry.slice(0, sep) : entry;
+              const name = sep >= 0 ? entry.slice(sep + 3) : '';
+              return (
+                <div key={entry} title={entry}>
+                  <span className="font-medium">{code}</span>
+                  {name && <span className="text-muted-foreground"> — {name}</span>}
+                </div>
+              );
+            })}
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: "surveyor_name",
+      header: "Enumerator",
+      cell: ({ row }) => {
+        return <div className="text-sm">{row.getValue("surveyor_name")}</div>;
+      },
     },
     {
       accessorKey: "survey_date",
-      header: "Tanggal Survei",
+      header: "Tgl Wawancara",
       cell: ({ row }) => {
         const date = new Date(row.getValue("survey_date"));
         return <div>{date.toLocaleDateString('id-ID')}</div>;
       },
     },
     {
-      accessorKey: "surveyor_name",
-      header: "Surveyor",
-      cell: ({ row }) => {
-        return <div className="text-sm">{row.getValue("surveyor_name")}</div>;
-      },
-    },
-    {
-      accessorKey: "verification_status",
-      header: "Status",
-      cell: ({ row }) => {
-        const status = row.getValue("verification_status") as string;
-        const statusDisplay = row.original.status_display;
-
-        const variant =
-          status === 'VERIFIED' ? 'outline-success' :
-          status === 'SUBMITTED' ? 'outline-info' :
-          status === 'REJECTED' ? 'outline-danger' :
-          'outline-muted';
-
-        return <Badge variant={variant}>{statusDisplay}</Badge>;
-      },
+      id: 'lama_wawancara',
+      header: "Lama Wawancara",
+      cell: ({ row }) => (
+        <div className="text-sm">
+          {formatDuration(row.original.started_at, row.original.submitted_at)}
+        </div>
+      ),
+      enableSorting: false,
     },
     {
       id: 'actions',
@@ -221,7 +286,7 @@ export default function AllSurveysPage() {
       cell: ({ row }) => (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-8 w-8 p-0">
+            <Button variant="outline" size="sm" className="h-8 w-8 p-0 shadow-none rounded-sm">
               <MoreHorizontalIcon className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
@@ -247,7 +312,7 @@ export default function AllSurveysPage() {
   ], []);
 
   const table = useReactTable({
-    data: (data?.results ?? []) as SurveyResponseItem[],
+    data: (data?.results ?? []) as unknown as SurveyResponseItem[],
     columns,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -293,12 +358,13 @@ export default function AllSurveysPage() {
         <div className="flex flex-col gap-3 px-6 pb-6">
 
           {selectedCount > 0 && (
-            <div className="flex items-center gap-3 rounded-lg border bg-muted/50 px-4 py-2">
+            <div className="flex items-center gap-3 rounded-sm border bg-muted/50 px-4 py-2">
               <span className="text-sm font-medium">{selectedCount} dipilih</span>
               <Separator orientation="vertical" className="h-4" />
               <Button
                 variant="destructive"
                 size="sm"
+                className="shadow-none rounded-sm"
                 onClick={handleBulkDelete}
                 disabled={bulkDelete.isPending}
               >
@@ -311,7 +377,7 @@ export default function AllSurveysPage() {
           <div className="flex gap-2 justify-between items-center">
             <ButtonGroup aria-label="Filter survei">
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-40 !h-9 rounded-l-lg rounded-r-none border-r-0" aria-label="Filter berdasarkan status">
+                <SelectTrigger className="w-40 !h-9 rounded-l-sm rounded-r-none border-r-0 bg-white shadow-none" aria-label="Filter berdasarkan status">
                   <SelectValue placeholder="All" />
                 </SelectTrigger>
                 <SelectContent>
@@ -330,25 +396,25 @@ export default function AllSurveysPage() {
                   setSorting([{ id, desc: dir === 'desc' }]);
                 }
               }}>
-                <SelectTrigger className="w-44 !h-9 rounded-r-lg rounded-l-none" aria-label="Urutkan">
+                <SelectTrigger className="w-44 !h-9 rounded-r-sm rounded-l-none bg-white shadow-none" aria-label="Urutkan">
                   <HugeiconsIcon icon={SortingZA01Icon} size={16} />
                   <SelectValue placeholder="Urutkan" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="default">Urutkan</SelectItem>
-                  <SelectItem value="service_name-asc">Layanan A-Z</SelectItem>
-                  <SelectItem value="service_name-desc">Layanan Z-A</SelectItem>
+                  <SelectItem value="service_name-asc">Fasilitas A-Z</SelectItem>
+                  <SelectItem value="service_name-desc">Fasilitas Z-A</SelectItem>
                   <SelectItem value="survey_date-desc">Terbaru</SelectItem>
                   <SelectItem value="survey_date-asc">Terlama</SelectItem>
-                  <SelectItem value="service_city-asc">Kota A-Z</SelectItem>
-                  <SelectItem value="service_city-desc">Kota Z-A</SelectItem>
+                  <SelectItem value="surveyor_name-asc">Enumerator A-Z</SelectItem>
+                  <SelectItem value="surveyor_name-desc">Enumerator Z-A</SelectItem>
                 </SelectContent>
               </Select>
             </ButtonGroup>
             <div className="flex gap-2 items-center">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="!h-9">
+                  <Button variant="outline" size="sm" className="!h-9 bg-white shadow-none rounded-sm">
                     <Download04Icon className="w-4 h-4 mr-2" />
                     Ekspor
                   </Button>
@@ -373,19 +439,19 @@ export default function AllSurveysPage() {
                 placeholder="Cari berdasarkan nama layanan, kota..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-64"
+                className="w-64 bg-white shadow-none rounded-sm"
                 aria-label="Cari survei"
               />
             </div>
           </div>
 
-          <div className="rounded-lg border">
+          <div className="rounded-sm border">
             <Table>
               <TableHeader>
                 {table.getHeaderGroups().map((headerGroup) => (
-                  <TableRow key={headerGroup.id}>
+                  <TableRow key={headerGroup.id} className="bg-muted/50">
                     {headerGroup.headers.map((header) => (
-                      <TableHead key={header.id}>
+                      <TableHead key={header.id} className="border-r last:border-r-0">
                         {header.isPlaceholder
                           ? null
                           : flexRender(
@@ -400,7 +466,11 @@ export default function AllSurveysPage() {
               <TableBody>
                 {table.getRowModel().rows?.length ? (
                   table.getRowModel().rows.map((row) => (
-                    <TableRow key={row.id} data-state={row.getIsSelected() && 'selected'}>
+                    <TableRow
+                      key={row.id}
+                      data-state={row.getIsSelected() && 'selected'}
+                      className="even:bg-muted"
+                    >
                       {row.getVisibleCells().map((cell) => (
                         <TableCell key={cell.id}>
                           {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -430,6 +500,7 @@ export default function AllSurveysPage() {
                 <Button
                   variant="outline"
                   size="sm"
+                  className="shadow-none rounded-sm"
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={!data.previous || page <= 1}
                 >
@@ -441,6 +512,7 @@ export default function AllSurveysPage() {
                 <Button
                   variant="outline"
                   size="sm"
+                  className="shadow-none rounded-sm"
                   onClick={() => setPage((p) => p + 1)}
                   disabled={!data.next || page >= totalPages}
                 >
