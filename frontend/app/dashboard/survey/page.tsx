@@ -445,7 +445,7 @@ export default function AllSurveysPage() {
             </div>
           </div>
 
-          <div className="rounded-sm border">
+          <div className="rounded-sm border bg-white overflow-hidden">
             <Table>
               <TableHeader>
                 {table.getHeaderGroups().map((headerGroup) => (
