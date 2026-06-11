@@ -12,12 +12,12 @@ export default function MapLayout({
       <SidebarProvider
         style={
           {
-            "--sidebar-width": "350px",
+            "--sidebar-width": "380px",
           } as React.CSSProperties
         }
       >
         <AppSidebar />
-        <SidebarInset>{children}</SidebarInset>
+        <SidebarInset className="bg-muted/50">{children}</SidebarInset>
       </SidebarProvider>
     </AuthGuard>
   )

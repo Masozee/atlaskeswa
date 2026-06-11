@@ -106,6 +106,19 @@ const formatDisplayDate = (value?: string | null): string => {
   });
 };
 
+const formatDisplayDateTime = (value?: string | null): string => {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString('id-ID', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
 interface Service {
   id: number;
   name: string;
@@ -642,6 +655,7 @@ export default function DynamicSurveyFormScreen({
 
   // Survey duration tracking - started_at captured when surveyor begins questions
   const [startedAt, setStartedAt] = useState<string | null>(null);
+  const [submittedAt, setSubmittedAt] = useState<string | null>(null);
 
   // Track whether we're resuming from an edit so we don't reset question index on first section change
   const isResumingFromEdit = useRef(false);
@@ -1230,12 +1244,16 @@ export default function DynamicSurveyFormScreen({
     { label: 'Klasifikasi', value: summaryClassificationValue.klasifikasi },
     { label: 'Bentuk Kelembagaan', value: summaryClassificationValue.bentukKelembagaan },
     { label: 'Tanggal Survei', value: formatDisplayDate(surveyDate) },
+    { label: 'Waktu Mulai', value: formatDisplayDateTime(startedAt) },
+    { label: 'Waktu Selesai', value: formatDisplayDateTime(submittedAt) },
     { label: 'Status', value: 'Tersimpan' },
   ]), [
     formatDisplayDate,
     selectedService?.city,
     selectedService?.name,
     selectedService?.province,
+    startedAt,
+    submittedAt,
     surveyDate,
     summaryClassificationValue.bentukKelembagaan,
     summaryClassificationValue.klasifikasi,
@@ -1869,6 +1887,7 @@ export default function DynamicSurveyFormScreen({
       }
 
       if (submit) {
+        setSubmittedAt(new Date().toISOString());
         setIsSubmitted(true);
       } else if (!silent) {
         Alert.alert('Berhasil', 'Survei disimpan di perangkat. Sinkronkan manual dari detail survei.');
