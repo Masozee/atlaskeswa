@@ -1,9 +1,18 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { useServices } from '@/hooks/use-services';
+import { toast } from 'sonner';
+import { useServices, useImportServices, exportServices, ServiceImportResult } from '@/hooks/use-services';
 import { PageHeader } from "@/components/page-header";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -49,12 +58,80 @@ import {
   ShoppingCart01Icon,
   Delete01Icon,
   MoreHorizontalIcon,
+  Upload01Icon,
+  Download01Icon,
 } from "@hugeicons/core-free-icons";
 
 const breadcrumbs = [
   { label: "Dasbor", href: "/dashboard" },
   { label: "Semua Layanan" },
 ];
+
+function ImportDialog({ open, onOpenChange, onImport, isPending, result }: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onImport: (file: File, updateExisting: boolean) => void;
+  isPending: boolean;
+  result: ServiceImportResult | null;
+}) {
+  const [file, setFile] = useState<File | null>(null);
+  const [updateExisting, setUpdateExisting] = useState(false);
+
+  function handleClose(v: boolean) {
+    if (!v) {
+      setFile(null);
+      setUpdateExisting(false);
+    }
+    onOpenChange(v);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Import Layanan</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <p className="text-sm text-muted-foreground">
+            Upload CSV/XLSX/JSON. Kolom wajib: <span className="font-mono text-xs bg-muted px-1 rounded">name</span>. Kolom relasi pakai kode/nama: <span className="font-mono text-xs bg-muted px-1 rounded">mtc</span>, <span className="font-mono text-xs bg-muted px-1 rounded">bsic</span>, <span className="font-mono text-xs bg-muted px-1 rounded">service_type</span>.
+          </p>
+          <div className="space-y-2">
+            <Label>File * <span className="text-muted-foreground font-normal">(CSV, XLSX, JSON)</span></Label>
+            <div className="flex rounded-md border overflow-hidden">
+              <label htmlFor="svc-import-file" className="flex items-center justify-center px-4 py-1.5 text-sm font-medium hover:bg-accent transition-colors cursor-pointer whitespace-nowrap">Pilih File</label>
+              <div className="w-px bg-border" />
+              <span className="flex items-center px-3 py-1.5 text-sm text-muted-foreground truncate flex-1">{file ? file.name : 'Belum ada file'}</span>
+              <input id="svc-import-file" type="file" accept=".csv,.xlsx,.json" className="sr-only" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <input id="svc-update-existing" type="checkbox" checked={updateExisting} onChange={(e) => setUpdateExisting(e.target.checked)} />
+            <Label htmlFor="svc-update-existing" className="text-sm font-normal cursor-pointer">Update data yang sudah ada</Label>
+          </div>
+          {result && (
+            <div className="rounded-lg border p-3 space-y-2">
+              {result.created > 0 && <p className="text-sm font-medium text-green-600">{result.created} layanan dibuat.</p>}
+              {result.updated > 0 && <p className="text-sm font-medium text-blue-600">{result.updated} layanan diperbarui.</p>}
+              {result.created === 0 && result.updated === 0 && <p className="text-sm font-medium text-muted-foreground">Tidak ada data yang diimport.</p>}
+              {result.errors.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-destructive">{result.errors.length} baris dilewati:</p>
+                  <ul className="text-xs text-muted-foreground space-y-0.5 max-h-32 overflow-y-auto">
+                    {result.errors.map((e, i) => <li key={i}>Baris {e.row}: {e.error}</li>)}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{result ? 'Tutup' : 'Batal'}</Button>
+          {!result && <Button onClick={() => file && onImport(file, updateExisting)} disabled={!file || isPending}>{isPending ? 'Mengimport...' : 'Import'}</Button>}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export default function AllServicesPage() {
   const [search, setSearch] = useState('');
@@ -66,6 +143,9 @@ export default function AllServicesPage() {
     pageIndex: 0,
     pageSize: 15,
   });
+  const [importOpen, setImportOpen] = useState(false);
+  const [importResult, setImportResult] = useState<ServiceImportResult | null>(null);
+  const importMutation = useImportServices();
 
   const { data, isLoading } = useServices({
     search,
@@ -254,9 +334,29 @@ export default function AllServicesPage() {
 
       <div className="flex flex-1 flex-col gap-3">
 
-        <div className="px-6 pt-6">
-          <h1 className="text-xl font-bold">Semua Layanan</h1>
-          <p className="text-sm text-muted-foreground">Direktori layanan kesehatan jiwa</p>
+        <div className="px-6 pt-6 flex items-start justify-between">
+          <div>
+            <h1 className="text-xl font-bold">Semua Layanan</h1>
+            <p className="text-sm text-muted-foreground">Direktori layanan kesehatan jiwa</p>
+          </div>
+          <div className="flex items-center rounded-md border overflow-hidden">
+            <button onClick={() => { setImportResult(null); setImportOpen(true); }} className="flex items-center justify-center gap-2 w-28 py-1.5 text-sm font-medium hover:bg-accent transition-colors">
+              <HugeiconsIcon icon={Upload01Icon} size={16} />Import
+            </button>
+            <div className="w-px bg-border" />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="flex items-center justify-center gap-2 w-32 py-1.5 text-sm font-medium hover:bg-accent transition-colors">
+                  <HugeiconsIcon icon={Download01Icon} size={16} />Export All
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => exportServices(undefined, 'csv').then(() => toast.success('Export CSV berhasil')).catch((e) => toast.error(e.message))}>Export sebagai CSV</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportServices(undefined, 'xlsx').then(() => toast.success('Export XLSX berhasil')).catch((e) => toast.error(e.message))}>Export sebagai XLSX</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportServices(undefined, 'json').then(() => toast.success('Export JSON berhasil')).catch((e) => toast.error(e.message))}>Export sebagai JSON</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
 
         <Separator />
@@ -416,6 +516,26 @@ export default function AllServicesPage() {
         )}
               </div>
         </div>
+
+      <ImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        result={importResult}
+        isPending={importMutation.isPending}
+        onImport={async (file, updateExisting) => {
+          try {
+            const result = await importMutation.mutateAsync({ file, updateExisting });
+            setImportResult(result);
+            if (result.created > 0 || result.updated > 0) {
+              toast.success(`Import berhasil: ${result.created} dibuat, ${result.updated} diperbarui`);
+            } else {
+              toast.message('Import selesai tanpa perubahan');
+            }
+          } catch (e) {
+            toast.error(e instanceof Error ? e.message : 'Import gagal');
+          }
+        }}
+      />
     </>
   );
 }

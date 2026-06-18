@@ -10,7 +10,7 @@ from django.db.models.deletion import ProtectedError
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Count, Q, Avg, Subquery, OuterRef
 
-from .resources import BSICResource, KategoriLayananResource
+from .resources import BSICResource, KategoriLayananResource, ServiceResource
 from .models import (
     MainTypeOfCare, BasicStableInputsOfCare, TargetPopulation,
     ServiceType, Service, KategoriLayanan, KategoriFasilitas
@@ -260,6 +260,8 @@ class ServiceViewSet(StatusBasedFilterMixin, viewsets.ModelViewSet):
         elif self.action in ['update', 'partial_update', 'destroy']:
             # Can modify if admin or owner
             return [IsSurveyorOrAdmin(), CanAccessServiceData()]
+        elif self.action == 'import_csv':
+            return [IsAdmin()]
         return [IsAuthenticated()]
 
     # get_queryset is now handled by StatusBasedFilterMixin
@@ -282,6 +284,71 @@ class ServiceViewSet(StatusBasedFilterMixin, viewsets.ModelViewSet):
         """Delete service and log activity"""
         log_delete(self.request, instance, f'Deleted service: {instance.name}')
         instance.delete()
+
+    @action(detail=False, methods=['post'], url_path='import')
+    def import_csv(self, request):
+        """Import services from CSV, XLSX, or JSON. Required columns: name. FK columns by code/name."""
+        file = request.FILES.get('file')
+        if not file:
+            return Response({'detail': 'No file provided.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        update_existing = request.data.get('update_existing', 'false')
+        if isinstance(update_existing, str):
+            update_existing = update_existing.lower() in ('true', '1', 'yes')
+
+        filename = file.name.lower()
+        fmt = 'xlsx' if filename.endswith('.xlsx') else 'json' if filename.endswith('.json') else 'csv'
+
+        try:
+            if fmt == 'xlsx':
+                dataset = tablib.Dataset().load(file.read(), headers=True, format='xlsx')
+            elif fmt == 'json':
+                dataset = tablib.Dataset().load(file.read().decode('utf-8'), format='json')
+            else:
+                dataset = tablib.Dataset().load(file.read().decode('utf-8'), format='csv')
+        except Exception as e:
+            return Response({'detail': f'Could not read file: {e}'}, status=status.HTTP_400_BAD_REQUEST)
+
+        resource = ServiceResource()
+        result = resource.import_data(dataset, dry_run=False, raise_errors=False,
+                                      use_transactions=True, collect_failed_rows=True)
+
+        errors = []
+        for row_error in result.row_errors():
+            row_num, row_errors = row_error
+            for err in row_errors:
+                errors.append({'row': row_num, 'error': str(err.error)})
+
+        return Response({
+            'created': result.totals.get('new', 0),
+            'updated': result.totals.get('update', 0),
+            'errors': errors,
+        })
+
+    @action(detail=False, methods=['get'], url_path='export', url_name='export')
+    def export_data(self, request):
+        """Export services as CSV/XLSX/JSON. Accepts ?ids=1,2,3 and ?file_format=csv|xlsx|json."""
+        ids_param = request.query_params.get('ids')
+        fmt = request.query_params.get('file_format', 'csv').lower()
+        qs = self.get_queryset().order_by('id')
+        if ids_param:
+            ids = [i for i in ids_param.split(',') if i.strip().isdigit()]
+            qs = qs.filter(id__in=ids)
+
+        resource = ServiceResource()
+        dataset = resource.export(qs)
+
+        if fmt == 'xlsx':
+            buf = io.BytesIO(dataset.xlsx)
+            response = FileResponse(buf, content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            response['Content-Disposition'] = 'attachment; filename="services.xlsx"'
+        elif fmt == 'json':
+            response = HttpResponse(dataset.json, content_type='application/json')
+            response['Content-Disposition'] = 'attachment; filename="services.json"'
+        else:
+            response = HttpResponse(dataset.csv, content_type='text/csv')
+            response['Content-Disposition'] = 'attachment; filename="services.csv"'
+        return response
 
     @action(detail=False, methods=['get'])
     def stats(self, request):

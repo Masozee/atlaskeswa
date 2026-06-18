@@ -235,6 +235,59 @@ export function useDeleteService() {
   });
 }
 
+export interface ServiceImportResult {
+  created: number;
+  updated: number;
+  errors: { row: number; error: string }[];
+}
+
+export async function exportServices(ids?: number[], format: 'csv' | 'xlsx' | 'json' = 'csv') {
+  const searchParams = new URLSearchParams({ file_format: format });
+  if (ids && ids.length > 0) searchParams.set('ids', ids.join(','));
+  const token = apiClient.getAccessToken();
+  const response = await apiClient.fetchRaw(`/directory/services/export/?${searchParams}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Export failed (${response.status}): ${errorText}`);
+  }
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = objectUrl;
+  a.download = `services.${format}`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(objectUrl);
+}
+
+export function useImportServices() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ file, updateExisting = false }: { file: File; updateExisting?: boolean }): Promise<ServiceImportResult> => {
+      const token = apiClient.getAccessToken();
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('update_existing', updateExisting ? 'true' : 'false');
+      const response = await apiClient.fetchRaw('/directory/services/import/', {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || `Upload failed (${response.status})`);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.services.lists() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.services.stats() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.services.map() });
+    },
+  });
+}
+
 /**
  * Service statistics
  */
