@@ -98,17 +98,23 @@ class ServiceDetailSerializer(serializers.ModelSerializer):
     mtc_id = serializers.PrimaryKeyRelatedField(
         queryset=MainTypeOfCare.objects.all(),
         source='mtc',
-        write_only=True
+        write_only=True,
+        required=False,
+        allow_null=True
     )
     bsic_id = serializers.PrimaryKeyRelatedField(
         queryset=BasicStableInputsOfCare.objects.all(),
         source='bsic',
-        write_only=True
+        write_only=True,
+        required=False,
+        allow_null=True
     )
     service_type_id = serializers.PrimaryKeyRelatedField(
         queryset=ServiceType.objects.all(),
         source='service_type',
-        write_only=True
+        write_only=True,
+        required=False,
+        allow_null=True
     )
     target_population_ids = serializers.PrimaryKeyRelatedField(
         queryset=TargetPopulation.objects.all(),

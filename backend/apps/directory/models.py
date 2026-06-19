@@ -200,19 +200,25 @@ class Service(models.Model):
     mtc = models.ForeignKey(
         MainTypeOfCare,
         on_delete=models.PROTECT,
-        related_name='services'
+        related_name='services',
+        null=True,
+        blank=True
     )
     bsic = models.ForeignKey(
         BasicStableInputsOfCare,
         on_delete=models.PROTECT,
-        related_name='services'
+        related_name='services',
+        null=True,
+        blank=True
     )
 
     # Service Details
     service_type = models.ForeignKey(
         ServiceType,
         on_delete=models.PROTECT,
-        related_name='services'
+        related_name='services',
+        null=True,
+        blank=True
     )
     target_populations = models.ManyToManyField(
         TargetPopulation,
@@ -228,8 +234,8 @@ class Service(models.Model):
     # Location
     address = models.TextField(blank=True)
     kecamatan = models.CharField(max_length=100, blank=True, db_index=True)
-    city = models.CharField(max_length=100, db_index=True)
-    province = models.CharField(max_length=100, db_index=True)
+    city = models.CharField(max_length=100, blank=True, db_index=True)
+    province = models.CharField(max_length=100, blank=True, db_index=True)
     postal_code = models.CharField(max_length=10, blank=True)
     latitude = models.DecimalField(
         max_digits=10,
