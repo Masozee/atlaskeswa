@@ -81,7 +81,8 @@ class Database {
         pending_action TEXT,
         created_at INTEGER,
         updated_at INTEGER,
-        started_at TEXT
+        started_at TEXT,
+        submitted_at TEXT
       );
     `);
 
@@ -90,7 +91,8 @@ class Database {
       CREATE TABLE IF NOT EXISTS dashboard_cache (
         id INTEGER PRIMARY KEY CHECK (id = 1),
         data TEXT,
-        last_updated INTEGER
+        last_updated INTEGER,
+        user_id TEXT
       );
     `);
 
@@ -131,6 +133,16 @@ class Database {
     if (!this.db) return;
     try {
       await this.db.execAsync('ALTER TABLE surveys ADD COLUMN started_at TEXT');
+    } catch {
+      // column already exists — safe to ignore
+    }
+    try {
+      await this.db.execAsync('ALTER TABLE surveys ADD COLUMN submitted_at TEXT');
+    } catch {
+      // column already exists — safe to ignore
+    }
+    try {
+      await this.db.execAsync('ALTER TABLE dashboard_cache ADD COLUMN user_id TEXT');
     } catch {
       // column already exists — safe to ignore
     }
@@ -226,6 +238,7 @@ class Database {
     verification_status?: string;
     pending_action: 'create' | 'update';
     started_at?: string | null;
+    submitted_at?: string | null;
   }): Promise<number> {
     if (!this.db) throw new Error('Database not initialized');
 
@@ -236,8 +249,8 @@ class Database {
         survey_date, survey_period_start, survey_period_end,
         gps_latitude, gps_longitude, answers_json,
         verification_status, synced, pending_action, created_at, updated_at,
-        started_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`,
+        started_at, submitted_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`,
       [
         survey.server_id ?? null,
         survey.template_id,
@@ -255,6 +268,7 @@ class Database {
         now,
         now,
         survey.started_at ?? null,
+        survey.submitted_at ?? null,
       ]
     );
     return result.lastInsertRowId;
@@ -271,6 +285,7 @@ class Database {
     gps_longitude?: number | null;
     answers_json?: string;
     verification_status?: string;
+    submitted_at?: string | null;
   }): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
 
@@ -287,6 +302,7 @@ class Database {
     if (survey.gps_longitude !== undefined) { fields.push('gps_longitude = ?'); values.push(survey.gps_longitude); }
     if (survey.answers_json !== undefined) { fields.push('answers_json = ?'); values.push(survey.answers_json); }
     if (survey.verification_status !== undefined) { fields.push('verification_status = ?'); values.push(survey.verification_status); }
+    if (survey.submitted_at !== undefined) { fields.push('submitted_at = ?'); values.push(survey.submitted_at); }
 
     if (fields.length === 0) return;
 
@@ -404,27 +420,35 @@ class Database {
 
   // ── Dashboard cache ───────────────────────────────────────────────────────
 
-  async saveDashboardCache(data: any): Promise<void> {
+  async saveDashboardCache(data: any, userId?: string | number | null): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
     await this.db.runAsync(
-      'INSERT OR REPLACE INTO dashboard_cache (id, data, last_updated) VALUES (1, ?, ?)',
-      [JSON.stringify(data), Date.now()]
+      'INSERT OR REPLACE INTO dashboard_cache (id, data, last_updated, user_id) VALUES (1, ?, ?, ?)',
+      [JSON.stringify(data), Date.now(), userId != null ? String(userId) : null]
     );
   }
 
-  async getDashboardCache(): Promise<any | null> {
+  async getDashboardCache(userId?: string | number | null): Promise<any | null> {
     if (!this.db) throw new Error('Database not initialized');
     const result = await this.db.getFirstAsync('SELECT * FROM dashboard_cache WHERE id = 1') as any;
     if (!result) return null;
     if (Date.now() - result.last_updated > 5 * 60 * 1000) return null;
+    // Reject cache that belongs to a different user (prevents data leaking on user switch).
+    if (userId != null && result.user_id != null && result.user_id !== String(userId)) return null;
     return JSON.parse(result.data);
   }
 
+  /**
+   * Wipe per-user data on logout / user switch. Clears EVERYTHING including
+   * unsynced drafts so one user's data never surfaces under another account.
+   */
   async clearAll(): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
     await this.db.execAsync('DELETE FROM services');
-    await this.db.execAsync('DELETE FROM surveys WHERE synced = 1');
+    await this.db.execAsync('DELETE FROM surveys');
+    await this.db.execAsync('DELETE FROM survey_photos');
     await this.db.execAsync('DELETE FROM dashboard_cache');
+    await this.db.execAsync('DELETE FROM sync_metadata');
   }
 
   // ── Sync metadata ─────────────────────────────────────────────────────────

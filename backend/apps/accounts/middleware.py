@@ -4,6 +4,7 @@ Provides additional security layer beyond Django REST Framework permissions
 """
 
 from django.http import JsonResponse
+from django.utils.cache import patch_vary_headers
 from django.utils.deprecation import MiddlewareMixin
 from django.utils import timezone
 import re
@@ -156,3 +157,22 @@ class ResourceOwnershipMiddleware(MiddlewareMixin):
         This middleware serves as an additional security layer
         """
         return None
+
+
+class APICacheControlMiddleware(MiddlewareMixin):
+    """
+    Mark all API responses as uncacheable by shared caches.
+
+    The production API sits behind caching layers (Cloudflare + the host's
+    dynamic cache) that key responses on URL only, ignoring the Authorization
+    header. Without explicit Cache-Control headers, one user's authenticated
+    response (e.g. /v1/accounts/users/me/) can be cached and served to a
+    different user — leaking profiles, stats, and RBAC-filtered data across
+    accounts.
+    """
+
+    def process_response(self, request, response):
+        if request.path.startswith('/v1/'):
+            response['Cache-Control'] = 'private, no-store'
+            patch_vary_headers(response, ['Authorization'])
+        return response

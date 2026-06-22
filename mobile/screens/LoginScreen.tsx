@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import Constants from 'expo-constants';
 import { apiClient, normalizeApiBaseUrl } from '../services/api';
 import { database } from '../services/database';
 
@@ -235,6 +236,11 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
                   </View>
 
+        {/* App version */}
+        <Text style={styles.versionText}>
+          Versi {Constants.expoConfig?.version ?? '—'}
+        </Text>
+
       </ScrollView>
 
     </KeyboardAvoidingView>
@@ -250,6 +256,12 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: 'center',
     padding: 24,
+  },
+  versionText: {
+    textAlign: 'center',
+    fontSize: 12,
+    color: '#9ca3af',
+    marginTop: 24,
   },
   logoContainer: {
     alignItems: 'center',

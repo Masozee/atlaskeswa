@@ -49,15 +49,35 @@ class QuestionChoiceSerializer(serializers.ModelSerializer):
             return f"{obj.mtc_code.code} — {obj.mtc_code.name}"
         return None
 
+    def _bsic_code_map(self):
+        """Lazily build {code: (full_label, name)} once per serialization.
+
+        Without this, the null-bsic_id fallback below fired one DB query per
+        choice — hundreds of queries when serializing a full template. We cache
+        the whole BSIC code map on the serializer context so it is built once.
+        """
+        ctx = self.context
+        cached = ctx.get('_bsic_code_map')
+        if cached is None:
+            from apps.directory.models import BasicStableInputsOfCare
+            cached = {
+                code: (full_label, name)
+                for code, full_label, name in BasicStableInputsOfCare.objects.values_list(
+                    'code', 'full_label', 'name'
+                )
+            }
+            ctx['_bsic_code_map'] = cached
+        return cached
+
     def get_bsic_full_label(self, obj):
         if obj.bsic_id:
             return obj.bsic.full_label or obj.bsic.name or ''
-        # Fallback: look up BSIC by value (code) when bsic_id is null
+        # Fallback: look up BSIC by value (code) when bsic_id is null.
         if obj.value:
-            from apps.directory.models import BasicStableInputsOfCare
-            bsic = BasicStableInputsOfCare.objects.filter(code=obj.value).first()
-            if bsic:
-                return bsic.full_label or bsic.name or ''
+            entry = self._bsic_code_map().get(obj.value)
+            if entry:
+                full_label, name = entry
+                return full_label or name or ''
         return ''
 
     class Meta:

@@ -86,6 +86,9 @@ interface SurveyDetail extends SurveyResponseItem {
   synced?: number;
   local_id?: number;
   server_id?: number | null;
+  started_at?: string | null;
+  submitted_at?: string | null;
+  klasifikasi_list?: string[];
 }
 
 interface SurveyDetailScreenProps {
@@ -237,6 +240,43 @@ export default function SurveyDetailScreen({ surveyId, onBack, onEdit }: SurveyD
       });
   };
 
+  // Compute the DESDE-LTC classification ("Kode") list from raw answers + template,
+  // mirroring the Klasifikasi shown at the end of the survey form.
+  const computeKlasifikasiList = (rawAnswers: Record<string, any>, tpl: any): string[] => {
+    const questionMap = new Map<string, any>();
+    (tpl?.sections || []).forEach((section: any) => {
+      (section.questions || []).forEach((q: any) => questionMap.set(q.code, q));
+    });
+
+    const entries: { code: string; title: string }[] = [];
+    Object.entries(rawAnswers).forEach(([storageKey, rawValue]) => {
+      if (storageKey.endsWith('__other_text')) return;
+      const questionCode = storageKey.includes('|') ? storageKey.split('|', 2)[1] : storageKey;
+      const question = questionMap.get(questionCode);
+      if (!question) return;
+      const values = Array.isArray(rawValue) ? rawValue : [rawValue];
+      values.forEach((value) => {
+        if (value === null || value === undefined) return;
+        const stringValue = String(value).trim();
+        if (!stringValue) return;
+        const choice = question.choices?.find((item: any) => String(item.value) === stringValue);
+        const display = choice?.mtc_code_display?.trim() || '';
+        if (!display) return;
+        const [codePart, labelPart] = display.split(' — ', 2);
+        const code = codePart?.trim() || '';
+        if (!code) return;
+        const title = labelPart?.trim() ? `${code} — ${labelPart.trim()}` : display;
+        entries.push({ code, title });
+      });
+    });
+
+    const unique = Array.from(new Map(entries.map((e) => [e.code, e])).values());
+    const leaves = unique.filter(
+      (e) => !unique.some((o) => o.code !== e.code && o.code.startsWith(e.code + '.'))
+    );
+    return leaves.map((e) => e.title);
+  };
+
   const fetchSurveyDetail = async () => {
     try {
       const requestedLocalId = surveyId < 0 ? Math.abs(surveyId) : surveyId;
@@ -267,6 +307,14 @@ export default function SurveyDetailScreen({ surveyId, onBack, onEdit }: SurveyD
         answers: [],
         is_local: true,
         synced: Number(local.synced ?? 0),
+        started_at: local.started_at ?? null,
+        // Real submitted_at if present; legacy rows fall back to updated_at once
+        // the survey has left DRAFT.
+        submitted_at: local.submitted_at
+          ?? (local.verification_status && local.verification_status !== 'DRAFT'
+            ? (local.updated_at ?? null)
+            : null),
+        klasifikasi_list: [],
       };
       setSurvey(normalized);
       setLocalSurveyId(Number(local.id));
@@ -276,11 +324,38 @@ export default function SurveyDetailScreen({ surveyId, onBack, onEdit }: SurveyD
         : await database.getLatestTemplate();
 
       if (tpl && local.answers_json) {
+        const rawAnswers = JSON.parse(local.answers_json);
         normalized.template_name = tpl.name;
-        normalized.answers = buildLocalAnswers(JSON.parse(local.answers_json), tpl);
+        normalized.answers = buildLocalAnswers(rawAnswers, tpl);
+        normalized.klasifikasi_list = computeKlasifikasiList(rawAnswers, tpl);
       }
 
       setSurvey({ ...normalized });
+
+      // Surveyor name: local survey rows don't store it. Best-effort online fetch,
+      // cached to app_settings so the field survives offline on old devices.
+      try {
+        let surveyorName = await database.getSetting('current_user_name');
+        try {
+          const userData = await apiClient.get<any>('/accounts/users/me/');
+          const fullName = userData.full_name
+            || (userData.first_name || userData.last_name
+              ? `${userData.first_name || ''} ${userData.last_name || ''}`.trim()
+              : userData.email?.split('@')[0] || '');
+          if (fullName) {
+            surveyorName = fullName;
+            await database.saveSetting('current_user_name', fullName);
+          }
+        } catch {
+          // offline — fall back to cached name
+        }
+        if (surveyorName) {
+          normalized.surveyor_name = surveyorName;
+          setSurvey({ ...normalized });
+        }
+      } catch {
+        // surveyor name unavailable
+      }
 
       // Load cached template to build context_key → trigger question map
       try {
@@ -342,6 +417,17 @@ export default function SurveyDetailScreen({ surveyId, onBack, onEdit }: SurveyD
     } finally {
       setLoading(false);
     }
+  };
+
+  // Format a date/time value (ISO string or epoch ms) to localized id-ID datetime.
+  const formatDateTime = (value?: string | number | null): string => {
+    if (value === null || value === undefined || value === '') return '-';
+    const d = typeof value === 'number' ? new Date(value) : new Date(String(value));
+    if (Number.isNaN(d.getTime())) return '-';
+    return d.toLocaleString('id-ID', {
+      day: 'numeric', month: 'long', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    });
   };
 
   const getStatusColor = (status?: string) => {
@@ -693,6 +779,34 @@ export default function SurveyDetailScreen({ surveyId, onBack, onEdit }: SurveyD
                   day: 'numeric', month: 'long', year: 'numeric',
                 })}
               </Text>
+            </View>
+            <View style={[styles.divider, { backgroundColor: c.border }]} />
+            <View style={styles.infoRow}>
+              <Text style={[styles.infoLabel, { color: c.textMuted }]}>Waktu Mulai</Text>
+              <Text style={[styles.infoValue, { color: c.text }]}>{formatDateTime(survey.started_at)}</Text>
+            </View>
+            <View style={[styles.divider, { backgroundColor: c.border }]} />
+            <View style={styles.infoRow}>
+              <Text style={[styles.infoLabel, { color: c.textMuted }]}>Waktu Selesai</Text>
+              <Text style={[styles.infoValue, { color: c.text }]}>{formatDateTime(survey.submitted_at)}</Text>
+            </View>
+            <View style={[styles.divider, { backgroundColor: c.border }]} />
+            <View style={[styles.infoRow, { alignItems: 'flex-start' }]}>
+              <Text style={[styles.infoLabel, { color: c.textMuted }]}>Kode</Text>
+              <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                {survey.klasifikasi_list && survey.klasifikasi_list.length > 0 ? (
+                  survey.klasifikasi_list.map((entry, i) => (
+                    <Text
+                      key={`${entry}-${i}`}
+                      style={[styles.infoValue, { color: c.text, textAlign: 'right' }]}
+                    >
+                      {entry}
+                    </Text>
+                  ))
+                ) : (
+                  <Text style={[styles.infoValue, { color: c.text }]}>-</Text>
+                )}
+              </View>
             </View>
             <View style={[styles.divider, { backgroundColor: c.border }]} />
             <View style={styles.infoRow}>

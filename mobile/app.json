@@ -2,7 +2,7 @@
   "expo": {
     "name": "OMMHA",
     "slug": "yakkum",
-    "version": "1.0.0",
+    "version": "1.1.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -13,10 +13,12 @@
         "NSLocationAlwaysAndWhenInUseUsageDescription": "This app needs access to your location to record your position even in the background.",
         "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to upload facility photos."
       },
-      "bundleIdentifier": "id.atlaskeswa.mobile"
+      "bundleIdentifier": "id.atlaskeswa.mobile",
+      "buildNumber": "3"
     },
     "android": {
       "package": "id.atlaskeswa.mobile",
+      "versionCode": 3,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -60,13 +62,13 @@
         "expo-build-properties",
         {
           "android": {
-            "reactNativeArchitectures": "arm64-v8a",
+            "reactNativeArchitectures": "armeabi-v7a,arm64-v8a",
             "enableMinifyInReleaseBuilds": true,
             "enableShrinkResourcesInReleaseBuilds": true
           }
         }
       ],
-      ["./plugins/withAndroidAbiFilters", ["arm64-v8a"]]
+      ["./plugins/withAndroidAbiFilters", ["armeabi-v7a", "arm64-v8a"]]
     ],
     "web": {
       "favicon": "./assets/favicon.png"

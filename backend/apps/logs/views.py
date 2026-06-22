@@ -40,8 +40,9 @@ class ActivityLogViewSet(UserActivityFilterMixin, viewsets.ReadOnlyModelViewSet)
     filterset_fields = {
         'user': ['exact'],
         'username': ['exact', 'icontains'],
-        'action': ['exact'],
+        'action': ['exact', 'in'],
         'severity': ['exact'],
+        'model_name': ['exact', 'in'],
         'timestamp': ['gte', 'lte'],
     }
 

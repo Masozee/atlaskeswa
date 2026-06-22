@@ -131,7 +131,7 @@ export default function SurveyFormScreen({ surveyId, onBack, onSave }: SurveyFor
   const fetchServices = async () => {
     try {
       const data = await apiClient.get<{ results: Service[] }>('/directory/services/', {
-        page_size: 100,
+        page_size: 500,
         ordering: 'name',
       });
       setServices(data.results);

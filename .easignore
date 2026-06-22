@@ -1,0 +1,73 @@
+# EAS upload ignore — replaces .gitignore for EAS Build archive.
+# Mobile build only needs mobile/ sources + lockfiles.
+
+# --- everything irrelevant to the mobile build ---
+backend/
+frontend/
+backup/
+data/
+doc/
+*.pptx
+*.xlsx
+*.apk
+*.aab
+*.pen
+*.sqlite3
+*.log
+
+# --- from root .gitignore ---
+.DS_Store
+~$*.docx
+~$*.xlsx
+*.sqlite3-journal
+*.sqlite3.bak.*
+*.sqlite3.backup_*
+*.sqlite3.before_*
+*.sqlite3.local_backup_*
+*.sqlite3.current
+db.sqlite3
+db copy.sqlite3
+*mei.json
+db2204*.json
+data_dump.json
+dump.json
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+node_modules/
+.next/
+dist/
+build/
+.env.local
+.env.*.local
+
+# --- from mobile/.gitignore ---
+mobile/.expo/
+mobile/dist/
+mobile/dist-android/
+mobile/web-build/
+mobile/expo-env.d.ts
+mobile/.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+.metro-health-check*
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+*.pem
+.env
+*.tsbuildinfo
+mobile/ios/
+mobile/android/
+mobile/test-results/
+mobile/playwright-report/
+mobile/playwright/.cache/
+mobile/screens/
+.claude/
+.git/

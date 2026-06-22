@@ -51,6 +51,8 @@ export default function App() {
 
       // Set up session expired callback
       apiClient.setSessionExpiredCallback(() => {
+        // Wipe cached per-user data so the next account never sees stale data.
+        database.clearAll().catch((err) => console.error('clearAll on session expiry failed:', err));
         setIsAuthenticated(false);
         setCurrentScreen('home');
         setSelectedSurveyId(undefined);
@@ -143,6 +145,13 @@ export default function App() {
 
   const handleLogout = async () => {
     await apiClient.logout();
+    // Wipe cached per-user data (surveys, services, dashboard) so a different
+    // account logging in on this device never sees the previous user's data.
+    try {
+      await database.clearAll();
+    } catch (err) {
+      console.error('clearAll on logout failed:', err);
+    }
     setIsAuthenticated(false);
   };
 

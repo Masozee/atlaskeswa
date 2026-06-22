@@ -9,6 +9,7 @@ import {
   Switch,
   Alert,
 } from 'react-native';
+import Constants from 'expo-constants';
 import TopHeader from '../components/TopHeader';
 import { apiClient, normalizeApiBaseUrl } from '../services/api';
 import { database } from '../services/database';
@@ -16,7 +17,7 @@ import { syncQueue } from '../services/syncQueue';
 import { useSettings, useTheme, useFontScale } from '../contexts/SettingsContext';
 
 interface SettingsScreenProps {
-  onLogout: () => void;
+  onLogout: () => void | Promise<void>;
 }
 
 export default function SettingsScreen({ onLogout }: SettingsScreenProps) {
@@ -124,8 +125,8 @@ export default function SettingsScreen({ onLogout }: SettingsScreenProps) {
           text: 'Keluar',
           style: 'destructive',
           onPress: async () => {
-            await apiClient.logout();
-            onLogout();
+            // handleLogout (passed as onLogout) clears tokens + cached data.
+            await onLogout();
           },
         },
       ]
@@ -292,7 +293,7 @@ export default function SettingsScreen({ onLogout }: SettingsScreenProps) {
             <View style={styles.settingItem}>
               <View style={styles.settingText}>
                 <Text style={[styles.settingLabel, { color: c.textSecondary, fontSize: fs(13) }]}>Versi</Text>
-                <Text style={[styles.settingDescription, { color: c.textMuted, fontSize: fs(11) }]}>1.0.0</Text>
+                <Text style={[styles.settingDescription, { color: c.textMuted, fontSize: fs(11) }]}>{Constants.expoConfig?.version ?? '—'}</Text>
               </View>
             </View>
           </View>

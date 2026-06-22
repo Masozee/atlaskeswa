@@ -4,6 +4,7 @@ import tablib
 from decimal import Decimal, InvalidOperation
 from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -348,6 +349,14 @@ class SurveyAuditLogViewSet(viewsets.ReadOnlyModelViewSet):
 # DYNAMIC QUESTIONNAIRE VIEWSETS
 # =============================================================================
 
+class GeographicUnitPagination(PageNumberPagination):
+    """Allow clients to request large pages so the mobile app can prefetch all
+    geographic units (e.g. every desa/kelurahan) in one call for offline use."""
+    page_size = 50
+    page_size_query_param = 'page_size'
+    max_page_size = 20000
+
+
 class GeographicUnitViewSet(viewsets.ModelViewSet):
     """
     ViewSet for Geographic Units (full CRUD)
@@ -357,6 +366,7 @@ class GeographicUnitViewSet(viewsets.ModelViewSet):
         'parent__parent__parent'
     )
     serializer_class = GeographicUnitSerializer
+    pagination_class = GeographicUnitPagination
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     # Note: 'parent' is handled manually in get_queryset due to self-referential FK
@@ -593,7 +603,11 @@ class SurveyTemplateViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = SurveyTemplate.objects.filter(is_active=True).annotate(
         total_questions=Count('sections__questions')
     ).prefetch_related(
-        'sections__questions__choices'
+        # Pull choice FKs too — the choice serializer reads mtc_code and bsic
+        # per choice, which would otherwise fire one query per choice (N+1).
+        'sections__questions__choices__mtc_code',
+        'sections__questions__choices__bsic',
+        'sections__questions__mtc_code',
     )
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]

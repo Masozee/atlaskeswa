@@ -739,11 +739,15 @@ export default function DynamicSurveyFormScreen({
       const loadServices = async () => {
         if (isOnline) {
           try {
-            const servicesData = await apiClient.get<PaginatedResponse<Service>>(
+            const servicesData = await apiClient.get<PaginatedResponse<Service> | Service[]>(
               '/directory/services/',
-              { page_size: 100, ordering: 'name' }
+              { page_size: 500, ordering: 'name' }
             );
-            const serviceResults = Array.isArray(servicesData?.results) ? servicesData.results : [];
+            // Backend honors page_size up to 500 → all services in one paginated
+            // response. Array fallback kept for safety.
+            const serviceResults = Array.isArray(servicesData)
+              ? servicesData
+              : (Array.isArray(servicesData?.results) ? servicesData.results : []);
             setServices(serviceResults);
             await database.saveServices(serviceResults);
             return;
@@ -811,6 +815,32 @@ export default function DynamicSurveyFormScreen({
             );
             setKecamatanList(kecResults);
             await database.saveGeographicUnits('KECAMATAN', KEBUMEN_KECAMATAN_CACHE_PARENT, kecResults);
+
+            // Prefetch ALL desa/kelurahan so the surveyor can pick any kecamatan
+            // offline. Without this, desa was only cached for kecamatans opened
+            // while online — an offline surveyor selecting a fresh kecamatan got
+            // an empty list and could not finish the survey.
+            try {
+              const kecIds = new Set(kecResults.map((k: any) => k.id));
+              const desaData = await apiClient.get<PaginatedResponse<{ id: number; name: string; parent: number }>>(
+                '/surveys/geographic-units/',
+                { level: 'DESA_KELURAHAN', page_size: 10000 }
+              );
+              const allDesa = Array.isArray(desaData?.results) ? desaData.results : [];
+              // Bucket by parent (kecamatan id), then cache each bucket so the
+              // on-demand loader's getGeographicUnits('DESA_KELURAHAN', kecId) hits.
+              const byParent = new Map<number, any[]>();
+              for (const d of allDesa) {
+                if (d.parent == null || !kecIds.has(d.parent)) continue;
+                if (!byParent.has(d.parent)) byParent.set(d.parent, []);
+                byParent.get(d.parent)!.push(d);
+              }
+              for (const [parentId, desas] of byParent) {
+                await database.saveGeographicUnits('DESA_KELURAHAN', parentId, desas);
+              }
+            } catch {
+              // Desa prefetch is best-effort; on-demand loader still works online.
+            }
             return;
           } catch {
             // Fall back to cache below.
@@ -1856,6 +1886,8 @@ export default function DynamicSurveyFormScreen({
       // ── 1. Always save to local SQLite first ────────────────────────────
       let currentLocalId = localSurveyId ?? reusedExistingLocalDraftId;
       const dbStatus = submit ? 'SUBMITTED' : 'DRAFT';
+      // Stamp completion time only on submit; drafts leave it null.
+      const submittedAtStamp = submit ? new Date().toISOString() : undefined;
       if (currentLocalId) {
         await database.updateSurveyLocal(currentLocalId, {
           service_id: selectedService.id,
@@ -1866,6 +1898,7 @@ export default function DynamicSurveyFormScreen({
           gps_longitude: finalGps?.longitude ?? null,
           answers_json: answersJson,
           verification_status: dbStatus,
+          submitted_at: submittedAtStamp,
         });
       } else {
         const newLocalId = await database.saveSurveyLocal({
@@ -1881,13 +1914,14 @@ export default function DynamicSurveyFormScreen({
           verification_status: dbStatus,
           pending_action: responseId ? 'update' : 'create',
           started_at: startedAt ?? null,
+          submitted_at: submittedAtStamp ?? null,
         });
         setLocalSurveyId(newLocalId);
         currentLocalId = newLocalId;
       }
 
       if (submit) {
-        setSubmittedAt(new Date().toISOString());
+        setSubmittedAt(submittedAtStamp ?? new Date().toISOString());
         setIsSubmitted(true);
       } else if (!silent) {
         Alert.alert('Berhasil', 'Survei disimpan di perangkat. Sinkronkan manual dari detail survei.');
@@ -2526,6 +2560,12 @@ export default function DynamicSurveyFormScreen({
       handleAnswerChange(question.code, kecId, ctx);
       setShowKecamatanPicker(null);
 
+      // Kecamatan changed → invalidate any previously selected desa.
+      const allQuestions = template?.sections?.flatMap((s) => s.questions || []) ?? [];
+      const desaQuestion = allQuestions.find((q) => q.answer_type === 'GEO_DESA');
+      if (desaQuestion) handleAnswerChange(desaQuestion.code, null, ctx);
+      setDesaList([]);
+
       // Fetch desas for selected kecamatan
       try {
         const netState = await NetInfo.fetch();
@@ -2600,33 +2640,51 @@ export default function DynamicSurveyFormScreen({
   const renderDesaPicker = (question: Question, value: any, ctx: string = '') => {
     const selectedName = desaList.find((d) => d.id === value)?.name;
 
-    // Reload desas if kecamatan is selected but desaList is empty
-    const reloadDesas = async () => {
-      if (value && desaList.length === 0) {
-        try {
-          const netState = await NetInfo.fetch();
-          const isOnline = !!(netState.isConnected && netState.isInternetReachable);
-          if (isOnline) {
-            const desaData = await apiClient.get<PaginatedResponse<{ id: number; name: string }>>(
-              '/surveys/geographic-units/',
-              { level: 'DESA_KELURAHAN', parent: value, page_size: 200 }
-            );
-            if (desaData.results && desaData.results.length > 0) {
-              setDesaList(desaData.results);
-              await database.saveGeographicUnits('DESA_KELURAHAN', value, desaData.results);
-            }
-          } else {
-            const cached = await database.getGeographicUnits('DESA_KELURAHAN', value);
-            setDesaList(cached);
+    // Resolve the selected kecamatan id from the GEO_KECAMATAN answer.
+    // Desa list is a child of kecamatan — value here is the desa id, NOT the parent.
+    const resolveKecamatanId = (): number | null => {
+      const allQuestions = template?.sections?.flatMap((s) => s.questions || []) ?? [];
+      const kecQuestion = allQuestions.find((q) => q.answer_type === 'GEO_KECAMATAN');
+      if (!kecQuestion) return null;
+      const kecKey = isDetailQuestion(kecQuestion.code) && ctx
+        ? `${ctx}|${kecQuestion.code}`
+        : kecQuestion.code;
+      const kecVal = answers[kecKey];
+      return typeof kecVal === 'number' ? kecVal : null;
+    };
+
+    // Load desas for the selected kecamatan. Always keyed by kecamatan id,
+    // online first then cache fallback. Returns the loaded list.
+    const loadDesas = async (kecId: number): Promise<{ id: number; name: string }[]> => {
+      try {
+        const netState = await NetInfo.fetch();
+        const isOnline = !!(netState.isConnected && netState.isInternetReachable);
+        if (isOnline) {
+          const desaData = await apiClient.get<PaginatedResponse<{ id: number; name: string }>>(
+            '/surveys/geographic-units/',
+            { level: 'DESA_KELURAHAN', parent: kecId, page_size: 200 }
+          );
+          if (desaData.results && desaData.results.length > 0) {
+            await database.saveGeographicUnits('DESA_KELURAHAN', kecId, desaData.results);
+            setDesaList(desaData.results);
+            return desaData.results;
           }
-        } catch {
         }
+        const cached = await database.getGeographicUnits('DESA_KELURAHAN', kecId);
+        setDesaList(cached);
+        return cached;
+      } catch {
+        const cached = await database.getGeographicUnits('DESA_KELURAHAN', kecId);
+        setDesaList(cached);
+        return cached;
       }
     };
 
+    const kecamatanId = resolveKecamatanId();
+
     if (showDesaPicker === question.code) {
-      // Trigger reload when opening picker if needed
-      reloadDesas();
+      // Refetch on open keyed by the actual kecamatan, not stale desaList.
+      if (kecamatanId) loadDesas(kecamatanId);
 
       return (
         <View>
@@ -2639,7 +2697,7 @@ export default function DynamicSurveyFormScreen({
           <ScrollView style={styles.pickerList} nestedScrollEnabled>
             {desaList.length === 0 ? (
               <Text style={{ padding: 16, color: c.textMuted }}>
-                {value ? 'Memuat desa...' : 'Pilih kecamatan terlebih dahulu'}
+                {kecamatanId ? 'Memuat desa...' : 'Pilih kecamatan terlebih dahulu'}
               </Text>
             ) : (
               desaList.map((desa) => (
@@ -2664,16 +2722,13 @@ export default function DynamicSurveyFormScreen({
 
     return (
       <TouchableOpacity
-        style={[styles.picker, !selectedName && styles.pickerDisabled]}
+        style={[styles.picker, !kecamatanId && styles.pickerDisabled]}
         onPress={async () => {
-          // If desas not loaded yet (and we have a selected kecamatan), try to reload
-          if (desaList.length === 0 && value) {
-            await reloadDesas();
-            if (desaList.length === 0) {
-              Alert.alert('Info', 'Tidak ada data desa ditemukan untuk kecamatan ini.');
-              return;
-            }
+          if (!kecamatanId) {
+            Alert.alert('Info', 'Pilih kecamatan terlebih dahulu.');
+            return;
           }
+          // Open immediately; picker view refetches via loadDesas keyed by kecamatan.
           setShowDesaPicker(question.code);
         }}
       >

@@ -75,11 +75,18 @@ export default function AuditLogPage() {
   const [selectedLog, setSelectedLog] = useState<ActivityLog | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
 
+  // Survey-related actions shown in this audit log
+  const surveyActions = ['CREATE', 'UPDATE', 'SURVEY_SUBMIT', 'SURVEY_VERIFY', 'SURVEY_REJECT'];
+
   const { data, isLoading } = useQuery({
     queryKey: ['survey-audit-logs', search, actionFilter],
     queryFn: () => {
       const params: Record<string, any> = {
         page_size: 100,
+        // Filter survey-related actions server-side so they aren't lost
+        // behind 100 unrelated newest logs (LOGIN, Service, etc.).
+        'action__in': surveyActions.join(','),
+        ordering: '-timestamp',
       };
 
       if (search) {
@@ -88,14 +95,14 @@ export default function AuditLogPage() {
 
       if (actionFilter !== 'all') {
         params.action = actionFilter;
+        delete params['action__in'];
       }
 
       return apiClient.get<PaginatedResponse<ActivityLog>>('/logs/activity/', params);
     },
   });
 
-  // Filter to show only survey-related actions
-  const surveyActions = ['CREATE', 'UPDATE', 'SURVEY_SUBMIT', 'SURVEY_VERIFY', 'SURVEY_REJECT'];
+  // Show only survey-related models (both old Survey and DynamicSurveyResponse)
   const filteredData = useMemo(() => {
     if (!data?.results) return [];
     return data.results.filter(log =>

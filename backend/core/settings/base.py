@@ -44,6 +44,8 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    # First so its process_response runs last and wins over any cache headers
+    'apps.accounts.middleware.APICacheControlMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -120,10 +122,15 @@ MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 # Cache configuration
+# LocMemCache is per-process and dies whenever the cPanel/Passenger worker is
+# recycled (frequent on shared hosting), so it never survives a cold start.
+# A database cache table lives in MySQL and persists across worker restarts,
+# with no Redis/Memcached dependency. Create the table once with:
+#   python manage.py createcachetable
 CACHES = {
     'default': {
-        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-        'LOCATION': 'yakkum-cache',
+        'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+        'LOCATION': 'yakkum_cache_table',
     }
 }
 

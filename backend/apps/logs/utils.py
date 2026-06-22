@@ -110,13 +110,28 @@ def log_delete(request, obj, description=None):
     )
 
 
+def _survey_label(survey):
+    """Human-readable label for either Survey or DynamicSurveyResponse.
+
+    DynamicSurveyResponse.service is nullable; fall back to template name
+    so logging never crashes on a service-less response.
+    """
+    service = getattr(survey, 'service', None)
+    if service is not None:
+        return f'service: {service.name}'
+    template = getattr(survey, 'template', None)
+    if template is not None:
+        return f'template: {template.name}'
+    return f'#{survey.pk}'
+
+
 def log_survey_submit(request, survey):
     """Log survey submission"""
     return log_activity(
         request=request,
         action=ActivityLog.Action.SURVEY_SUBMIT,
-        description=f'Submitted survey for service: {survey.service.name}',
-        model_name='Survey',
+        description=f'Submitted survey for {_survey_label(survey)}',
+        model_name=survey.__class__.__name__,
         obj=survey,
     )
 
@@ -126,8 +141,8 @@ def log_survey_verify(request, survey):
     return log_activity(
         request=request,
         action=ActivityLog.Action.SURVEY_VERIFY,
-        description=f'Verified survey for service: {survey.service.name}',
-        model_name='Survey',
+        description=f'Verified survey for {_survey_label(survey)}',
+        model_name=survey.__class__.__name__,
         obj=survey,
     )
 
@@ -137,8 +152,8 @@ def log_survey_reject(request, survey, reason=''):
     return log_activity(
         request=request,
         action=ActivityLog.Action.SURVEY_REJECT,
-        description=f'Rejected survey for service: {survey.service.name}',
-        model_name='Survey',
+        description=f'Rejected survey for {_survey_label(survey)}',
+        model_name=survey.__class__.__name__,
         obj=survey,
         metadata={'rejection_reason': reason} if reason else None,
     )

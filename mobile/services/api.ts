@@ -4,6 +4,7 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as FileSystem from 'expo-file-system/legacy';
 import { API_BASE_URL as ENV_API_BASE_URL } from '@env';
 
 export const normalizeApiBaseUrl = (url: string) => {
@@ -65,13 +66,19 @@ class ApiClient {
   private accessToken: string | null = null;
   private refreshToken: string | null = null;
   private onSessionExpired: (() => void) | null = null;
+  // Dedupe concurrent token refreshes: many parallel 401s must trigger ONE
+  // refresh, not a race that overwrites this.accessToken with stale values.
+  private refreshPromise: Promise<boolean> | null = null;
+  // Resolves once the initial token load from storage completes. request()
+  // awaits this so an early request can't fire with accessToken still null.
+  private ready: Promise<void>;
 
   constructor(baseURL: string = API_BASE_URL) {
     this.baseURL = normalizeApiBaseUrl(baseURL);
     debugLog('ApiClient initialized with baseURL:', this.baseURL);
     debugLog('ENV_API_BASE_URL:', ENV_API_BASE_URL);
     debugLog('ENV_CONFIGURED_URL:', ENV_CONFIGURED_URL);
-    this.loadTokensFromStorage();
+    this.ready = this.loadTokensFromStorage();
   }
 
   setSessionExpiredCallback(callback: () => void) {
@@ -96,7 +103,8 @@ class ApiClient {
   }
 
   async reloadTokens() {
-    await this.loadTokensFromStorage();
+    this.ready = this.loadTokensFromStorage();
+    await this.ready;
   }
 
   private async saveTokensToStorage(accessToken: string, refreshToken: string) {
@@ -111,11 +119,14 @@ class ApiClient {
   }
 
   async clearTokensFromStorage() {
+    // Null in-memory tokens FIRST so any concurrent request during the async
+    // storage clear can't grab the outgoing user's token (prevents requests
+    // resolving to the wrong user on logout / user switch).
+    this.accessToken = null;
+    this.refreshToken = null;
     try {
       await AsyncStorage.removeItem('access_token');
       await AsyncStorage.removeItem('refresh_token');
-      this.accessToken = null;
-      this.refreshToken = null;
     } catch (error) {
       console.error('Error clearing tokens:', error);
     }
@@ -125,6 +136,10 @@ class ApiClient {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
+    // Wait for the initial token load so the first request after boot doesn't
+    // fire with accessToken still null.
+    await this.ready;
+
     const url = `${this.baseURL}${endpoint}`;
     const headers: Record<string, string> = {
       'Accept': 'application/json',
@@ -243,22 +258,34 @@ class ApiClient {
 
   private async refreshAccessToken(): Promise<boolean> {
     if (!this.refreshToken) return false;
+    // If a refresh is already in flight, await that one instead of starting a
+    // second concurrent refresh (which could overwrite tokens with a stale set).
+    if (this.refreshPromise) return this.refreshPromise;
+
+    this.refreshPromise = (async () => {
+      const refreshToken = this.refreshToken;
+      try {
+        const response = await fetch(`${this.baseURL}/accounts/auth/refresh/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh: refreshToken }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          await this.saveTokensToStorage(data.access, data.refresh || refreshToken);
+          return true;
+        }
+        return false;
+      } catch {
+        return false;
+      }
+    })();
 
     try {
-      const response = await fetch(`${this.baseURL}/accounts/auth/refresh/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh: this.refreshToken }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        await this.saveTokensToStorage(data.access, data.refresh || this.refreshToken);
-        return true;
-      }
-      return false;
-    } catch {
-      return false;
+      return await this.refreshPromise;
+    } finally {
+      this.refreshPromise = null;
     }
   }
 
@@ -365,26 +392,66 @@ class ApiClient {
     imageUri: UploadFileSource,
     contextKey?: string
   ): Promise<any> {
+    await this.ready;
     if (!this.accessToken) {
       await this.loadTokensFromStorage();
     }
 
+    const file = this.buildMultipartFile(imageUri, questionCode);
+    const url = `${this.baseURL}/surveys/responses/${responseId}/upload-answer-file/`;
+    const authHeaders: Record<string, string> = {
+      Accept: 'application/json',
+      ...(this.accessToken ? { Authorization: `Bearer ${this.accessToken}` } : {}),
+    };
+
+    const isLocalFile = typeof file.uri === 'string' && /^(file|content):\/\//i.test(file.uri);
+
+    // RN 0.85 new-arch FormData rejects file parts ("Unsupported FormDataPart
+    // implementation"); use the native multipart uploader for local files.
+    if (isLocalFile) {
+      // Only file:// can be reliably stat'd. content:// is handled natively by
+      // uploadAsync and may not resolve via getInfoAsync — don't false-reject it.
+      if (file.uri.startsWith('file://')) {
+        const info = await FileSystem.getInfoAsync(file.uri).catch(() => null);
+        if (!info?.exists) {
+          throw new Error(`File tidak ditemukan: ${file.uri} (file mungkin hilang setelah update aplikasi)`);
+        }
+      }
+
+      let result: FileSystem.FileSystemUploadResult;
+      try {
+        result = await FileSystem.uploadAsync(url, file.uri, {
+          httpMethod: 'POST',
+          uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+          fieldName: 'file',
+          mimeType: file.type,
+          parameters: {
+            question_code: questionCode,
+            ...(contextKey ? { context_key: contextKey } : {}),
+          },
+          headers: authHeaders,
+        });
+      } catch (networkErr) {
+        throw new Error(`Network error during upload: ${networkErr}`);
+      }
+
+      const responseText = result.body ?? '';
+      if (result.status < 200 || result.status >= 300) {
+        throw new Error(`Upload failed: ${result.status} - ${responseText}`);
+      }
+      return responseText ? JSON.parse(responseText) : {};
+    }
+
     const formData = new FormData();
-    formData.append('file', this.buildMultipartFile(imageUri, questionCode));
+    formData.append('file', file as any);
     formData.append('question_code', questionCode);
     if (contextKey) {
       formData.append('context_key', contextKey);
     }
 
-    const url = `${this.baseURL}/surveys/responses/${responseId}/upload-answer-file/`;
-    const headers: Record<string, string> = {
-      Accept: 'application/json',
-      ...(this.accessToken ? { Authorization: `Bearer ${this.accessToken}` } : {}),
-    };
-
     const response = await fetch(url, {
       method: 'POST',
-      headers,
+      headers: authHeaders,
       body: formData,
     });
 
@@ -397,6 +464,7 @@ class ApiClient {
   }
 
   async uploadSurveyPhoto(surveyId: number, imageUri: UploadFileSource, caption?: string): Promise<any> {
+    await this.ready;
     if (!this.accessToken) {
       await this.loadTokensFromStorage();
     }
@@ -406,6 +474,73 @@ class ApiClient {
     const file = this.buildMultipartFile(imageUri, 'photo');
     debugLog('Built file object:', { uri: file.uri, name: file.name, type: file.type });
 
+    const url = `${this.baseURL}/surveys/photos/`;
+    const authHeaders: Record<string, string> = {
+      Accept: 'application/json',
+      ...(this.accessToken ? { Authorization: `Bearer ${this.accessToken}` } : {}),
+    };
+
+    const isLocalFile = typeof file.uri === 'string' && /^(file|content):\/\//i.test(file.uri);
+
+    // For local files use expo-file-system's native MULTIPART uploader.
+    // RN 0.85's JS FormData throws "Unsupported FormDataPart implementation"
+    // for file parts under the new architecture, so we bypass it entirely.
+    if (isLocalFile) {
+      // Guard against stale/missing files (documentDirectory path changes between
+      // app builds, leaving old absolute URIs dangling). Only stat file:// —
+      // content:// is handled natively by uploadAsync and may not resolve here.
+      if (file.uri.startsWith('file://')) {
+        const info = await FileSystem.getInfoAsync(file.uri).catch(() => null);
+        if (!info?.exists) {
+          throw new Error(`File foto tidak ditemukan: ${file.uri} (foto mungkin hilang setelah update aplikasi)`);
+        }
+      }
+
+      debugLog(`UPLOAD REQUEST (native multipart): POST ${url}`);
+
+      let result: FileSystem.FileSystemUploadResult;
+      try {
+        result = await FileSystem.uploadAsync(url, file.uri, {
+          httpMethod: 'POST',
+          uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+          fieldName: 'image',
+          mimeType: file.type,
+          parameters: {
+            survey: String(surveyId),
+            ...(caption ? { caption } : {}),
+          },
+          headers: authHeaders,
+        });
+      } catch (networkErr) {
+        debugError('Upload network error:', networkErr);
+        throw new Error(`Network error during upload: ${networkErr}`);
+      }
+
+      debugLog(`UPLOAD RESPONSE: ${result.status}`);
+      const responseText = result.body ?? '';
+
+      if (result.status < 200 || result.status >= 300) {
+        debugError('Upload failed:', result.status, responseText);
+        try {
+          const errData = JSON.parse(responseText);
+          throw new Error(errData.detail || errData.message || `Upload failed: ${result.status}`);
+        } catch {
+          throw new Error(`Upload failed: ${result.status} - ${responseText}`);
+        }
+      }
+
+      debugLog('Upload success response:', responseText);
+      if (responseText) {
+        try {
+          return JSON.parse(responseText);
+        } catch {
+          return { id: 0, image_url: file.uri };
+        }
+      }
+      return {};
+    }
+
+    // Remote/http URI fallback — use FormData fetch path.
     const formData = new FormData();
     formData.append('image', file as any);
     if (caption) {
@@ -413,18 +548,8 @@ class ApiClient {
     }
     formData.append('survey', String(surveyId));
 
-    const url = `${this.baseURL}/surveys/photos/`;
-    const headers: Record<string, string> = {
-      Accept: 'application/json',
-      ...(this.accessToken ? { Authorization: `Bearer ${this.accessToken}` } : {}),
-    };
-
-    // Don't set Content-Type for multipart - browser will set it with boundary
+    const headers: Record<string, string> = { ...authHeaders };
     delete headers['Content-Type'];
-
-    debugLog(`UPLOAD REQUEST: POST ${url}`);
-    debugLog('Headers:', headers);
-    debugLog('FormData fields:', { survey: surveyId, caption: caption || '' });
 
     let response: Response;
     try {
@@ -437,8 +562,6 @@ class ApiClient {
       debugError('Upload network error:', networkErr);
       throw new Error(`Network error during upload: ${networkErr}`);
     }
-
-    debugLog(`UPLOAD RESPONSE: ${response.status} ${response.statusText}`);
 
     const contentType = response.headers.get('content-type');
     const isJson = contentType?.includes('application/json');
@@ -456,8 +579,6 @@ class ApiClient {
       }
       throw new Error(`Upload failed: ${response.status} - ${responseText}`);
     }
-
-    debugLog('Upload success response:', responseText);
 
     if (responseText) {
       try {

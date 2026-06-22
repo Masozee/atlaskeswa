@@ -5,6 +5,7 @@ from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.pagination import PageNumberPagination
 from django.http import HttpResponse, FileResponse
 from django.db.models.deletion import ProtectedError
 from django_filters.rest_framework import DjangoFilterBackend
@@ -204,6 +205,15 @@ class ServiceTypeViewSet(viewsets.ReadOnlyModelViewSet):
     ordering = ['name']
 
 
+class ServicePagination(PageNumberPagination):
+    """Keep paginated {count, results} shape (frontend depends on it) but let
+    clients request a larger page via ?page_size= up to a cap. Mobile sends a
+    high page_size to fetch all services in one request."""
+    page_size = 50
+    page_size_query_param = 'page_size'
+    max_page_size = 500
+
+
 class ServiceViewSet(StatusBasedFilterMixin, viewsets.ModelViewSet):
     """
     ViewSet for Service with comprehensive filtering and search
@@ -213,6 +223,7 @@ class ServiceViewSet(StatusBasedFilterMixin, viewsets.ModelViewSet):
         'mtc', 'bsic', 'service_type', 'created_by', 'verified_by'
     ).prefetch_related('target_populations')
     permission_classes = [IsAuthenticated]
+    pagination_class = ServicePagination
 
     # RBAC Mixin Configuration
     rbac_status_field = 'is_active'

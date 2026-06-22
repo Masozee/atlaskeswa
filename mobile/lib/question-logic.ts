@@ -550,6 +550,24 @@ export function getFlowItems(
         nextCode = hasMandiri ? paymentRoute.tariff : paymentRoute.next;
       }
 
+      // Special case: terminal yes/no follow-up questions.
+      // RQP/DQR/OQR ask "do you know a doctor outside the facility?" (YA/TIDAK).
+      // YA -> the free-text follow-up (RQQ/DQS/OQS), TIDAK -> END of this block.
+      // The backend already routes YA via next_question_code and leaves TIDAK
+      // empty, but an empty route would otherwise fall through to the next
+      // sequential question (the follow-up textarea), wrongly showing it on TIDAK.
+      // When these questions are answered and the matched choice has no target,
+      // treat it as terminal instead of falling through.
+      const TERMINAL_YESNO = new Set(['RQP', 'DQR', 'OQR']);
+      if (
+        !nextCode &&
+        TERMINAL_YESNO.has(current.code) &&
+        triggeringChoice &&
+        !triggeringChoice.next_question_code
+      ) {
+        break;
+      }
+
       if (!nextCode) {
         const idx = visibleQuestions.indexOf(current);
         // Only break as terminal if this is the LAST question AND it has choices
