@@ -8,6 +8,7 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+import django_filters
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Count, Q, Avg, Prefetch
 from django.http import HttpResponse, FileResponse
@@ -892,6 +893,52 @@ class QuestionChoiceViewSet(viewsets.ModelViewSet):
         return [IsAuthenticated()]
 
 
+class DynamicSurveyResponseFilter(django_filters.FilterSet):
+    """Custom filters for the survey response list (kategori + geo + date range)."""
+
+    kategori = django_filters.CharFilter(method='filter_kategori')
+    kecamatan = django_filters.NumberFilter(method='filter_kecamatan')
+    desa = django_filters.NumberFilter(method='filter_desa')
+    survey_date_after = django_filters.DateFilter(field_name='survey_date', lookup_expr='gte')
+    survey_date_before = django_filters.DateFilter(field_name='survey_date', lookup_expr='lte')
+
+    class Meta:
+        model = DynamicSurveyResponse
+        fields = {
+            'template': ['exact'],
+            'service': ['exact'],
+            'surveyor': ['exact'],
+            'verification_status': ['exact'],
+            'assigned_verifier': ['exact'],
+            'deletion_requested': ['exact'],
+            'survey_date': ['exact', 'gte', 'lte'],
+            'created_at': ['gte', 'lte'],
+        }
+
+    def filter_kategori(self, queryset, name, value):
+        """FASKES = has a Q3 answer with choice label 'Kesehatan'; NON FASKES = otherwise."""
+        value = (value or '').strip().upper()
+        faskes_q = Q(
+            answers__question__code='Q3',
+            answers__selected_choices__label__iexact='kesehatan',
+        )
+        if value == 'FASKES':
+            return queryset.filter(faskes_q).distinct()
+        if value in ('NON FASKES', 'NON_FASKES', 'NONFASKES'):
+            return queryset.exclude(faskes_q).distinct()
+        return queryset
+
+    def filter_kecamatan(self, queryset, name, value):
+        return queryset.filter(
+            answers__question__code='Q7', answers__geographic_unit_id=value
+        ).distinct()
+
+    def filter_desa(self, queryset, name, value):
+        return queryset.filter(
+            answers__question__code='Q8', answers__geographic_unit_id=value
+        ).distinct()
+
+
 class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
     """
     ViewSet for Dynamic Survey Responses with verification workflow
@@ -903,23 +950,18 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
         'answers__question',
         'answers__selected_choices__mtc_code',
         'answers__geographic_unit__parent__parent__parent',
+        'photos',
     )
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
 
-    filterset_fields = {
-        'template': ['exact'],
-        'service': ['exact'],
-        'surveyor': ['exact'],
-        'verification_status': ['exact'],
-        'assigned_verifier': ['exact'],
-        'deletion_requested': ['exact'],
-        'survey_date': ['exact', 'gte', 'lte'],
-        'created_at': ['gte', 'lte'],
-    }
+    filterset_class = DynamicSurveyResponseFilter
 
     search_fields = ['service__name', 'surveyor__email', 'surveyor_notes']
-    ordering_fields = ['survey_date', 'created_at', 'verification_status']
+    ordering_fields = [
+        'survey_date', 'created_at', 'verification_status',
+        'service__name', 'surveyor__email',
+    ]
     ordering = ['-survey_date']
 
     # RBAC Mixin Configuration
