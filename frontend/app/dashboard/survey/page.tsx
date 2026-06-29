@@ -1,13 +1,21 @@
 'use client';
 
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { useSurveyResponses, useDeleteSurveyResponse, useBulkDeleteSurveyResponses } from '@/hooks/use-survey-responses';
+import { useGeographicUnits } from '@/hooks/use-geographic-units';
+import { useUsers } from '@/hooks/use-users';
 import { apiClient } from '@/lib/api-client';
 import { PageHeader } from "@/components/page-header";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from '@/components/ui/separator';
 import {
@@ -30,6 +38,9 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -37,7 +48,6 @@ import {
   ColumnDef,
   flexRender,
   getCoreRowModel,
-  getSortedRowModel,
   SortingState,
   RowSelectionState,
   useReactTable,
@@ -51,6 +61,11 @@ interface SurveyResponseItem {
   id: number;
   service_name: string;
   service_city: string;
+  service_kecamatan: string | null;
+  service_desa: string | null;
+  q1_nama_fasilitas: string | null;
+  status_badan_hukum: string | null;
+  thumbnail: string | null;
   survey_date: string;
   surveyor_name: string;
   verification_status: string;
@@ -82,25 +97,59 @@ const breadcrumbs = [
 
 const PAGE_SIZE = 50;
 
+const KATEGORI_LABELS: Record<string, string> = {
+  all: 'Semua Kategori',
+  FASKES: 'Faskes',
+  'NON FASKES': 'Non-Faskes',
+};
+
+function toISODate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 export default function AllSurveysPage() {
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [kategoriFilter, setKategoriFilter] = useState('all');
+  const [dateFilter, setDateFilter] = useState<Date | undefined>(undefined);
+  const [kecamatanFilter, setKecamatanFilter] = useState<number | undefined>(undefined);
+  const [desaFilter, setDesaFilter] = useState<number | undefined>(undefined);
+  const [enumeratorFilter, setEnumeratorFilter] = useState<number | undefined>(undefined);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [page, setPage] = useState(1);
 
-  // Reset page when filters change
-  const filterKey = `${search}|${statusFilter}`;
-  const lastFilterKey = useRef(filterKey);
-  if (lastFilterKey.current !== filterKey) {
-    lastFilterKey.current = filterKey;
-    if (page !== 1) setPage(1);
-  }
+  // Filter option data
+  const { data: kecamatanList = [] } = useGeographicUnits({ level: 'KECAMATAN' });
+  const { data: desaList = [] } = useGeographicUnits({
+    level: 'DESA_KELURAHAN',
+    parent: kecamatanFilter,
+    enabled: !!kecamatanFilter,
+  });
+  const { data: enumeratorData } = useUsers({ page_size: 200 });
+  const enumeratorList = enumeratorData?.results ?? [];
+
+  const selectedDateIso = dateFilter ? toISODate(dateFilter) : undefined;
+
+  const ordering = sorting.length > 0
+    ? `${sorting[0].desc ? '-' : ''}${sorting[0].id}`
+    : '-survey_date';
+
+  // Reset to first page whenever any filter or sort changes
+  useEffect(() => {
+    setPage(1);
+  }, [search, kategoriFilter, selectedDateIso, kecamatanFilter, desaFilter, enumeratorFilter, ordering]);
 
   const { data, isLoading } = useSurveyResponses({
     search,
-    verification_status: statusFilter !== 'all' ? statusFilter : undefined,
-    ordering: '-survey_date',
+    kategori: kategoriFilter !== 'all' ? kategoriFilter : undefined,
+    survey_date: selectedDateIso,
+    kecamatan: kecamatanFilter,
+    desa: desaFilter,
+    surveyor: enumeratorFilter,
+    ordering,
     page,
     page_size: PAGE_SIZE,
   });
@@ -127,7 +176,11 @@ export default function AllSurveysPage() {
     params.set('file_format', format);
     params.set('value_format', valueFormat);
     if (search) params.set('search', search);
-    if (statusFilter !== 'all') params.set('verification_status', statusFilter);
+    if (kategoriFilter !== 'all') params.set('kategori', kategoriFilter);
+    if (selectedDateIso) params.set('survey_date', selectedDateIso);
+    if (kecamatanFilter) params.set('kecamatan', String(kecamatanFilter));
+    if (desaFilter) params.set('desa', String(desaFilter));
+    if (enumeratorFilter) params.set('surveyor', String(enumeratorFilter));
     const ids = table.getSelectedRowModel().rows.map((r) => r.original.id);
     if (ids.length > 0) params.set('ids', ids.join(','));
     try {
@@ -183,36 +236,85 @@ export default function AllSurveysPage() {
       cell: ({ row }) => <div className="w-12">{row.getValue("id")}</div>,
     },
     {
-      accessorKey: "service_name",
-      header: "Nama Fasilitas",
+      accessorKey: "thumbnail",
+      header: "Foto Thumbnail",
+      enableSorting: false,
       cell: ({ row }) => {
-        const survey = row.original;
+        const src = row.getValue("thumbnail") as string | null;
+        if (!src) {
+          return (
+            <div className="h-12 w-12 rounded-sm border bg-muted flex items-center justify-center text-[10px] text-muted-foreground">
+              —
+            </div>
+          );
+        }
         return (
-          <Link
-            href={`/dashboard/survey/${survey.id}`}
-            className="block font-medium max-w-[200px] whitespace-normal break-words text-primary hover:underline"
-          >
-            {row.getValue("service_name")}
-          </Link>
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={src}
+            alt="Foto fasilitas"
+            className="h-12 w-12 rounded-sm border object-cover"
+            loading="lazy"
+          />
         );
       },
     },
     {
-      accessorKey: "kategori",
-      header: "Kategori",
+      accessorKey: "service_name",
+      header: "Nama Fasilitas",
       cell: ({ row }) => {
-        const kategori = row.getValue("kategori") as string | null;
-        if (!kategori) return <span className="text-muted-foreground">—</span>;
+        const survey = row.original;
+        const kategori = survey.kategori;
         return (
-          <Badge variant={kategori === 'FASKES' ? 'outline-info' : 'outline-muted'}>
-            {kategori === 'FASKES' ? 'Faskes' : 'Non-Faskes'}
-          </Badge>
+          <div className="max-w-[200px] flex flex-col gap-1">
+            {kategori && (
+              <Badge
+                variant={kategori === 'FASKES' ? 'outline-info' : 'outline-muted'}
+                className="w-fit"
+              >
+                {kategori === 'FASKES' ? 'Faskes' : 'Non-Faskes'}
+              </Badge>
+            )}
+            <Link
+              href={`/dashboard/survey/${survey.id}`}
+              className="block font-medium whitespace-normal break-words text-primary hover:underline"
+            >
+              {row.getValue("service_name")}
+            </Link>
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: "q1_nama_fasilitas",
+      header: "Q1 - Nama Fasilitas",
+      enableSorting: false,
+      cell: ({ row }) => (
+        <div className="max-w-[200px] whitespace-normal break-words text-sm">
+          {row.getValue("q1_nama_fasilitas") || '—'}
+        </div>
+      ),
+    },
+    {
+      id: "wilayah",
+      header: "Wilayah",
+      enableSorting: false,
+      cell: ({ row }) => {
+        const kec = row.original.service_kecamatan;
+        const ds = row.original.service_desa;
+        if (!kec && !ds) return <span className="text-muted-foreground">—</span>;
+        return (
+          <div className="max-w-[180px] whitespace-normal break-words text-sm">
+            {kec && <span>Kec. {kec}</span>}
+            {kec && ds && <span>, </span>}
+            {ds && <span>Ds. {ds}</span>}
+          </div>
         );
       },
     },
     {
       accessorKey: "jenis_fasilitas",
-      header: "Jenis Fasilitas",
+      header: "Q4 - Jenis Fasilitas",
       cell: ({ row }) => (
         <div className="max-w-[200px] whitespace-normal break-words text-sm">
           {row.getValue("jenis_fasilitas") || '—'}
@@ -220,14 +322,12 @@ export default function AllSurveysPage() {
       ),
     },
     {
-      accessorKey: "jenis_layanan",
-      header: "Jenis Layanan",
+      accessorKey: "status_badan_hukum",
+      header: "Q13 - Status Badan Hukum",
+      enableSorting: false,
       cell: ({ row }) => (
-        <div
-          className="max-w-[280px] whitespace-normal break-words text-sm line-clamp-3"
-          title={(row.getValue("jenis_layanan") as string) ?? undefined}
-        >
-          {row.getValue("jenis_layanan") || '—'}
+        <div className="max-w-[200px] whitespace-normal break-words text-sm">
+          {row.getValue("status_badan_hukum") || '—'}
         </div>
       ),
     },
@@ -311,11 +411,17 @@ export default function AllSurveysPage() {
     },
   ], []);
 
+  const tableData = useMemo(
+    () => (data?.results ?? []) as unknown as SurveyResponseItem[],
+    [data?.results],
+  );
+
   const table = useReactTable({
-    data: (data?.results ?? []) as unknown as SurveyResponseItem[],
+    data: tableData,
     columns,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
+    manualSorting: true,
+    enableSorting: false,
     onSortingChange: setSorting,
     onRowSelectionChange: setRowSelection,
     state: {
@@ -376,18 +482,138 @@ export default function AllSurveysPage() {
 
           <div className="flex gap-2 justify-between items-center">
             <ButtonGroup aria-label="Filter survei">
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-40 !h-9 rounded-l-sm rounded-r-none border-r-0 bg-white shadow-none" aria-label="Filter berdasarkan status">
-                  <SelectValue placeholder="All" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="DRAFT">Draf</SelectItem>
-                  <SelectItem value="SUBMITTED">Diajukan</SelectItem>
-                  <SelectItem value="VERIFIED">Terverifikasi</SelectItem>
-                  <SelectItem value="REJECTED">Ditolak</SelectItem>
-                </SelectContent>
-              </Select>
+              {/* Kategori */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="!h-9 bg-white shadow-none">
+                    {KATEGORI_LABELS[kategoriFilter]}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-44">
+                  <DropdownMenuLabel>Kategori</DropdownMenuLabel>
+                  <DropdownMenuRadioGroup value={kategoriFilter} onValueChange={setKategoriFilter}>
+                    <DropdownMenuRadioItem value="all">Semua Kategori</DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="FASKES">Faskes</DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="NON FASKES">Non-Faskes</DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Tanggal */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="!h-9 bg-white shadow-none">
+                    {dateFilter ? dateFilter.toLocaleDateString('id-ID') : 'Tanggal'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-auto p-0">
+                  <Calendar
+                    mode="single"
+                    selected={dateFilter}
+                    onSelect={setDateFilter}
+                  />
+                  {dateFilter && (
+                    <div className="border-t p-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => setDateFilter(undefined)}
+                      >
+                        Hapus Tanggal
+                      </Button>
+                    </div>
+                  )}
+                </PopoverContent>
+              </Popover>
+
+              {/* Kecamatan */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="!h-9 bg-white shadow-none">
+                    {kecamatanFilter
+                      ? kecamatanList.find((k) => k.id === kecamatanFilter)?.name ?? 'Kecamatan'
+                      : 'Kecamatan'}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="max-h-72 overflow-y-auto w-52">
+                  <DropdownMenuLabel>Kecamatan</DropdownMenuLabel>
+                  <DropdownMenuRadioGroup
+                    value={kecamatanFilter ? String(kecamatanFilter) : 'all'}
+                    onValueChange={(v) => {
+                      setKecamatanFilter(v === 'all' ? undefined : Number(v));
+                      setDesaFilter(undefined);
+                    }}
+                  >
+                    <DropdownMenuRadioItem value="all">Semua Kecamatan</DropdownMenuRadioItem>
+                    {kecamatanList.map((k) => (
+                      <DropdownMenuRadioItem key={k.id} value={String(k.id)}>
+                        {k.name}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Desa (nested from Kecamatan) */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="!h-9 bg-white shadow-none"
+                    disabled={!kecamatanFilter}
+                  >
+                    {desaFilter
+                      ? desaList.find((d) => d.id === desaFilter)?.name ?? 'Desa'
+                      : 'Desa'}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="max-h-72 overflow-y-auto w-52">
+                  <DropdownMenuLabel>Desa</DropdownMenuLabel>
+                  <DropdownMenuRadioGroup
+                    value={desaFilter ? String(desaFilter) : 'all'}
+                    onValueChange={(v) => setDesaFilter(v === 'all' ? undefined : Number(v))}
+                  >
+                    <DropdownMenuRadioItem value="all">Semua Desa</DropdownMenuRadioItem>
+                    {desaList.map((d) => (
+                      <DropdownMenuRadioItem key={d.id} value={String(d.id)}>
+                        {d.name}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Enumerator */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="!h-9 bg-white shadow-none">
+                    {enumeratorFilter
+                      ? (() => {
+                          const u = enumeratorList.find((e) => e.id === enumeratorFilter);
+                          return u ? (u.full_name || u.email) : 'Enumerator';
+                        })()
+                      : 'Enumerator'}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="max-h-72 overflow-y-auto w-56">
+                  <DropdownMenuLabel>Enumerator</DropdownMenuLabel>
+                  <DropdownMenuRadioGroup
+                    value={enumeratorFilter ? String(enumeratorFilter) : 'all'}
+                    onValueChange={(v) => setEnumeratorFilter(v === 'all' ? undefined : Number(v))}
+                  >
+                    <DropdownMenuRadioItem value="all">Semua Enumerator</DropdownMenuRadioItem>
+                    {enumeratorList.map((u) => (
+                      <DropdownMenuRadioItem key={u.id} value={String(u.id)}>
+                        {u.full_name || u.email}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </ButtonGroup>
+            <div className="flex gap-2 items-center">
               <Select value={sorting.length > 0 ? `${sorting[0].id}-${sorting[0].desc ? 'desc' : 'asc'}` : 'default'} onValueChange={(value) => {
                 if (value === 'default') {
                   setSorting([]);
@@ -396,22 +622,20 @@ export default function AllSurveysPage() {
                   setSorting([{ id, desc: dir === 'desc' }]);
                 }
               }}>
-                <SelectTrigger className="w-44 !h-9 rounded-r-sm rounded-l-none bg-white shadow-none" aria-label="Urutkan">
+                <SelectTrigger className="w-44 !h-9 rounded-sm bg-white shadow-none" aria-label="Urutkan">
                   <HugeiconsIcon icon={SortingZA01Icon} size={16} />
                   <SelectValue placeholder="Urutkan" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="default">Urutkan</SelectItem>
-                  <SelectItem value="service_name-asc">Fasilitas A-Z</SelectItem>
-                  <SelectItem value="service_name-desc">Fasilitas Z-A</SelectItem>
+                  <SelectItem value="service__name-asc">Fasilitas A-Z</SelectItem>
+                  <SelectItem value="service__name-desc">Fasilitas Z-A</SelectItem>
                   <SelectItem value="survey_date-desc">Terbaru</SelectItem>
                   <SelectItem value="survey_date-asc">Terlama</SelectItem>
-                  <SelectItem value="surveyor_name-asc">Enumerator A-Z</SelectItem>
-                  <SelectItem value="surveyor_name-desc">Enumerator Z-A</SelectItem>
+                  <SelectItem value="surveyor__email-asc">Enumerator A-Z</SelectItem>
+                  <SelectItem value="surveyor__email-desc">Enumerator Z-A</SelectItem>
                 </SelectContent>
               </Select>
-            </ButtonGroup>
-            <div className="flex gap-2 items-center">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm" className="!h-9 bg-white shadow-none rounded-sm">

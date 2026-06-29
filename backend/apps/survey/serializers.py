@@ -252,6 +252,10 @@ class DynamicSurveyResponseListSerializer(serializers.ModelSerializer):
     service_name = serializers.CharField(source='service.name', read_only=True)
     service_city = serializers.CharField(source='service.city', read_only=True)
     service_kecamatan = serializers.SerializerMethodField()
+    service_desa = serializers.SerializerMethodField()
+    q1_nama_fasilitas = serializers.SerializerMethodField()
+    status_badan_hukum = serializers.SerializerMethodField()
+    thumbnail = serializers.SerializerMethodField()
     surveyor_name = serializers.SerializerMethodField()
     status_display = serializers.CharField(source='get_verification_status_display', read_only=True)
     kategori = serializers.SerializerMethodField()
@@ -262,7 +266,8 @@ class DynamicSurveyResponseListSerializer(serializers.ModelSerializer):
     class Meta:
         model = DynamicSurveyResponse
         fields = [
-            'id', 'template', 'template_name', 'service', 'service_name', 'service_city', 'service_kecamatan',
+            'id', 'template', 'template_name', 'service', 'service_name', 'service_city',
+            'service_kecamatan', 'service_desa', 'q1_nama_fasilitas', 'status_badan_hukum', 'thumbnail',
             'survey_date', 'surveyor', 'surveyor_name',
             'verification_status', 'status_display',
             'deletion_requested',
@@ -323,6 +328,35 @@ class DynamicSurveyResponseListSerializer(serializers.ModelSerializer):
             return q7_answer.geographic_unit.name
         # Fallback to service kecamatan field
         return obj.service.kecamatan if obj.service else None
+
+    def get_service_desa(self, obj):
+        """Q8 answer's geographic_unit (Desa/Kelurahan), fallback to service field."""
+        for answer in obj.answers.all():
+            if answer.question.code == 'Q8' and answer.geographic_unit:
+                return answer.geographic_unit.name
+        return getattr(obj.service, 'desa', None) if obj.service else None
+
+    def get_q1_nama_fasilitas(self, obj):
+        """Q1 free-text facility name as entered in the survey."""
+        for answer in obj.answers.all():
+            if answer.question.code == 'Q1':
+                value = (answer.text_value or '').strip()
+                return value or None
+        return None
+
+    def get_status_badan_hukum(self, obj):
+        """Q13 selected choice labels (legal entity status)."""
+        labels = self._choice_labels(obj, {'Q13'})
+        return ', '.join(labels) if labels else None
+
+    def get_thumbnail(self, obj):
+        """Absolute URL of the first facility photo, if any."""
+        photo = next(iter(obj.photos.all()), None)
+        if not photo or not photo.image:
+            return None
+        request = self.context.get('request')
+        url = photo.image.url
+        return request.build_absolute_uri(url) if request else url
 
 
 class DynamicSurveyResponseDetailSerializer(serializers.ModelSerializer):
