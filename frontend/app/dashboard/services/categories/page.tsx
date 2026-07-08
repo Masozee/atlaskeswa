@@ -31,8 +31,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -50,11 +52,13 @@ import {
 } from "@tanstack/react-table";
 import { BasicStableInputsOfCare } from "@/lib/types/api";
 import { Separator } from '@/components/ui/separator';
-import { Add01Icon, Upload01Icon, MoreHorizontalIcon, Edit04Icon, Delete01Icon, EyeIcon, Download01Icon, ArrangeByLettersAZIcon, ArrowLeft01Icon, ArrowRight01Icon } from 'hugeicons-react';
+import { ButtonGroup } from "@/components/ui/button-group";
+import { Add01Icon, Upload01Icon, MoreHorizontalIcon, Edit04Icon, Delete01Icon, EyeIcon, Download01Icon, ArrangeByLettersAZIcon } from 'hugeicons-react';
 
 const breadcrumbs = [
-  { label: 'Dashboard', href: '/dashboard' },
-  { label: 'Service Categories' },
+  { label: 'Dasbor', href: '/dashboard' },
+  { label: 'Layanan', href: '/dashboard/services' },
+  { label: 'Kategori Layanan' },
 ];
 
 type ImportResult = { created: number; updated: number; errors: { row: number; error: string }[] };
@@ -84,21 +88,21 @@ function ImportDialog({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Import from CSV</DialogTitle>
+          <DialogTitle>Impor dari CSV</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
           <p className="text-sm text-muted-foreground">
-            Upload a CSV file with columns: <span className="font-mono text-xs bg-muted px-1 rounded">code</span>, <span className="font-mono text-xs bg-muted px-1 rounded">name</span>, <span className="font-mono text-xs bg-muted px-1 rounded">description</span>, <span className="font-mono text-xs bg-muted px-1 rounded">is_active</span>
+            Unggah berkas CSV dengan kolom: <span className="font-mono text-xs bg-muted px-1 rounded">code</span>, <span className="font-mono text-xs bg-muted px-1 rounded">name</span>, <span className="font-mono text-xs bg-muted px-1 rounded">description</span>, <span className="font-mono text-xs bg-muted px-1 rounded">is_active</span>
           </p>
           <div className="space-y-2">
-            <Label>File * <span className="text-muted-foreground font-normal">(CSV, XLSX, JSON)</span></Label>
+            <Label>Berkas * <span className="text-muted-foreground font-normal">(CSV, XLSX, JSON)</span></Label>
             <div className="flex rounded-md border overflow-hidden">
               <label htmlFor="csv-file" className="flex items-center justify-center px-4 py-1.5 text-sm font-medium hover:bg-accent transition-colors cursor-pointer whitespace-nowrap">
-                Choose File
+                Pilih Berkas
               </label>
               <div className="w-px bg-border" />
               <span className="flex items-center px-3 py-1.5 text-sm text-muted-foreground truncate flex-1">
-                {file ? file.name : 'No file chosen'}
+                {file ? file.name : 'Belum ada berkas dipilih'}
               </span>
               <input id="csv-file" type="file" accept=".csv,.xlsx,.json" className="sr-only" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
             </div>
@@ -106,19 +110,19 @@ function ImportDialog({
           <div className="flex items-center gap-2">
             <Checkbox id="update-existing" checked={updateExisting} onCheckedChange={(v) => setUpdateExisting(!!v)} />
             <Label htmlFor="update-existing" className="text-sm font-normal cursor-pointer">
-              Update existing records (match by code)
+              Perbarui data yang sudah ada (cocokkan berdasarkan kode)
             </Label>
           </div>
           {result && (
             <div className="rounded-lg border p-3 space-y-2">
-              {result.created > 0 && <p className="text-sm font-medium text-green-600">{result.created} record(s) created.</p>}
-              {result.updated > 0 && <p className="text-sm font-medium text-blue-600">{result.updated} record(s) updated.</p>}
-              {result.created === 0 && result.updated === 0 && <p className="text-sm font-medium text-muted-foreground">No records imported.</p>}
+              {result.created > 0 && <p className="text-sm font-medium text-green-600">{result.created} data dibuat.</p>}
+              {result.updated > 0 && <p className="text-sm font-medium text-blue-600">{result.updated} data diperbarui.</p>}
+              {result.created === 0 && result.updated === 0 && <p className="text-sm font-medium text-muted-foreground">Tidak ada data yang diimpor.</p>}
               {result.errors.length > 0 && (
                 <div className="space-y-1">
-                  <p className="text-sm font-medium text-destructive">{result.errors.length} row(s) skipped:</p>
+                  <p className="text-sm font-medium text-destructive">{result.errors.length} baris dilewati:</p>
                   <ul className="text-xs text-muted-foreground space-y-0.5 max-h-32 overflow-y-auto">
-                    {result.errors.map((e, i) => <li key={i}>Row {e.row}: {e.error}</li>)}
+                    {result.errors.map((e, i) => <li key={i}>Baris {e.row}: {e.error}</li>)}
                   </ul>
                 </div>
               )}
@@ -126,10 +130,10 @@ function ImportDialog({
           )}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>{result ? 'Close' : 'Cancel'}</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{result ? 'Tutup' : 'Batal'}</Button>
           {!result && (
             <Button onClick={() => file && onImport(file, updateExisting)} disabled={!file || isPending}>
-              {isPending ? 'Importing...' : 'Import'}
+              {isPending ? 'Mengimpor...' : 'Impor'}
             </Button>
           )}
         </DialogFooter>
@@ -217,8 +221,8 @@ const BSICTab = forwardRef<TabActions>(function BSICTab(_, ref) {
       cell: ({ row }) => <Checkbox checked={row.getIsSelected()} onCheckedChange={(v) => row.toggleSelected(!!v)} aria-label="Select row" />,
       enableSorting: false, enableGlobalFilter: false,
     },
-    { accessorKey: 'code', header: 'Code', cell: ({ row }) => <div className="font-mono font-medium">{row.getValue('code')}</div> },
-    { accessorKey: 'name', header: 'Name', cell: ({ row }) => <div className="font-medium max-w-xs whitespace-normal break-words">{row.getValue('name')}</div> },
+    { accessorKey: 'code', header: 'Kode', cell: ({ row }) => <div className="font-mono font-medium">{row.getValue('code')}</div> },
+    { accessorKey: 'name', header: 'Nama', cell: ({ row }) => <div className="font-medium max-w-xs whitespace-normal break-words">{row.getValue('name')}</div> },
     {
       accessorKey: 'kategori_layanan_name', header: 'Kategori Layanan',
       cell: ({ row }) => <div className="text-sm">{row.original.kategori_layanan_name || <span className="text-muted-foreground">-</span>}</div>,
@@ -229,29 +233,29 @@ const BSICTab = forwardRef<TabActions>(function BSICTab(_, ref) {
         const kf = row.original.kategori_fasilitas;
         if (!kf) return <span className="text-muted-foreground text-sm">-</span>;
         return kf === 'KESEHATAN'
-          ? <Badge variant="outline" className="text-blue-600 border-blue-600">Fasilitas Kesehatan</Badge>
-          : <Badge variant="outline" className="text-orange-600 border-orange-600">Non Kesehatan</Badge>;
+          ? <Badge variant="outline-info">Fasilitas Kesehatan</Badge>
+          : <Badge variant="outline-warning">Non Kesehatan</Badge>;
       },
     },
-    { accessorKey: 'description', header: 'Description', cell: ({ row }) => <div className="max-w-xs text-sm text-muted-foreground">{(row.getValue('description') as string) || '-'}</div> },
+    { accessorKey: 'description', header: 'Deskripsi', cell: ({ row }) => <div className="max-w-xs text-sm text-muted-foreground">{(row.getValue('description') as string) || '-'}</div> },
     {
       accessorKey: 'is_active', header: 'Status',
       cell: ({ row }) => row.getValue('is_active')
-        ? <Badge variant="outline" className="text-green-600 border-green-600">Active</Badge>
-        : <Badge variant="outline" className="text-red-600 border-red-600">Inactive</Badge>,
+        ? <Badge variant="default">Aktif</Badge>
+        : <Badge variant="secondary">Nonaktif</Badge>,
     },
     {
       id: 'actions', header: '',
       cell: ({ row }) => (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-8 w-8 p-0"><MoreHorizontalIcon className="h-4 w-4" /></Button>
+            <Button variant="outline" size="sm" className="h-8 w-8 p-0 rounded-sm"><MoreHorizontalIcon className="h-4 w-4" /></Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => openEdit(row.original)}><Edit04Icon className="mr-2 h-4 w-4" />Edit</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => updateBSIC.mutateAsync({ id: row.original.id, is_active: !row.original.is_active })}><EyeIcon className="mr-2 h-4 w-4" />{row.original.is_active ? 'Set Inactive' : 'Set Active'}</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => openEdit(row.original)}><Edit04Icon className="mr-2 h-4 w-4" />Ubah</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => updateBSIC.mutateAsync({ id: row.original.id, is_active: !row.original.is_active })}><EyeIcon className="mr-2 h-4 w-4" />{row.original.is_active ? 'Nonaktifkan' : 'Aktifkan'}</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => deleteBSIC.mutateAsync(row.original.id)}><Delete01Icon className="mr-2 h-4 w-4" />Delete</DropdownMenuItem>
+            <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => deleteBSIC.mutateAsync(row.original.id)}><Delete01Icon className="mr-2 h-4 w-4" />Hapus</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       ),
@@ -264,71 +268,110 @@ const BSICTab = forwardRef<TabActions>(function BSICTab(_, ref) {
 
   if (isLoading) return <div className="flex items-center justify-center py-12"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" /></div>;
 
+  const statusLabel = filterStatus === 'active' ? 'Aktif' : filterStatus === 'inactive' ? 'Nonaktif' : 'Status';
+  const kfLabel = filterKF === 'KESEHATAN' ? 'Kesehatan' : filterKF === 'NON_KESEHATAN' ? 'Non Kesehatan' : 'Fasilitas';
+  const klLabel = filterKL ? ((kategoriLayananList ?? []).find(kl => String(kl.id) === filterKL)?.name ?? 'Kategori Layanan') : 'Kategori Layanan';
+
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Input placeholder="Search by code, name or description..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-64" />
-          <Button variant="outline" size="sm" onClick={() => setSorting((s) => s.length && s[0].id === 'name' && !s[0].desc ? [{ id: 'name', desc: true }] : [{ id: 'name', desc: false }])}><ArrangeByLettersAZIcon className="w-4 h-4" /></Button>
-        </div>
-        <div className="flex rounded-md border overflow-hidden">
-          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-36 px-3 py-1.5 text-sm font-medium bg-transparent outline-none hover:bg-accent transition-colors cursor-pointer">
-            <option value="">All Status</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </select>
-          <div className="w-px bg-border" />
-          <select value={filterKF} onChange={(e) => setFilterKF(e.target.value)} className="w-36 px-3 py-1.5 text-sm font-medium bg-transparent outline-none hover:bg-accent transition-colors cursor-pointer">
-            <option value="">All Fasilitas</option>
-            <option value="KESEHATAN">Kesehatan</option>
-            <option value="NON_KESEHATAN">Non Kesehatan</option>
-          </select>
-          <div className="w-px bg-border" />
-          <select value={filterKL} onChange={(e) => setFilterKL(e.target.value)} className="w-36 px-3 py-1.5 text-sm font-medium bg-transparent outline-none hover:bg-accent transition-colors cursor-pointer">
-            <option value="">All Kategori Layanan</option>
-            {(kategoriLayananList ?? []).map(kl => <option key={kl.id} value={String(kl.id)}>{kl.name}</option>)}
-          </select>
+    <div className="flex flex-col gap-3">
+      <div className="flex gap-2 justify-between items-center">
+        <ButtonGroup aria-label="Filter kategori BSIC">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="min-h-9 bg-white shadow-none">{statusLabel}</Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-44">
+              <DropdownMenuLabel>Status</DropdownMenuLabel>
+              <DropdownMenuCheckboxItem checked={filterStatus === 'active'} onCheckedChange={() => setFilterStatus(filterStatus === 'active' ? '' : 'active')} onSelect={(e) => e.preventDefault()}>Aktif</DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem checked={filterStatus === 'inactive'} onCheckedChange={() => setFilterStatus(filterStatus === 'inactive' ? '' : 'inactive')} onSelect={(e) => e.preventDefault()}>Nonaktif</DropdownMenuCheckboxItem>
+              {filterStatus && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onSelect={() => setFilterStatus('')}>Hapus filter</DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="min-h-9 bg-white shadow-none">{kfLabel}</Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-48">
+              <DropdownMenuLabel>Kategori Fasilitas</DropdownMenuLabel>
+              <DropdownMenuCheckboxItem checked={filterKF === 'KESEHATAN'} onCheckedChange={() => setFilterKF(filterKF === 'KESEHATAN' ? '' : 'KESEHATAN')} onSelect={(e) => e.preventDefault()}>Kesehatan</DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem checked={filterKF === 'NON_KESEHATAN'} onCheckedChange={() => setFilterKF(filterKF === 'NON_KESEHATAN' ? '' : 'NON_KESEHATAN')} onSelect={(e) => e.preventDefault()}>Non Kesehatan</DropdownMenuCheckboxItem>
+              {filterKF && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onSelect={() => setFilterKF('')}>Hapus filter</DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="min-h-9 bg-white shadow-none">{klLabel}</Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="max-h-72 overflow-y-auto w-56">
+              <DropdownMenuLabel>Kategori Layanan</DropdownMenuLabel>
+              {(kategoriLayananList ?? []).map(kl => (
+                <DropdownMenuCheckboxItem key={kl.id} checked={filterKL === String(kl.id)} onCheckedChange={() => setFilterKL(filterKL === String(kl.id) ? '' : String(kl.id))} onSelect={(e) => e.preventDefault()}>{kl.name}</DropdownMenuCheckboxItem>
+              ))}
+              {filterKL && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onSelect={() => setFilterKL('')}>Hapus filter</DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </ButtonGroup>
+        <div className="flex gap-2 items-center">
+          <Button variant="outline" size="sm" className="min-h-9 bg-white shadow-none rounded-sm" onClick={() => setSorting((s) => s.length && s[0].id === 'name' && !s[0].desc ? [{ id: 'name', desc: true }] : [{ id: 'name', desc: false }])}><ArrangeByLettersAZIcon className="w-4 h-4" /></Button>
+          <Input placeholder="Cari berdasarkan kode, nama atau deskripsi..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-64 min-h-9 rounded-sm bg-white shadow-none" />
         </div>
       </div>
 
       {selectedCount > 0 && (
-        <div className="flex items-center gap-3 rounded-lg border bg-muted/50 px-4 py-2">
-          <span className="text-sm font-medium">{selectedCount} selected</span>
+        <div className="flex items-center gap-3 rounded-sm border bg-muted/50 px-4 py-2">
+          <span className="text-sm font-medium">{selectedCount} dipilih</span>
           <Separator orientation="vertical" className="h-4" />
-          <Button variant="outline" size="sm" className="w-40 justify-center" onClick={() => { setBulkStatus(''); setBulkEditOpen(true); }}><Edit04Icon className="w-4 h-4 mr-2" />Bulk Edit</Button>
+          <Button variant="outline" size="sm" className="w-40 justify-center rounded-sm shadow-none" onClick={() => { setBulkStatus(''); setBulkEditOpen(true); }}><Edit04Icon className="w-4 h-4 mr-2" />Ubah Massal</Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="w-40 justify-center"><Download01Icon className="w-4 h-4 mr-2" />Export Selected</Button>
+              <Button variant="outline" size="sm" className="w-40 justify-center rounded-sm shadow-none"><Download01Icon className="w-4 h-4 mr-2" />Ekspor Terpilih</Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => exportBSIC(selectedIds, 'csv')}>Export as CSV</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => exportBSIC(selectedIds, 'xlsx')}>Export as XLSX</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => exportBSIC(selectedIds, 'json')}>Export as JSON</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => exportBSIC(selectedIds, 'csv')}>Ekspor sebagai CSV</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => exportBSIC(selectedIds, 'xlsx')}>Ekspor sebagai XLSX</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => exportBSIC(selectedIds, 'json')}>Ekspor sebagai JSON</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant="destructive" size="sm" className="w-40 justify-center" onClick={async () => { await bulkDeleteBSIC.mutateAsync(selectedIds); setRowSelection({}); }} disabled={bulkDeleteBSIC.isPending}><Delete01Icon className="w-4 h-4 mr-2" />{bulkDeleteBSIC.isPending ? 'Deleting...' : 'Delete Selected'}</Button>
-          <Button variant="ghost" size="sm" onClick={() => setRowSelection({})}>Clear</Button>
+          <Button variant="destructive" size="sm" className="w-40 justify-center rounded-sm shadow-none" onClick={async () => { await bulkDeleteBSIC.mutateAsync(selectedIds); setRowSelection({}); }} disabled={bulkDeleteBSIC.isPending}><Delete01Icon className="w-4 h-4 mr-2" />{bulkDeleteBSIC.isPending ? 'Menghapus...' : 'Hapus Terpilih'}</Button>
+          <Button variant="ghost" size="sm" onClick={() => setRowSelection({})}>Bersihkan</Button>
         </div>
       )}
 
-      <div className="rounded-lg border">
+      <div className="rounded-sm border bg-white overflow-hidden">
         <Table>
-          <TableHeader>{table.getHeaderGroups().map((hg) => (<TableRow key={hg.id}>{hg.headers.map((h) => <TableHead key={h.id}>{h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}</TableHead>)}</TableRow>))}</TableHeader>
+          <TableHeader>{table.getHeaderGroups().map((hg) => (<TableRow key={hg.id} className="bg-muted/50">{hg.headers.map((h) => <TableHead key={h.id} className="border-r last:border-r-0">{h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}</TableHead>)}</TableRow>))}</TableHeader>
           <TableBody>
             {table.getRowModel().rows.length ? table.getRowModel().rows.map((row) => (
-              <TableRow key={row.id}>{row.getVisibleCells().map((cell) => <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>)}</TableRow>
-            )) : <TableRow><TableCell colSpan={columns.length} className="h-24 text-center">No BSIC categories found.</TableCell></TableRow>}
+              <TableRow key={row.id} className="even:bg-muted">{row.getVisibleCells().map((cell) => <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>)}</TableRow>
+            )) : <TableRow><TableCell colSpan={columns.length} className="h-24 text-center">Tidak ada kategori BSIC ditemukan.</TableCell></TableRow>}
           </TableBody>
         </Table>
       </div>
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          {filteredData.length > 0 ? `Showing ${pagination.pageIndex * pagination.pageSize + 1}–${Math.min((pagination.pageIndex + 1) * pagination.pageSize, table.getFilteredRowModel().rows.length)} of ${table.getFilteredRowModel().rows.length}` : 'No results'}
+          {filteredData.length > 0 ? `Menampilkan ${pagination.pageIndex * pagination.pageSize + 1}–${Math.min((pagination.pageIndex + 1) * pagination.pageSize, table.getFilteredRowModel().rows.length)} dari ${table.getFilteredRowModel().rows.length}` : 'Tidak ada hasil'}
         </p>
-        <div className="flex items-center gap-1">
-          <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}><ArrowLeft01Icon className="h-4 w-4" /></Button>
-          <span className="text-sm px-2">Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}</span>
-          <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}><ArrowRight01Icon className="h-4 w-4" /></Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="shadow-none rounded-sm" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>Sebelumnya</Button>
+          <span className="text-sm text-muted-foreground">Halaman {table.getState().pagination.pageIndex + 1} dari {table.getPageCount()}</span>
+          <Button variant="outline" size="sm" className="shadow-none rounded-sm" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>Selanjutnya</Button>
         </div>
       </div>
 
@@ -337,29 +380,29 @@ const BSICTab = forwardRef<TabActions>(function BSICTab(_, ref) {
 
       <Dialog open={bulkEditOpen} onOpenChange={setBulkEditOpen}>
         <DialogContent className="sm:max-w-sm">
-          <DialogHeader><DialogTitle>Bulk Edit — {selectedCount} categories</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Ubah Massal — {selectedCount} kategori</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label>Set Status</Label>
+              <Label>Atur Status</Label>
               <div className="flex gap-2">
-                <button type="button" onClick={() => setBulkStatus('active')} className={`flex-1 rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${bulkStatus === 'active' ? 'border-primary bg-primary text-primary-foreground' : 'border-input bg-background hover:bg-accent hover:text-accent-foreground'}`}>Active</button>
-                <button type="button" onClick={() => setBulkStatus('inactive')} className={`flex-1 rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${bulkStatus === 'inactive' ? 'border-destructive bg-destructive text-destructive-foreground' : 'border-input bg-background hover:bg-accent hover:text-accent-foreground'}`}>Inactive</button>
+                <button type="button" onClick={() => setBulkStatus('active')} className={`flex-1 rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${bulkStatus === 'active' ? 'border-primary bg-primary text-primary-foreground' : 'border-input bg-background hover:bg-accent hover:text-accent-foreground'}`}>Aktif</button>
+                <button type="button" onClick={() => setBulkStatus('inactive')} className={`flex-1 rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${bulkStatus === 'inactive' ? 'border-destructive bg-destructive text-destructive-foreground' : 'border-input bg-background hover:bg-accent hover:text-accent-foreground'}`}>Nonaktif</button>
               </div>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setBulkEditOpen(false)}>Cancel</Button>
-            <Button onClick={async () => { await bulkUpdateBSIC.mutateAsync({ ids: selectedIds, updates: { is_active: bulkStatus === 'active' } }); setBulkEditOpen(false); setRowSelection({}); }} disabled={!bulkStatus || bulkUpdateBSIC.isPending}>{bulkUpdateBSIC.isPending ? 'Saving…' : 'Apply'}</Button>
+            <Button variant="outline" onClick={() => setBulkEditOpen(false)}>Batal</Button>
+            <Button onClick={async () => { await bulkUpdateBSIC.mutateAsync({ ids: selectedIds, updates: { is_active: bulkStatus === 'active' } }); setBulkEditOpen(false); setRowSelection({}); }} disabled={!bulkStatus || bulkUpdateBSIC.isPending}>{bulkUpdateBSIC.isPending ? 'Menyimpan…' : 'Terapkan'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>{editTarget ? 'Edit BSIC Category' : 'Add New BSIC Category'}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editTarget ? 'Ubah Kategori BSIC' : 'Tambah Kategori BSIC'}</DialogTitle></DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2"><Label htmlFor="bsic-code">Code *</Label><Input id="bsic-code" value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))} placeholder="e.g. B1.1" required /></div>
-            <div className="space-y-2"><Label htmlFor="bsic-name">Name *</Label><Input id="bsic-name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Category name" required /></div>
+            <div className="space-y-2"><Label htmlFor="bsic-code">Kode *</Label><Input id="bsic-code" value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))} placeholder="mis. B1.1" required /></div>
+            <div className="space-y-2"><Label htmlFor="bsic-name">Nama *</Label><Input id="bsic-name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Nama kategori" required /></div>
             <div className="space-y-2">
               <Label htmlFor="bsic-kl">Kategori Layanan</Label>
               <select
@@ -368,7 +411,7 @@ const BSICTab = forwardRef<TabActions>(function BSICTab(_, ref) {
                 onChange={(e) => setForm((f) => ({ ...f, kategori_layanan: e.target.value ? Number(e.target.value) : null }))}
                 className="flex h-9 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-1"
               >
-                <option value="">— None —</option>
+                <option value="">— Tidak ada —</option>
                 {(kategoriLayananList ?? []).map((kl) => (
                   <option key={kl.id} value={kl.id}>{kl.code} — {kl.name}</option>
                 ))}
@@ -390,10 +433,10 @@ const BSICTab = forwardRef<TabActions>(function BSICTab(_, ref) {
                 ))}
               </div>
             </div>
-            <div className="space-y-2"><Label htmlFor="bsic-desc">Description</Label><Textarea id="bsic-desc" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="Optional description" rows={3} /></div>
+            <div className="space-y-2"><Label htmlFor="bsic-desc">Deskripsi</Label><Textarea id="bsic-desc" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="Deskripsi opsional" rows={3} /></div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={createBSIC.isPending || updateBSIC.isPending}>{createBSIC.isPending || updateBSIC.isPending ? 'Saving...' : editTarget ? 'Save Changes' : 'Add Category'}</Button>
+              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Batal</Button>
+              <Button type="submit" disabled={createBSIC.isPending || updateBSIC.isPending}>{createBSIC.isPending || updateBSIC.isPending ? 'Menyimpan...' : editTarget ? 'Simpan Perubahan' : 'Tambah Kategori'}</Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -408,31 +451,31 @@ export default function ServiceCategoriesPage() {
   return (
     <>
       <PageHeader breadcrumbs={breadcrumbs} />
-      <div className="flex flex-1 flex-col gap-4 p-4">
-        <div className="border-b pb-4 flex items-start justify-between">
+      <div className="flex flex-1 flex-col gap-3">
+        <div className="flex items-start justify-between gap-3 px-6 pt-6">
           <div>
-            <h1 className="text-2xl font-bold">BSIC Categories</h1>
-            <p className="text-muted-foreground">Manage Basic Stable Inputs of Care classifications</p>
+            <h1 className="text-xl font-bold">Kategori BSIC</h1>
+            <p className="text-sm text-muted-foreground">Kelola klasifikasi Basic Stable Inputs of Care</p>
           </div>
           <div className="flex items-center gap-2">
-            <div className="flex rounded-md border overflow-hidden">
-              <button onClick={() => bsicRef.current?.openImport()} className="flex items-center justify-center gap-2 w-28 py-1.5 text-sm font-medium hover:bg-accent transition-colors"><Upload01Icon className="w-4 h-4" />Import</button>
-              <div className="w-px bg-border" />
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button className="flex items-center justify-center gap-2 w-28 py-1.5 text-sm font-medium hover:bg-accent transition-colors"><Download01Icon className="w-4 h-4" />Export All</button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => bsicRef.current?.exportAll('csv')}>Export as CSV</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => bsicRef.current?.exportAll('xlsx')}>Export as XLSX</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => bsicRef.current?.exportAll('json')}>Export as JSON</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-            <Button size="sm" onClick={() => bsicRef.current?.openAdd()}><Add01Icon className="w-4 h-4 mr-2" />Add New</Button>
+            <Button variant="outline" size="sm" className="h-9 rounded-sm shadow-none" onClick={() => bsicRef.current?.openImport()}><Upload01Icon className="w-4 h-4 mr-2" />Impor</Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="h-9 rounded-sm shadow-none"><Download01Icon className="w-4 h-4 mr-2" />Ekspor Semua</Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => bsicRef.current?.exportAll('csv')}>Ekspor sebagai CSV</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => bsicRef.current?.exportAll('xlsx')}>Ekspor sebagai XLSX</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => bsicRef.current?.exportAll('json')}>Ekspor sebagai JSON</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button size="sm" className="h-9 rounded-sm shadow-none" onClick={() => bsicRef.current?.openAdd()}><Add01Icon className="w-4 h-4 mr-2" />Tambah</Button>
           </div>
         </div>
-        <BSICTab ref={bsicRef} />
+        <Separator />
+        <div className="flex flex-col gap-3 px-6 pb-6">
+          <BSICTab ref={bsicRef} />
+        </div>
       </div>
     </>
   );

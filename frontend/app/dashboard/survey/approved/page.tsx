@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { useSurveyResponses } from '@/hooks/use-survey-responses';
 import { PageHeader } from "@/components/page-header";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -40,16 +41,26 @@ const breadcrumbs = [
   { label: 'Survei Terverifikasi' },
 ];
 
+const PAGE_SIZE = 50;
+
 export default function ApprovedSurveysPage() {
   const [search, setSearch] = useState('');
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search]);
 
   const { data, isLoading } = useSurveyResponses({
     search,
     verification_status: 'VERIFIED',
     ordering: '-survey_date',
-    page_size: 50,
+    page,
+    page_size: PAGE_SIZE,
   });
+
+  const totalPages = data ? Math.max(1, Math.ceil(data.count / PAGE_SIZE)) : 1;
 
   const columns = useMemo<ColumnDef<SurveyResponseItem, any>[]>(() => [
     {
@@ -130,33 +141,35 @@ export default function ApprovedSurveysPage() {
     <>
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-4">
+      <div className="flex flex-1 flex-col gap-3">
 
-        <div className="px-8 pt-8">
-          <h1 className="text-2xl font-bold">Survei Terverifikasi</h1>
-          <p className="text-muted-foreground">Daftar survei yang sudah diverifikasi</p>
+        <div className="flex items-start justify-between gap-3 px-6 pt-6">
+          <div>
+            <h1 className="text-xl font-bold">Survei Terverifikasi</h1>
+            <p className="text-sm text-muted-foreground">Daftar survei yang sudah diverifikasi</p>
+          </div>
         </div>
 
         <Separator />
 
-        <div className="flex flex-col gap-4 px-8 pb-8">
+        <div className="flex flex-col gap-3 px-6 pb-6">
 
         <div className="flex gap-2 justify-between items-center">
           <Input
             placeholder="Cari berdasarkan nama layanan, kota..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-64"
+            className="w-64 h-9 rounded-sm bg-white shadow-none"
           />
         </div>
 
-        <div className="rounded-lg border">
+        <div className="rounded-sm border bg-white overflow-hidden">
           <Table>
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id}>
+                <TableRow key={headerGroup.id} className="bg-muted/50">
                   {headerGroup.headers.map((header) => (
-                    <TableHead key={header.id}>
+                    <TableHead key={header.id} className="border-r last:border-r-0">
                       {header.isPlaceholder
                         ? null
                         : flexRender(
@@ -171,7 +184,7 @@ export default function ApprovedSurveysPage() {
             <TableBody>
               {table.getRowModel().rows?.length ? (
                 table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id}>
+                  <TableRow key={row.id} className="even:bg-muted">
                     {row.getVisibleCells().map((cell) => (
                       <TableCell key={cell.id}>
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -193,8 +206,33 @@ export default function ApprovedSurveysPage() {
         {data && data.count > 0 && (
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
-              Menampilkan {data.results.length} dari {data.count} survei
+              Menampilkan {(page - 1) * PAGE_SIZE + 1}
+              {'–'}
+              {Math.min(page * PAGE_SIZE, data.count)} dari {data.count} survei
             </p>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="shadow-none rounded-sm"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={!data.previous || page <= 1}
+              >
+                Sebelumnya
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                Halaman {page} dari {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="shadow-none rounded-sm"
+                onClick={() => setPage((p) => p + 1)}
+                disabled={!data.next || page >= totalPages}
+              >
+                Selanjutnya
+              </Button>
+            </div>
           </div>
         )}
               </div>

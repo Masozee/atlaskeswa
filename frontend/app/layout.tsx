@@ -18,13 +18,31 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const APP_TITLE = "OMMHA - One Map for Mental Health Atlas";
+const APP_DESCRIPTION =
+  "Sistem Direktori Layanan Kesehatan Jiwa dan Manajemen Survei DESDE-LTC";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+
 export const metadata: Metadata = {
-  title: "OMMHA - One Map for Mental Health Atlas",
-  description: "OMMHA - One Map for Mental Health Atlas - Sistem Direktori Layanan Kesehatan Jiwa dan Manajemen Survei DESDE-LTC",
-  icons: {
-    icon: "/OMMHA.png",
-    shortcut: "/OMMHA.png",
-    apple: "/OMMHA.png",
+  metadataBase: new URL(SITE_URL),
+  title: APP_TITLE,
+  description: APP_DESCRIPTION,
+  applicationName: "OMMHA",
+  // favicon.ico, icon.png, apple-icon.png in app/ are auto-detected by Next.
+  openGraph: {
+    type: "website",
+    siteName: "OMMHA",
+    title: APP_TITLE,
+    description: APP_DESCRIPTION,
+    url: SITE_URL,
+    locale: "id_ID",
+    // opengraph-image.png in app/ is auto-detected by Next.
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: APP_TITLE,
+    description: APP_DESCRIPTION,
+    // twitter-image.png in app/ is auto-detected by Next.
   },
 };
 

@@ -89,6 +89,26 @@ export function useUsers(params?: UsersQueryParams) {
 }
 
 /**
+ * User statistics (admin only) — GET /accounts/users/stats/
+ * Includes per-role user counts via role_distribution.
+ */
+export interface UserStats {
+  total_users: number;
+  active_users: number;
+  inactive_users: number;
+  role_distribution: Array<{ role: string; count: number }>;
+  recent_registrations: number;
+  recently_active_users: number;
+}
+
+export function useUserStats() {
+  return useQuery({
+    queryKey: queryKeys.users.stats(),
+    queryFn: () => apiClient.get<UserStats>('/accounts/users/stats/'),
+  });
+}
+
+/**
  * Infinite scroll users
  * Best practice: Use for paginated lists with load more
  */

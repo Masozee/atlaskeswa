@@ -49,8 +49,8 @@ interface ActivityLog {
 }
 
 const breadcrumbs = [
-  { label: 'Dashboard', href: '/dashboard' },
-  { label: 'Login History' },
+  { label: 'Dasbor', href: '/dashboard' },
+  { label: 'Riwayat Masuk' },
 ];
 
 export default function LoginHistoryPage() {
@@ -74,7 +74,7 @@ export default function LoginHistoryPage() {
     () => [
       {
         accessorKey: 'user_name',
-        header: 'User',
+        header: 'Pengguna',
         cell: ({ row }) => (
           <div>
             <div className="font-medium">{row.getValue('user_name')}</div>
@@ -84,7 +84,7 @@ export default function LoginHistoryPage() {
       },
       {
         accessorKey: 'action_display',
-        header: 'Action',
+        header: 'Aksi',
         cell: ({ row }) => {
           const action = row.original.action;
           const variant =
@@ -107,7 +107,7 @@ export default function LoginHistoryPage() {
       },
       {
         accessorKey: 'description',
-        header: 'Description',
+        header: 'Deskripsi',
         cell: ({ row }) => {
           const desc = row.getValue('description') as string;
           return <div className="max-w-md whitespace-normal break-words">{desc || '-'}</div>;
@@ -115,7 +115,7 @@ export default function LoginHistoryPage() {
       },
       {
         accessorKey: 'ip_address',
-        header: 'IP Address',
+        header: 'Alamat IP',
         cell: ({ row }) => {
           return (
             <div className="font-mono text-sm">{row.getValue('ip_address') || '-'}</div>
@@ -124,7 +124,7 @@ export default function LoginHistoryPage() {
       },
       {
         accessorKey: 'timestamp',
-        header: 'Timestamp',
+        header: 'Waktu',
         cell: ({ row }) => {
           const date = new Date(row.getValue('timestamp'));
           return (
@@ -157,7 +157,7 @@ export default function LoginHistoryPage() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="h-8 w-8 p-0">
-                  <span className="sr-only">Open menu</span>
+                  <span className="sr-only">Buka menu</span>
                   <HugeiconsIcon icon={MoreHorizontalIcon} size={16} />
                 </Button>
               </DropdownMenuTrigger>
@@ -167,7 +167,7 @@ export default function LoginHistoryPage() {
                     navigator.clipboard.writeText(log.id.toString());
                   }}
                 >
-                  Copy ID
+                  Salin ID
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => {
@@ -176,7 +176,7 @@ export default function LoginHistoryPage() {
                     }
                   }}
                 >
-                  Copy IP Address
+                  Salin Alamat IP
                 </DropdownMenuItem>
                 {log.user_agent && (
                   <DropdownMenuItem
@@ -184,7 +184,7 @@ export default function LoginHistoryPage() {
                       alert(`User Agent:\n\n${log.user_agent}`);
                     }}
                   >
-                    View User Agent
+                    Lihat User Agent
                   </DropdownMenuItem>
                 )}
               </DropdownMenuContent>
@@ -212,30 +212,30 @@ export default function LoginHistoryPage() {
 
       <div className="flex flex-1 flex-col gap-4">
 
-        <div className="px-8 pt-8">
-          <h1 className="text-2xl font-bold">Login History</h1>
-          <p className="text-muted-foreground">User activity and authentication logs</p>
+        <div className="px-6 pt-6">
+          <h1 className="text-xl font-bold">Riwayat Masuk</h1>
+          <p className="text-sm text-muted-foreground">Log aktivitas dan autentikasi pengguna</p>
         </div>
 
         <Separator />
 
-        <div className="flex flex-col gap-4 px-8 pb-8">
+        <div className="flex flex-col gap-4 px-6 pb-6">
 
         <div className="grid grid-cols-4 gap-4">
           <div className="rounded-lg border bg-card p-4">
-            <div className="text-sm text-muted-foreground">Total Activities</div>
+            <div className="text-sm text-muted-foreground">Total Aktivitas</div>
             <div className="text-2xl font-bold">{activityLogsData?.count || 0}</div>
           </div>
           <div className="rounded-lg border bg-card p-4">
-            <div className="text-sm text-muted-foreground">Successful Logins</div>
+            <div className="text-sm text-muted-foreground">Masuk Berhasil</div>
             <div className="text-2xl font-bold text-green-600">{stats.login}</div>
           </div>
           <div className="rounded-lg border bg-card p-4">
-            <div className="text-sm text-muted-foreground">Logouts</div>
+            <div className="text-sm text-muted-foreground">Keluar</div>
             <div className="text-2xl font-bold text-blue-600">{stats.logout}</div>
           </div>
           <div className="rounded-lg border bg-card p-4">
-            <div className="text-sm text-muted-foreground">Failed Attempts</div>
+            <div className="text-sm text-muted-foreground">Percobaan Gagal</div>
             <div className="text-2xl font-bold text-destructive">{stats.failed}</div>
           </div>
         </div>
@@ -244,23 +244,23 @@ export default function LoginHistoryPage() {
           columns={columns}
           data={activityLogsData?.results || []}
           searchKey="user_name"
-          searchPlaceholder="Search by user or description..."
+          searchPlaceholder="Cari berdasarkan pengguna atau deskripsi..."
           showColumnToggle={true}
           showPagination={true}
           pageSize={20}
           filterComponent={
             <Select value={actionFilter} onValueChange={setActionFilter}>
               <SelectTrigger className="w-56">
-                <SelectValue placeholder="Filter by action" />
+                <SelectValue placeholder="Filter berdasarkan aksi" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Actions</SelectItem>
-                <SelectItem value="LOGIN">Login</SelectItem>
-                <SelectItem value="LOGOUT">Logout</SelectItem>
-                <SelectItem value="LOGIN_FAILED">Failed Login</SelectItem>
-                <SelectItem value="CREATE">Create</SelectItem>
-                <SelectItem value="UPDATE">Update</SelectItem>
-                <SelectItem value="DELETE">Delete</SelectItem>
+                <SelectItem value="all">Semua Aksi</SelectItem>
+                <SelectItem value="LOGIN">Masuk</SelectItem>
+                <SelectItem value="LOGOUT">Keluar</SelectItem>
+                <SelectItem value="LOGIN_FAILED">Masuk Gagal</SelectItem>
+                <SelectItem value="CREATE">Buat</SelectItem>
+                <SelectItem value="UPDATE">Ubah</SelectItem>
+                <SelectItem value="DELETE">Hapus</SelectItem>
               </SelectContent>
             </Select>
           }

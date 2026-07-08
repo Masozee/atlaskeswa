@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, Fragment, type Dispatch, type SetStateAction } from 'react';
 import Link from 'next/link';
 import { useSurveyResponses, useDeleteSurveyResponse, useBulkDeleteSurveyResponses } from '@/hooks/use-survey-responses';
 import { useGeographicUnits } from '@/hooks/use-geographic-units';
@@ -36,11 +36,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -48,13 +47,15 @@ import {
   ColumnDef,
   flexRender,
   getCoreRowModel,
+  getExpandedRowModel,
+  ExpandedState,
   SortingState,
   RowSelectionState,
   useReactTable,
 } from "@tanstack/react-table";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { SortingZA01Icon } from "@hugeicons/core-free-icons";
-import { MoreHorizontalIcon, ViewIcon, Delete01Icon, Download04Icon } from 'hugeicons-react';
+import { SortingZA01Icon, HardDriveDownloadIcon } from "@hugeicons/core-free-icons";
+import { MoreHorizontalIcon, ViewIcon, Delete01Icon, PlusSignIcon, InformationCircleIcon, Edit02Icon } from 'hugeicons-react';
 import { toast } from 'sonner';
 
 interface SurveyResponseItem {
@@ -97,11 +98,16 @@ const breadcrumbs = [
 
 const PAGE_SIZE = 50;
 
-const KATEGORI_LABELS: Record<string, string> = {
-  all: 'Semua Kategori',
-  FASKES: 'Faskes',
-  'NON FASKES': 'Non-Faskes',
-};
+// Survey verification statuses (backend DynamicSurveyResponse.verification_status).
+const STATUS_OPTIONS = [
+  { value: 'DRAFT', label: 'Draf' },
+  { value: 'SUBMITTED', label: 'Menunggu Verifikasi' },
+  { value: 'VERIFIED', label: 'Terverifikasi' },
+  { value: 'REJECTED', label: 'Ditolak' },
+];
+const STATUS_LABELS: Record<string, string> = Object.fromEntries(
+  STATUS_OPTIONS.map((o) => [o.value, o.label]),
+);
 
 function toISODate(d: Date): string {
   const y = d.getFullYear();
@@ -112,21 +118,29 @@ function toISODate(d: Date): string {
 
 export default function AllSurveysPage() {
   const [search, setSearch] = useState('');
-  const [kategoriFilter, setKategoriFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
+  const [kategoriFilter, setKategoriFilter] = useState<string[]>([]);
   const [dateFilter, setDateFilter] = useState<Date | undefined>(undefined);
-  const [kecamatanFilter, setKecamatanFilter] = useState<number | undefined>(undefined);
-  const [desaFilter, setDesaFilter] = useState<number | undefined>(undefined);
-  const [enumeratorFilter, setEnumeratorFilter] = useState<number | undefined>(undefined);
+  const [kecamatanFilter, setKecamatanFilter] = useState<number[]>([]);
+  const [desaFilter, setDesaFilter] = useState<number[]>([]);
+  const [enumeratorFilter, setEnumeratorFilter] = useState<number[]>([]);
+
+  // Toggle a value in a multi-select filter array
+  const toggleIn = <T,>(setter: Dispatch<SetStateAction<T[]>>, value: T) =>
+    setter((prev) => (prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]));
   const [sorting, setSorting] = useState<SortingState>([]);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  const [expanded, setExpanded] = useState<ExpandedState>({});
   const [page, setPage] = useState(1);
 
   // Filter option data
   const { data: kecamatanList = [] } = useGeographicUnits({ level: 'KECAMATAN' });
+  // Desa options are scoped to the first selected kecamatan (nested filter).
+  const desaParentId = kecamatanFilter[0];
   const { data: desaList = [] } = useGeographicUnits({
     level: 'DESA_KELURAHAN',
-    parent: kecamatanFilter,
-    enabled: !!kecamatanFilter,
+    parent: desaParentId,
+    enabled: !!desaParentId,
   });
   const { data: enumeratorData } = useUsers({ page_size: 200 });
   const enumeratorList = enumeratorData?.results ?? [];
@@ -137,18 +151,25 @@ export default function AllSurveysPage() {
     ? `${sorting[0].desc ? '-' : ''}${sorting[0].id}`
     : '-survey_date';
 
+  const statusParam = statusFilter.length > 0 ? statusFilter.join(',') : undefined;
+  const kategoriParam = kategoriFilter.length > 0 ? kategoriFilter.join(',') : undefined;
+  const kecamatanParam = kecamatanFilter.length > 0 ? kecamatanFilter.join(',') : undefined;
+  const desaParam = desaFilter.length > 0 ? desaFilter.join(',') : undefined;
+  const surveyorParam = enumeratorFilter.length > 0 ? enumeratorFilter.join(',') : undefined;
+
   // Reset to first page whenever any filter or sort changes
   useEffect(() => {
     setPage(1);
-  }, [search, kategoriFilter, selectedDateIso, kecamatanFilter, desaFilter, enumeratorFilter, ordering]);
+  }, [search, statusParam, kategoriParam, selectedDateIso, kecamatanParam, desaParam, surveyorParam, ordering]);
 
   const { data, isLoading } = useSurveyResponses({
     search,
-    kategori: kategoriFilter !== 'all' ? kategoriFilter : undefined,
+    verification_status: statusParam,
+    kategori: kategoriParam,
     survey_date: selectedDateIso,
-    kecamatan: kecamatanFilter,
-    desa: desaFilter,
-    surveyor: enumeratorFilter,
+    kecamatan: kecamatanParam,
+    desa: desaParam,
+    surveyor: surveyorParam,
     ordering,
     page,
     page_size: PAGE_SIZE,
@@ -176,11 +197,12 @@ export default function AllSurveysPage() {
     params.set('file_format', format);
     params.set('value_format', valueFormat);
     if (search) params.set('search', search);
-    if (kategoriFilter !== 'all') params.set('kategori', kategoriFilter);
+    if (statusParam) params.set('verification_status', statusParam);
+    if (kategoriParam) params.set('kategori', kategoriParam);
     if (selectedDateIso) params.set('survey_date', selectedDateIso);
-    if (kecamatanFilter) params.set('kecamatan', String(kecamatanFilter));
-    if (desaFilter) params.set('desa', String(desaFilter));
-    if (enumeratorFilter) params.set('surveyor', String(enumeratorFilter));
+    if (kecamatanParam) params.set('kecamatan', kecamatanParam);
+    if (desaParam) params.set('desa', desaParam);
+    if (surveyorParam) params.set('surveyor', surveyorParam);
     const ids = table.getSelectedRowModel().rows.map((r) => r.original.id);
     if (ids.length > 0) params.set('ids', ids.join(','));
     try {
@@ -215,25 +237,43 @@ export default function AllSurveysPage() {
     {
       id: 'select',
       header: ({ table }) => (
-        <Checkbox
-          checked={table.getIsAllPageRowsSelected()}
-          onCheckedChange={(v) => table.toggleAllPageRowsSelected(!!v)}
-          aria-label="Select all"
-        />
+        <div className="px-2">
+          <Checkbox
+            checked={table.getIsAllPageRowsSelected()}
+            onCheckedChange={(v) => table.toggleAllPageRowsSelected(!!v)}
+            aria-label="Select all"
+          />
+        </div>
       ),
       cell: ({ row }) => (
-        <Checkbox
-          checked={row.getIsSelected()}
-          onCheckedChange={(v) => row.toggleSelected(!!v)}
-          aria-label="Select row"
-        />
+        <div className="px-2">
+          <Checkbox
+            checked={row.getIsSelected()}
+            onCheckedChange={(v) => row.toggleSelected(!!v)}
+            aria-label="Select row"
+          />
+        </div>
       ),
       enableSorting: false,
     },
     {
       accessorKey: "id",
       header: "ID",
-      cell: ({ row }) => <div className="w-12">{row.getValue("id")}</div>,
+      cell: ({ row }) => {
+        const status = row.original.verification_status;
+        const label = row.original.status_display || status;
+        const variant =
+          status === 'VERIFIED' ? 'default' :
+          status === 'SUBMITTED' ? 'secondary' :
+          status === 'REJECTED' ? 'destructive' :
+          'outline';
+        return (
+          <div className="flex flex-col items-start gap-1">
+            <Badge variant={variant} className="text-[10px] px-1.5 py-0">{label}</Badge>
+            <span className="w-12 font-medium">{row.getValue("id")}</span>
+          </div>
+        );
+      },
     },
     {
       accessorKey: "thumbnail",
@@ -332,59 +372,21 @@ export default function AllSurveysPage() {
       ),
     },
     {
-      accessorKey: "kode_desde_ltc",
-      header: "Kode DESDE-LTC",
-      cell: ({ row }) => {
-        const raw = row.getValue("kode_desde_ltc") as string[] | string | null;
-        const entries = Array.isArray(raw) ? raw : typeof raw === 'string' && raw ? [raw] : null;
-        if (!entries || entries.length === 0) return <span className="text-muted-foreground">—</span>;
-        return (
-          <div className="max-w-[240px] whitespace-normal break-words text-sm flex flex-col gap-0.5">
-            {entries.map((entry) => {
-              const sep = entry.indexOf(' — ');
-              const code = sep >= 0 ? entry.slice(0, sep) : entry;
-              const name = sep >= 0 ? entry.slice(sep + 3) : '';
-              return (
-                <div key={entry} title={entry}>
-                  <span className="font-medium">{code}</span>
-                  {name && <span className="text-muted-foreground"> — {name}</span>}
-                </div>
-              );
-            })}
-          </div>
-        );
-      },
-    },
-    {
-      accessorKey: "surveyor_name",
-      header: "Enumerator",
-      cell: ({ row }) => {
-        return <div className="text-sm">{row.getValue("surveyor_name")}</div>;
-      },
-    },
-    {
-      accessorKey: "survey_date",
-      header: "Tgl Wawancara",
-      cell: ({ row }) => {
-        const date = new Date(row.getValue("survey_date"));
-        return <div>{date.toLocaleDateString('id-ID')}</div>;
-      },
-    },
-    {
-      id: 'lama_wawancara',
-      header: "Lama Wawancara",
-      cell: ({ row }) => (
-        <div className="text-sm">
-          {formatDuration(row.original.started_at, row.original.submitted_at)}
-        </div>
-      ),
-      enableSorting: false,
-    },
-    {
       id: 'actions',
       header: '',
       cell: ({ row }) => (
-        <DropdownMenu>
+        <div className="flex items-center justify-end gap-1">
+          <Button
+            variant="outline"
+            size="sm"
+            className={`h-8 w-8 p-0 shadow-none rounded-sm ${row.getIsExpanded() ? 'bg-primary text-primary-foreground' : ''}`}
+            onClick={() => row.toggleExpanded()}
+            aria-label="Info survei"
+            aria-expanded={row.getIsExpanded()}
+          >
+            <InformationCircleIcon className="h-4 w-4" />
+          </Button>
+          <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="h-8 w-8 p-0 shadow-none rounded-sm">
               <MoreHorizontalIcon className="h-4 w-4" />
@@ -397,6 +399,12 @@ export default function AllSurveysPage() {
                 Lihat Detail
               </Link>
             </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href={`/dashboard/survey/${row.original.id}/edit`}>
+                <Edit02Icon className="mr-2 h-4 w-4" />
+                Edit
+              </Link>
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
               className="text-destructive focus:text-destructive"
@@ -407,6 +415,7 @@ export default function AllSurveysPage() {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        </div>
       ),
     },
   ], []);
@@ -420,13 +429,16 @@ export default function AllSurveysPage() {
     data: tableData,
     columns,
     getCoreRowModel: getCoreRowModel(),
+    getExpandedRowModel: getExpandedRowModel(),
     manualSorting: true,
     enableSorting: false,
     onSortingChange: setSorting,
     onRowSelectionChange: setRowSelection,
+    onExpandedChange: setExpanded,
     state: {
       sorting,
       rowSelection,
+      expanded,
     },
     enableRowSelection: true,
   });
@@ -454,9 +466,42 @@ export default function AllSurveysPage() {
 
       <div className="flex flex-1 flex-col gap-3">
 
-        <div className="px-6 pt-6">
-          <h1 className="text-xl font-bold">Semua Catatan Survei</h1>
-          <p className="text-sm text-muted-foreground">Pengumpulan dan pemantauan data survei</p>
+        <div className="flex items-start justify-between gap-3 px-6 pt-6">
+          <div>
+            <h1 className="text-xl font-bold">Semua Catatan Survei</h1>
+            <p className="text-sm text-muted-foreground">Pengumpulan dan pemantauan data survei</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="h-9 border border-input bg-white shadow-none rounded-sm box-border">
+                  <HugeiconsIcon icon={HardDriveDownloadIcon} size={16} className="mr-2" />
+                  Ekspor
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleExport('xlsx', 'code')}>
+                  XLSX — Kode (mis. AKUT)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport('xlsx', 'label')}>
+                  XLSX — Jawaban Lengkap
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => handleExport('csv', 'code')}>
+                  CSV — Kode
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport('csv', 'label')}>
+                  CSV — Jawaban Lengkap
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button asChild size="sm" className="h-9 border border-input rounded-sm shadow-none box-border">
+              <Link href="/survey/new">
+                <PlusSignIcon className="w-4 h-4 mr-2" />
+                Survei Baru
+              </Link>
+            </Button>
+          </div>
         </div>
 
         <Separator />
@@ -482,27 +527,82 @@ export default function AllSurveysPage() {
 
           <div className="flex gap-2 justify-between items-center">
             <ButtonGroup aria-label="Filter survei">
+              {/* Status */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="min-h-9 bg-white shadow-none">
+                    {statusFilter.length === 0
+                      ? 'Status'
+                      : statusFilter.length === 1
+                        ? (STATUS_LABELS[statusFilter[0]] ?? statusFilter[0])
+                        : `Status (${statusFilter.length})`}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-52">
+                  <DropdownMenuLabel>Status Verifikasi</DropdownMenuLabel>
+                  {STATUS_OPTIONS.map((o) => (
+                    <DropdownMenuCheckboxItem
+                      key={o.value}
+                      checked={statusFilter.includes(o.value)}
+                      onCheckedChange={() => toggleIn<string>(setStatusFilter, o.value)}
+                      onSelect={(e) => e.preventDefault()}
+                    >
+                      {o.label}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                  {statusFilter.length > 0 && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onSelect={() => setStatusFilter([])}>
+                        Hapus filter
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
               {/* Kategori */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="!h-9 bg-white shadow-none">
-                    {KATEGORI_LABELS[kategoriFilter]}
+                  <Button variant="outline" size="sm" className="min-h-9 bg-white shadow-none">
+                    {kategoriFilter.length === 0
+                      ? 'Kategori'
+                      : kategoriFilter.length === 1
+                        ? (kategoriFilter[0] === 'FASKES' ? 'Faskes' : 'Non-Faskes')
+                        : `Kategori (${kategoriFilter.length})`}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-44">
                   <DropdownMenuLabel>Kategori</DropdownMenuLabel>
-                  <DropdownMenuRadioGroup value={kategoriFilter} onValueChange={setKategoriFilter}>
-                    <DropdownMenuRadioItem value="all">Semua Kategori</DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem value="FASKES">Faskes</DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem value="NON FASKES">Non-Faskes</DropdownMenuRadioItem>
-                  </DropdownMenuRadioGroup>
+                  <DropdownMenuCheckboxItem
+                    checked={kategoriFilter.includes('FASKES')}
+                    onCheckedChange={() => toggleIn<string>(setKategoriFilter, 'FASKES')}
+                    onSelect={(e) => e.preventDefault()}
+                  >
+                    Faskes
+                  </DropdownMenuCheckboxItem>
+                  <DropdownMenuCheckboxItem
+                    checked={kategoriFilter.includes('NON FASKES')}
+                    onCheckedChange={() => toggleIn<string>(setKategoriFilter, 'NON FASKES')}
+                    onSelect={(e) => e.preventDefault()}
+                  >
+                    Non-Faskes
+                  </DropdownMenuCheckboxItem>
+                  {kategoriFilter.length > 0 && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onSelect={() => setKategoriFilter([])}>
+                        Hapus filter
+                      </DropdownMenuItem>
+                    </>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
 
               {/* Tanggal */}
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className="!h-9 bg-white shadow-none">
+                  <Button variant="outline" size="sm" className="min-h-9 bg-white shadow-none">
                     {dateFilter ? dateFilter.toLocaleDateString('id-ID') : 'Tanggal'}
                   </Button>
                 </PopoverTrigger>
@@ -530,28 +630,37 @@ export default function AllSurveysPage() {
               {/* Kecamatan */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="!h-9 bg-white shadow-none">
-                    {kecamatanFilter
-                      ? kecamatanList.find((k) => k.id === kecamatanFilter)?.name ?? 'Kecamatan'
-                      : 'Kecamatan'}
+                  <Button variant="outline" size="sm" className="min-h-9 bg-white shadow-none">
+                    {kecamatanFilter.length === 0
+                      ? 'Kecamatan'
+                      : kecamatanFilter.length === 1
+                        ? kecamatanList.find((k) => k.id === kecamatanFilter[0])?.name ?? 'Kecamatan'
+                        : `Kecamatan (${kecamatanFilter.length})`}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="max-h-72 overflow-y-auto w-52">
                   <DropdownMenuLabel>Kecamatan</DropdownMenuLabel>
-                  <DropdownMenuRadioGroup
-                    value={kecamatanFilter ? String(kecamatanFilter) : 'all'}
-                    onValueChange={(v) => {
-                      setKecamatanFilter(v === 'all' ? undefined : Number(v));
-                      setDesaFilter(undefined);
-                    }}
-                  >
-                    <DropdownMenuRadioItem value="all">Semua Kecamatan</DropdownMenuRadioItem>
-                    {kecamatanList.map((k) => (
-                      <DropdownMenuRadioItem key={k.id} value={String(k.id)}>
-                        {k.name}
-                      </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
+                  {kecamatanList.map((k) => (
+                    <DropdownMenuCheckboxItem
+                      key={k.id}
+                      checked={kecamatanFilter.includes(k.id)}
+                      onCheckedChange={() => {
+                        toggleIn(setKecamatanFilter, k.id);
+                        setDesaFilter([]);
+                      }}
+                      onSelect={(e) => e.preventDefault()}
+                    >
+                      {k.name}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                  {kecamatanFilter.length > 0 && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onSelect={() => { setKecamatanFilter([]); setDesaFilter([]); }}>
+                        Hapus filter
+                      </DropdownMenuItem>
+                    </>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
 
@@ -561,55 +670,73 @@ export default function AllSurveysPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="!h-9 bg-white shadow-none"
-                    disabled={!kecamatanFilter}
+                    className="min-h-9 bg-white shadow-none"
+                    disabled={kecamatanFilter.length === 0}
                   >
-                    {desaFilter
-                      ? desaList.find((d) => d.id === desaFilter)?.name ?? 'Desa'
-                      : 'Desa'}
+                    {desaFilter.length === 0
+                      ? 'Desa'
+                      : desaFilter.length === 1
+                        ? desaList.find((d) => d.id === desaFilter[0])?.name ?? 'Desa'
+                        : `Desa (${desaFilter.length})`}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="max-h-72 overflow-y-auto w-52">
                   <DropdownMenuLabel>Desa</DropdownMenuLabel>
-                  <DropdownMenuRadioGroup
-                    value={desaFilter ? String(desaFilter) : 'all'}
-                    onValueChange={(v) => setDesaFilter(v === 'all' ? undefined : Number(v))}
-                  >
-                    <DropdownMenuRadioItem value="all">Semua Desa</DropdownMenuRadioItem>
-                    {desaList.map((d) => (
-                      <DropdownMenuRadioItem key={d.id} value={String(d.id)}>
-                        {d.name}
-                      </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
+                  {desaList.map((d) => (
+                    <DropdownMenuCheckboxItem
+                      key={d.id}
+                      checked={desaFilter.includes(d.id)}
+                      onCheckedChange={() => toggleIn(setDesaFilter, d.id)}
+                      onSelect={(e) => e.preventDefault()}
+                    >
+                      {d.name}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                  {desaFilter.length > 0 && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onSelect={() => setDesaFilter([])}>
+                        Hapus filter
+                      </DropdownMenuItem>
+                    </>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
 
               {/* Enumerator */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="!h-9 bg-white shadow-none">
-                    {enumeratorFilter
-                      ? (() => {
-                          const u = enumeratorList.find((e) => e.id === enumeratorFilter);
-                          return u ? (u.full_name || u.email) : 'Enumerator';
-                        })()
-                      : 'Enumerator'}
+                  <Button variant="outline" size="sm" className="min-h-9 bg-white shadow-none">
+                    {enumeratorFilter.length === 0
+                      ? 'Enumerator'
+                      : enumeratorFilter.length === 1
+                        ? (() => {
+                            const u = enumeratorList.find((e) => e.id === enumeratorFilter[0]);
+                            return u ? (u.full_name || u.email) : 'Enumerator';
+                          })()
+                        : `Enumerator (${enumeratorFilter.length})`}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="max-h-72 overflow-y-auto w-56">
                   <DropdownMenuLabel>Enumerator</DropdownMenuLabel>
-                  <DropdownMenuRadioGroup
-                    value={enumeratorFilter ? String(enumeratorFilter) : 'all'}
-                    onValueChange={(v) => setEnumeratorFilter(v === 'all' ? undefined : Number(v))}
-                  >
-                    <DropdownMenuRadioItem value="all">Semua Enumerator</DropdownMenuRadioItem>
-                    {enumeratorList.map((u) => (
-                      <DropdownMenuRadioItem key={u.id} value={String(u.id)}>
-                        {u.full_name || u.email}
-                      </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
+                  {enumeratorList.map((u) => (
+                    <DropdownMenuCheckboxItem
+                      key={u.id}
+                      checked={enumeratorFilter.includes(u.id)}
+                      onCheckedChange={() => toggleIn(setEnumeratorFilter, u.id)}
+                      onSelect={(e) => e.preventDefault()}
+                    >
+                      {u.full_name || u.email}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                  {enumeratorFilter.length > 0 && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onSelect={() => setEnumeratorFilter([])}>
+                        Hapus filter
+                      </DropdownMenuItem>
+                    </>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </ButtonGroup>
@@ -622,7 +749,7 @@ export default function AllSurveysPage() {
                   setSorting([{ id, desc: dir === 'desc' }]);
                 }
               }}>
-                <SelectTrigger className="w-44 !h-9 rounded-sm bg-white shadow-none" aria-label="Urutkan">
+                <SelectTrigger className="w-44 min-h-9 rounded-sm bg-white shadow-none" aria-label="Urutkan">
                   <HugeiconsIcon icon={SortingZA01Icon} size={16} />
                   <SelectValue placeholder="Urutkan" />
                 </SelectTrigger>
@@ -636,34 +763,11 @@ export default function AllSurveysPage() {
                   <SelectItem value="surveyor__email-desc">Enumerator Z-A</SelectItem>
                 </SelectContent>
               </Select>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="!h-9 bg-white shadow-none rounded-sm">
-                    <Download04Icon className="w-4 h-4 mr-2" />
-                    Ekspor
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => handleExport('xlsx', 'code')}>
-                    XLSX — Kode (mis. AKUT)
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleExport('xlsx', 'label')}>
-                    XLSX — Jawaban Lengkap
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => handleExport('csv', 'code')}>
-                    CSV — Kode
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleExport('csv', 'label')}>
-                    CSV — Jawaban Lengkap
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
               <Input
                 placeholder="Cari berdasarkan nama layanan, kota..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-64 bg-white shadow-none rounded-sm"
+                className="w-64 min-h-9 bg-white shadow-none rounded-sm"
                 aria-label="Cari survei"
               />
             </div>
@@ -689,19 +793,67 @@ export default function AllSurveysPage() {
               </TableHeader>
               <TableBody>
                 {table.getRowModel().rows?.length ? (
-                  table.getRowModel().rows.map((row) => (
-                    <TableRow
-                      key={row.id}
-                      data-state={row.getIsSelected() && 'selected'}
-                      className="even:bg-muted"
-                    >
-                      {row.getVisibleCells().map((cell) => (
-                        <TableCell key={cell.id}>
-                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))
+                  table.getRowModel().rows.map((row) => {
+                    const rawDate = (row.original as { survey_date?: string | null }).survey_date;
+                    const surveyDate = rawDate ? new Date(rawDate).toLocaleDateString('id-ID') : '—';
+                    return (
+                      <Fragment key={row.id}>
+                        <TableRow
+                          data-state={row.getIsSelected() && 'selected'}
+                          className={row.getIsExpanded() ? 'bg-muted/60' : 'even:bg-muted'}
+                        >
+                          {row.getVisibleCells().map((cell) => (
+                            <TableCell key={cell.id}>
+                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                        {row.getIsExpanded() && (
+                          <TableRow className="bg-muted/30 hover:bg-muted/30">
+                            <TableCell colSpan={row.getVisibleCells().length} className="py-3">
+                              <div className="flex flex-wrap gap-x-10 gap-y-2 px-2 text-sm">
+                                <div>
+                                  <span className="text-xs text-muted-foreground block">Tgl Wawancara</span>
+                                  <span className="font-medium">{surveyDate}</span>
+                                </div>
+                                <div>
+                                  <span className="text-xs text-muted-foreground block">Lama Wawancara</span>
+                                  <span className="font-medium">{formatDuration(row.original.started_at, row.original.submitted_at)}</span>
+                                </div>
+                                <div>
+                                  <span className="text-xs text-muted-foreground block">Enumerator</span>
+                                  <span className="font-medium">{row.original.surveyor_name || '—'}</span>
+                                </div>
+                                <div className="min-w-0">
+                                  <span className="text-xs text-muted-foreground block">Kode DESDE-LTC</span>
+                                  {(() => {
+                                    const raw = (row.original as { kode_desde_ltc?: string[] | string | null }).kode_desde_ltc;
+                                    const entries = Array.isArray(raw) ? raw : typeof raw === 'string' && raw ? [raw] : null;
+                                    if (!entries || entries.length === 0) return <span className="text-muted-foreground">—</span>;
+                                    return (
+                                      <div className="flex flex-col gap-0.5">
+                                        {entries.map((entry) => {
+                                          const sep = entry.indexOf(' — ');
+                                          const code = sep >= 0 ? entry.slice(0, sep) : entry;
+                                          const name = sep >= 0 ? entry.slice(sep + 3) : '';
+                                          return (
+                                            <div key={entry} title={entry}>
+                                              <span className="font-medium">{code}</span>
+                                              {name && <span className="text-muted-foreground"> — {name}</span>}
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    );
+                                  })()}
+                                </div>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </Fragment>
+                    );
+                  })
                 ) : (
                   <TableRow>
                     <TableCell colSpan={columns.length} className="h-24 text-center">

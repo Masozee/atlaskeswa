@@ -28,9 +28,9 @@ import {
 import { Separator } from '@/components/ui/separator';
 
 const breadcrumbs = [
-  { label: 'Dashboard', href: '/dashboard' },
-  { label: 'All Services', href: '/dashboard/services' },
-  { label: 'Add New Service' },
+  { label: 'Dasbor', href: '/dashboard' },
+  { label: 'Semua Layanan', href: '/dashboard/services' },
+  { label: 'Tambah Layanan Baru' },
 ];
 
 export default function AddServicePage() {
@@ -120,8 +120,8 @@ export default function AddServicePage() {
       <div className="flex flex-1 flex-col gap-4">
 
         <div className="px-8 pt-8">
-          <h1 className="text-2xl font-bold">Add New Service</h1>
-          <p className="text-muted-foreground">Register a new mental health service</p>
+          <h1 className="text-2xl font-bold">Tambah Layanan Baru</h1>
+          <p className="text-muted-foreground">Daftarkan layanan kesehatan jiwa baru</p>
         </div>
 
         <Separator />
@@ -146,8 +146,8 @@ export default function AddServicePage() {
             {/* Basic Information */}
             <Card>
               <CardHeader>
-                <CardTitle>Basic Information</CardTitle>
-                <CardDescription>Core service details</CardDescription>
+                <CardTitle>Informasi Dasar</CardTitle>
+                <CardDescription>Detail utama layanan</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <form.Field
@@ -161,7 +161,7 @@ export default function AddServicePage() {
                 >
                   {(field) => (
                     <div className="space-y-2">
-                      <Label htmlFor={field.name}>Service Name *</Label>
+                      <Label htmlFor={field.name}>Nama Layanan *</Label>
                       <Input
                         id={field.name}
                         value={field.state.value}
@@ -179,7 +179,7 @@ export default function AddServicePage() {
                 <form.Field name="description">
                   {(field) => (
                     <div className="space-y-2">
-                      <Label htmlFor={field.name}>Description</Label>
+                      <Label htmlFor={field.name}>Deskripsi</Label>
                       <Textarea
                         id={field.name}
                         value={field.state.value || ''}
@@ -203,10 +203,10 @@ export default function AddServicePage() {
                   >
                     {(field) => (
                       <div className="space-y-2">
-                        <Label htmlFor={field.name}>Main Type of Care *</Label>
+                        <Label htmlFor={field.name}>Jenis Perawatan Utama *</Label>
                         <Select value={field.state.value} onValueChange={field.handleChange}>
                           <SelectTrigger id={field.name} className={field.state.meta.errors?.length ? 'border-destructive' : ''}>
-                            <SelectValue placeholder="Select MTC" />
+                            <SelectValue placeholder="Pilih MTC" />
                           </SelectTrigger>
                           <SelectContent>
                             {mtcList?.map((mtc: { id: number; code: string; name: string }) => (
@@ -234,10 +234,10 @@ export default function AddServicePage() {
                   >
                     {(field) => (
                       <div className="space-y-2">
-                        <Label htmlFor={field.name}>BSIC Type *</Label>
+                        <Label htmlFor={field.name}>Jenis BSIC *</Label>
                         <Select value={field.state.value} onValueChange={field.handleChange}>
                           <SelectTrigger id={field.name} className={field.state.meta.errors?.length ? 'border-destructive' : ''}>
-                            <SelectValue placeholder="Select BSIC" />
+                            <SelectValue placeholder="Pilih BSIC" />
                           </SelectTrigger>
                           <SelectContent>
                             {bsicList?.map((bsic: { id: number; code: string; name: string }) => (
@@ -265,10 +265,10 @@ export default function AddServicePage() {
                   >
                     {(field) => (
                       <div className="space-y-2">
-                        <Label htmlFor={field.name}>Service Type *</Label>
+                        <Label htmlFor={field.name}>Jenis Layanan *</Label>
                         <Select value={field.state.value} onValueChange={field.handleChange}>
                           <SelectTrigger id={field.name} className={field.state.meta.errors?.length ? 'border-destructive' : ''}>
-                            <SelectValue placeholder="Select type" />
+                            <SelectValue placeholder="Pilih jenis" />
                           </SelectTrigger>
                           <SelectContent>
                             {serviceTypes?.map((type: { id: number; name: string }) => (
@@ -291,14 +291,14 @@ export default function AddServicePage() {
             {/* Location Information */}
             <Card>
               <CardHeader>
-                <CardTitle>Location</CardTitle>
-                <CardDescription>Service address and location details</CardDescription>
+                <CardTitle>Lokasi</CardTitle>
+                <CardDescription>Alamat dan detail lokasi layanan</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <form.Field name="address">
                   {(field) => (
                     <div className="space-y-2">
-                      <Label htmlFor={field.name}>Address</Label>
+                      <Label htmlFor={field.name}>Alamat</Label>
                       <Textarea
                         id={field.name}
                         value={field.state.value || ''}
@@ -322,7 +322,7 @@ export default function AddServicePage() {
                   >
                     {(field) => (
                       <div className="space-y-2">
-                        <Label htmlFor={field.name}>City *</Label>
+                        <Label htmlFor={field.name}>Kota *</Label>
                         <Input
                           id={field.name}
                           value={field.state.value}
@@ -348,7 +348,7 @@ export default function AddServicePage() {
                   >
                     {(field) => (
                       <div className="space-y-2">
-                        <Label htmlFor={field.name}>Province *</Label>
+                        <Label htmlFor={field.name}>Provinsi *</Label>
                         <Input
                           id={field.name}
                           value={field.state.value}
@@ -366,7 +366,7 @@ export default function AddServicePage() {
                   <form.Field name="postal_code">
                     {(field) => (
                       <div className="space-y-2">
-                        <Label htmlFor={field.name}>Postal Code</Label>
+                        <Label htmlFor={field.name}>Kode Pos</Label>
                         <Input
                           id={field.name}
                           value={field.state.value || ''}
@@ -382,7 +382,7 @@ export default function AddServicePage() {
                   <form.Field name="latitude">
                     {(field) => (
                       <div className="space-y-2">
-                        <Label htmlFor={field.name}>Latitude</Label>
+                        <Label htmlFor={field.name}>Lintang (Latitude)</Label>
                         <Input
                           id={field.name}
                           value={field.state.value || ''}
@@ -397,7 +397,7 @@ export default function AddServicePage() {
                   <form.Field name="longitude">
                     {(field) => (
                       <div className="space-y-2">
-                        <Label htmlFor={field.name}>Longitude</Label>
+                        <Label htmlFor={field.name}>Bujur (Longitude)</Label>
                         <Input
                           id={field.name}
                           value={field.state.value || ''}
@@ -415,14 +415,14 @@ export default function AddServicePage() {
             {/* Contact Information */}
             <Card>
               <CardHeader>
-                <CardTitle>Contact Information</CardTitle>
+                <CardTitle>Informasi Kontak</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid gap-4 md:grid-cols-3">
                   <form.Field name="phone_number">
                     {(field) => (
                       <div className="space-y-2">
-                        <Label htmlFor={field.name}>Phone Number</Label>
+                        <Label htmlFor={field.name}>Nomor Telepon</Label>
                         <Input
                           id={field.name}
                           value={field.state.value || ''}
@@ -469,14 +469,14 @@ export default function AddServicePage() {
             {/* Capacity & Staffing */}
             <Card>
               <CardHeader>
-                <CardTitle>Capacity & Staffing</CardTitle>
+                <CardTitle>Kapasitas & Kepegawaian</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid gap-4 md:grid-cols-2">
                   <form.Field name="bed_capacity">
                     {(field) => (
                       <div className="space-y-2">
-                        <Label htmlFor={field.name}>Bed Capacity</Label>
+                        <Label htmlFor={field.name}>Kapasitas Tempat Tidur</Label>
                         <Input
                           id={field.name}
                           type="number"
@@ -492,7 +492,7 @@ export default function AddServicePage() {
                   <form.Field name="staff_count">
                     {(field) => (
                       <div className="space-y-2">
-                        <Label htmlFor={field.name}>Total Staff</Label>
+                        <Label htmlFor={field.name}>Total Staf</Label>
                         <Input
                           id={field.name}
                           type="number"
@@ -510,7 +510,7 @@ export default function AddServicePage() {
                   <form.Field name="psychiatrist_count">
                     {(field) => (
                       <div className="space-y-2">
-                        <Label htmlFor={field.name}>Psychiatrists</Label>
+                        <Label htmlFor={field.name}>Psikiater</Label>
                         <Input
                           id={field.name}
                           type="number"
@@ -526,7 +526,7 @@ export default function AddServicePage() {
                   <form.Field name="psychologist_count">
                     {(field) => (
                       <div className="space-y-2">
-                        <Label htmlFor={field.name}>Psychologists</Label>
+                        <Label htmlFor={field.name}>Psikolog</Label>
                         <Input
                           id={field.name}
                           type="number"
@@ -542,7 +542,7 @@ export default function AddServicePage() {
                   <form.Field name="nurse_count">
                     {(field) => (
                       <div className="space-y-2">
-                        <Label htmlFor={field.name}>Nurses</Label>
+                        <Label htmlFor={field.name}>Perawat</Label>
                         <Input
                           id={field.name}
                           type="number"
@@ -558,7 +558,7 @@ export default function AddServicePage() {
                   <form.Field name="social_worker_count">
                     {(field) => (
                       <div className="space-y-2">
-                        <Label htmlFor={field.name}>Social Workers</Label>
+                        <Label htmlFor={field.name}>Pekerja Sosial</Label>
                         <Input
                           id={field.name}
                           type="number"
@@ -577,19 +577,19 @@ export default function AddServicePage() {
             {/* Service Features */}
             <Card>
               <CardHeader>
-                <CardTitle>Service Features</CardTitle>
+                <CardTitle>Fitur Layanan</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <form.Field name="operating_hours">
                   {(field) => (
                     <div className="space-y-2">
-                      <Label htmlFor={field.name}>Operating Hours</Label>
+                      <Label htmlFor={field.name}>Jam Operasional</Label>
                       <Input
                         id={field.name}
                         value={field.state.value || ''}
                         onBlur={field.handleBlur}
                         onChange={(e) => field.handleChange(e.target.value)}
-                        placeholder="e.g., Mon-Fri 8AM-5PM"
+                        placeholder="mis., Sen-Jum 08.00-17.00"
                       />
                     </div>
                   )}
@@ -604,7 +604,7 @@ export default function AddServicePage() {
                           checked={field.state.value || false}
                           onCheckedChange={(checked) => field.handleChange(!!checked)}
                         />
-                        <Label htmlFor={field.name} className="cursor-pointer">24/7 Service</Label>
+                        <Label htmlFor={field.name} className="cursor-pointer">Layanan 24/7</Label>
                       </div>
                     )}
                   </form.Field>
@@ -617,7 +617,7 @@ export default function AddServicePage() {
                           checked={field.state.value || false}
                           onCheckedChange={(checked) => field.handleChange(!!checked)}
                         />
-                        <Label htmlFor={field.name} className="cursor-pointer">Accepts Emergency Cases</Label>
+                        <Label htmlFor={field.name} className="cursor-pointer">Menerima Kasus Darurat</Label>
                       </div>
                     )}
                   </form.Field>
@@ -630,7 +630,7 @@ export default function AddServicePage() {
                           checked={field.state.value || false}
                           onCheckedChange={(checked) => field.handleChange(!!checked)}
                         />
-                        <Label htmlFor={field.name} className="cursor-pointer">Accepts BPJS</Label>
+                        <Label htmlFor={field.name} className="cursor-pointer">Menerima BPJS</Label>
                       </div>
                     )}
                   </form.Field>
@@ -643,7 +643,7 @@ export default function AddServicePage() {
                           checked={field.state.value || false}
                           onCheckedChange={(checked) => field.handleChange(!!checked)}
                         />
-                        <Label htmlFor={field.name} className="cursor-pointer">Accepts Private Insurance</Label>
+                        <Label htmlFor={field.name} className="cursor-pointer">Menerima Asuransi Swasta</Label>
                       </div>
                     )}
                   </form.Field>
@@ -652,13 +652,13 @@ export default function AddServicePage() {
                 <form.Field name="funding_sources">
                   {(field) => (
                     <div className="space-y-2">
-                      <Label htmlFor={field.name}>Funding Sources</Label>
+                      <Label htmlFor={field.name}>Sumber Pendanaan</Label>
                       <Input
                         id={field.name}
                         value={field.state.value || ''}
                         onBlur={field.handleBlur}
                         onChange={(e) => field.handleChange(e.target.value)}
-                        placeholder="Comma-separated funding sources"
+                        placeholder="Sumber pendanaan dipisahkan koma"
                       />
                     </div>
                   )}
@@ -668,14 +668,14 @@ export default function AddServicePage() {
 
             <div className="flex gap-2">
               <Button type="submit" disabled={createService.isPending}>
-                {createService.isPending ? 'Creating...' : 'Create Service'}
+                {createService.isPending ? 'Menyimpan...' : 'Buat Layanan'}
               </Button>
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => router.push('/dashboard/services')}
               >
-                Cancel
+                Batal
               </Button>
             </div>
           </form>

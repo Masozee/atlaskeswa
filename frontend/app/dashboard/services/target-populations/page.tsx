@@ -25,9 +25,9 @@ import { Input } from "@/components/ui/input";
 import { Separator } from '@/components/ui/separator';
 
 const breadcrumbs = [
-  { label: 'Dashboard', href: '/dashboard' },
-  { label: 'Services', href: '/dashboard/services' },
-  { label: 'Target Populations' },
+  { label: 'Dasbor', href: '/dashboard' },
+  { label: 'Layanan', href: '/dashboard/services' },
+  { label: 'Populasi Target' },
 ];
 
 export default function TargetPopulationsPage() {
@@ -46,14 +46,14 @@ export default function TargetPopulationsPage() {
       },
       {
         accessorKey: "name",
-        header: "Target Population",
+        header: "Populasi Target",
         cell: ({ row }) => (
           <div className="font-medium">{row.getValue("name")}</div>
         ),
       },
       {
         accessorKey: "description",
-        header: "Description",
+        header: "Deskripsi",
         cell: ({ row }) => {
           const description = row.getValue("description") as string;
           return (
@@ -70,7 +70,7 @@ export default function TargetPopulationsPage() {
           const isActive = row.getValue("is_active");
           return (
             <Badge variant={isActive ? "default" : "secondary"}>
-              {isActive ? "Active" : "Inactive"}
+              {isActive ? "Aktif" : "Nonaktif"}
             </Badge>
           );
         },
@@ -107,35 +107,35 @@ export default function TargetPopulationsPage() {
     <>
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-4">
+      <div className="flex flex-1 flex-col gap-3">
 
-        <div className="px-8 pt-8">
-          <h1 className="text-2xl font-bold tracking-tight">Target Populations</h1>
-          <p className="text-muted-foreground">
-            Population groups served by mental health services
+        <div className="px-6 pt-6">
+          <h1 className="text-xl font-bold tracking-tight">Populasi Target</h1>
+          <p className="text-sm text-muted-foreground">
+            Kelompok populasi yang dilayani oleh layanan kesehatan jiwa
           </p>
         </div>
 
         <Separator />
 
-        <div className="flex flex-col gap-4 px-8 pb-8">
+        <div className="flex flex-col gap-3 px-6 pb-6">
 
-        <div className="flex gap-2 justify-between items-center">
+        <div className="flex gap-2 justify-end items-center">
           <Input
-            placeholder="Search target populations..."
+            placeholder="Cari populasi target..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-64"
+            className="w-64 min-h-9 rounded-sm bg-white shadow-none"
           />
         </div>
 
-        <div className="rounded-lg border">
+        <div className="rounded-sm border bg-white overflow-hidden">
           <Table>
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id}>
+                <TableRow key={headerGroup.id} className="bg-muted/50">
                   {headerGroup.headers.map((header) => (
-                    <TableHead key={header.id}>
+                    <TableHead key={header.id} className="border-r last:border-r-0">
                       {header.isPlaceholder
                         ? null
                         : flexRender(
@@ -151,12 +151,12 @@ export default function TargetPopulationsPage() {
               {isLoading ? (
                 <TableRow>
                   <TableCell colSpan={columns.length} className="h-24 text-center">
-                    Loading...
+                    Memuat...
                   </TableCell>
                 </TableRow>
               ) : table.getRowModel().rows?.length ? (
                 table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id}>
+                  <TableRow key={row.id} className="even:bg-muted">
                     {row.getVisibleCells().map((cell) => (
                       <TableCell key={cell.id}>
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -167,7 +167,7 @@ export default function TargetPopulationsPage() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={columns.length} className="h-24 text-center">
-                    No target populations found.
+                    Tidak ada populasi target ditemukan.
                   </TableCell>
                 </TableRow>
               )}
@@ -178,7 +178,7 @@ export default function TargetPopulationsPage() {
         {filteredData && filteredData.length > 0 && (
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
-              Showing {filteredData.length} target population{filteredData.length !== 1 ? 's' : ''}
+              Menampilkan {filteredData.length} populasi target
             </p>
           </div>
         )}

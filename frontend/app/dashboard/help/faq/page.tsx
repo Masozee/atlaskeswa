@@ -17,75 +17,75 @@ import { Separator } from '@/components/ui/separator';
 const faqs = [
   {
     id: 1,
-    category: 'General',
-    question: 'How do I reset my password?',
-    answer: 'To reset your password:\n\n1. Click on "Forgot Password" on the login page\n2. Enter your email address\n3. Check your email for a reset link\n4. Click the link and enter your new password\n\nIf you don\'t receive the email within 5 minutes, check your spam folder or contact support.',
+    category: 'Umum',
+    question: 'Bagaimana cara mengatur ulang kata sandi saya?',
+    answer: 'Untuk mengatur ulang kata sandi Anda:\n\n1. Klik "Lupa Kata Sandi" pada halaman masuk\n2. Masukkan alamat email Anda\n3. Periksa email Anda untuk tautan pengaturan ulang\n4. Klik tautan tersebut dan masukkan kata sandi baru Anda\n\nJika Anda tidak menerima email dalam 5 menit, periksa folder spam atau hubungi dukungan.',
   },
   {
     id: 2,
-    category: 'General',
-    question: 'What are the different user roles?',
-    answer: '**Administrator**: Full system access, can manage all users and settings\n\n**Data Manager**: Can manage services, surveys, and perform verification\n\n**Verifier**: Can verify and approve/reject survey submissions\n\n**Enumerator**: Can submit surveys and manage own submissions\n\n**Viewer**: Read-only access to view data and reports',
+    category: 'Umum',
+    question: 'Apa saja peran pengguna yang berbeda?',
+    answer: '**Administrator**: Akses penuh ke sistem, dapat mengelola semua pengguna dan pengaturan\n\n**Pengelola Data**: Dapat mengelola layanan, survei, dan melakukan verifikasi\n\n**Verifikator**: Dapat memverifikasi dan menyetujui/menolak pengajuan survei\n\n**Enumerator**: Dapat mengirim survei dan mengelola pengajuannya sendiri\n\n**Peninjau**: Akses hanya-baca untuk melihat data dan laporan',
   },
   {
     id: 3,
     category: 'DESDE-LTC',
-    question: 'How do I classify a service using DESDE-LTC?',
-    answer: 'To classify a service:\n\n1. Identify the **Main Type of Care (MTC)**:\n   - R: Residential\n   - D: Day care\n   - O: Outpatient\n   - A: Accessibility\n   - I: Information\n   - W: Work/training\n   - S: Self-help\n\n2. Determine the **specific service type** using the BSIC code\n\n3. Combine them (e.g., R2.1 for psychiatric hospital)\n\nRefer to the DESDE-LTC Reference guide for detailed codes.',
+    question: 'Bagaimana cara mengklasifikasikan layanan menggunakan DESDE-LTC?',
+    answer: 'Untuk mengklasifikasikan layanan:\n\n1. Identifikasi **Jenis Perawatan Utama (MTC)**:\n   - R: Residensial\n   - D: Perawatan harian\n   - O: Rawat jalan\n   - A: Aksesibilitas\n   - I: Informasi\n   - W: Kerja/pelatihan\n   - S: Swadaya\n\n2. Tentukan **jenis layanan spesifik** menggunakan kode BSIC\n\n3. Gabungkan keduanya (mis., R2.1 untuk rumah sakit jiwa)\n\nRujuk pada panduan Referensi DESDE-LTC untuk kode terperinci.',
   },
   {
     id: 4,
-    category: 'General',
-    question: 'How long does the verification process take?',
-    answer: 'The verification process typically takes:\n\n- **Standard submissions**: 2-3 business days\n- **Complex submissions**: 5-7 business days\n- **Submissions with issues**: Until issues are resolved\n\nYou\'ll receive email notifications about the status of your submission.',
+    category: 'Umum',
+    question: 'Berapa lama proses verifikasi berlangsung?',
+    answer: 'Proses verifikasi biasanya memakan waktu:\n\n- **Pengajuan standar**: 2-3 hari kerja\n- **Pengajuan kompleks**: 5-7 hari kerja\n- **Pengajuan bermasalah**: Hingga masalah terselesaikan\n\nAnda akan menerima notifikasi email tentang status pengajuan Anda.',
   },
   {
     id: 5,
-    category: 'General',
-    question: 'Can I export data from the system?',
-    answer: 'Yes! You can export data in several formats:\n\n**Available formats**:\n- PDF reports\n- Excel spreadsheets (.xlsx)\n- CSV files\n\n**To export**:\n1. Navigate to the data you want to export\n2. Click the "Export" button\n3. Select your preferred format\n4. Choose the data range and filters\n5. Click "Download"\n\nExport permissions depend on your user role.',
+    category: 'Umum',
+    question: 'Bisakah saya mengekspor data dari sistem?',
+    answer: 'Ya! Anda dapat mengekspor data dalam beberapa format:\n\n**Format yang tersedia**:\n- Laporan PDF\n- Lembar kerja Excel (.xlsx)\n- Berkas CSV\n\n**Untuk mengekspor**:\n1. Buka data yang ingin Anda ekspor\n2. Klik tombol "Ekspor"\n3. Pilih format yang Anda inginkan\n4. Pilih rentang data dan filter\n5. Klik "Unduh"\n\nIzin ekspor bergantung pada peran pengguna Anda.',
   },
   {
     id: 6,
-    category: 'Services',
-    question: 'How do I add a new service to the directory?',
-    answer: '1. Navigate to **Services Management** > **Add New Service**\n2. Fill in the required information:\n   - Service name and type\n   - Location and contact details\n   - MTC/BSIC classification\n   - Operating hours\n   - Available resources\n3. Upload supporting documents\n4. Click "Save" or "Submit for Verification"',
+    category: 'Layanan',
+    question: 'Bagaimana cara menambahkan layanan baru ke direktori?',
+    answer: '1. Buka **Manajemen Layanan** > **Tambah Layanan Baru**\n2. Isi informasi yang diperlukan:\n   - Nama dan jenis layanan\n   - Lokasi dan detail kontak\n   - Klasifikasi MTC/BSIC\n   - Jam operasional\n   - Sumber daya yang tersedia\n3. Unggah dokumen pendukung\n4. Klik "Simpan" atau "Kirim untuk Verifikasi"',
   },
   {
     id: 7,
-    category: 'Services',
-    question: 'What is the difference between MTC and BSIC?',
-    answer: '**MTC (Main Types of Care)** is the broad category:\n- R (Residential), D (Day care), O (Outpatient), etc.\n\n**BSIC (Basic Service Identification Code)** is the specific service type:\n- Numbers like 1, 2.1, 3.2 that provide detailed classification within each MTC\n\n**Example**: R2.1 means:\n- R = Residential care (MTC)\n- 2.1 = Specific type of residential facility (BSIC)',
+    category: 'Layanan',
+    question: 'Apa perbedaan antara MTC dan BSIC?',
+    answer: '**MTC (Jenis Perawatan Utama)** adalah kategori luas:\n- R (Residensial), D (Perawatan harian), O (Rawat jalan), dll.\n\n**BSIC (Kode Identifikasi Layanan Dasar)** adalah jenis layanan spesifik:\n- Angka seperti 1, 2.1, 3.2 yang memberikan klasifikasi rinci dalam setiap MTC\n\n**Contoh**: R2.1 berarti:\n- R = Perawatan residensial (MTC)\n- 2.1 = Jenis fasilitas residensial spesifik (BSIC)',
   },
   {
     id: 8,
-    category: 'Surveys',
-    question: 'What happens if my survey is rejected?',
-    answer: 'If your survey is rejected:\n\n1. You\'ll receive an email notification\n2. Check the rejection reason in the system\n3. Review the feedback from the verifier\n4. Make necessary corrections\n5. Resubmit the survey\n\nCommon rejection reasons:\n- Incomplete information\n- Invalid GPS coordinates\n- Missing documentation\n- Incorrect service classification',
+    category: 'Survei',
+    question: 'Apa yang terjadi jika survei saya ditolak?',
+    answer: 'Jika survei Anda ditolak:\n\n1. Anda akan menerima notifikasi email\n2. Periksa alasan penolakan di sistem\n3. Tinjau masukan dari verifikator\n4. Lakukan koreksi yang diperlukan\n5. Kirim ulang survei\n\nAlasan penolakan umum:\n- Informasi tidak lengkap\n- Koordinat GPS tidak valid\n- Dokumentasi tidak ada\n- Klasifikasi layanan salah',
   },
   {
     id: 9,
-    category: 'Surveys',
-    question: 'Can I edit a submitted survey?',
-    answer: 'It depends on the survey status:\n\n- **Draft**: Can be edited freely\n- **Submitted/Pending**: Cannot be edited (must be withdrawn first)\n- **Rejected**: Can be edited and resubmitted\n- **Approved**: Cannot be edited (create a new survey for updates)\n\nTo withdraw a pending survey, contact your data manager or admin.',
+    category: 'Survei',
+    question: 'Bisakah saya mengedit survei yang telah dikirim?',
+    answer: 'Tergantung pada status survei:\n\n- **Draf**: Dapat diedit dengan bebas\n- **Terkirim/Tertunda**: Tidak dapat diedit (harus ditarik terlebih dahulu)\n- **Ditolak**: Dapat diedit dan dikirim ulang\n- **Disetujui**: Tidak dapat diedit (buat survei baru untuk pembaruan)\n\nUntuk menarik survei yang tertunda, hubungi pengelola data atau admin Anda.',
   },
   {
     id: 10,
-    category: 'Technical',
-    question: 'Why is the system running slowly?',
-    answer: 'Common causes and solutions:\n\n**Slow internet connection**:\n- Check your internet speed\n- Try refreshing the page\n\n**Browser cache**:\n- Clear your browser cache and cookies\n- Try using incognito/private mode\n\n**Large datasets**:\n- Use filters to limit data displayed\n- Export large datasets instead of viewing\n\nIf issues persist, contact technical support.',
+    category: 'Teknis',
+    question: 'Mengapa sistem berjalan lambat?',
+    answer: 'Penyebab umum dan solusi:\n\n**Koneksi internet lambat**:\n- Periksa kecepatan internet Anda\n- Coba muat ulang halaman\n\n**Cache peramban**:\n- Bersihkan cache dan cookie peramban Anda\n- Coba gunakan mode penyamaran/pribadi\n\n**Kumpulan data besar**:\n- Gunakan filter untuk membatasi data yang ditampilkan\n- Ekspor kumpulan data besar alih-alih menampilkannya\n\nJika masalah berlanjut, hubungi dukungan teknis.',
   },
   {
     id: 11,
-    category: 'Technical',
-    question: 'Which browsers are supported?',
-    answer: 'Atlas Keswa supports modern browsers:\n\n**Recommended**:\n- Google Chrome (latest version)\n- Mozilla Firefox (latest version)\n- Microsoft Edge (latest version)\n- Safari (latest version)\n\n**Minimum requirements**:\n- JavaScript enabled\n- Cookies enabled\n- Screen resolution: 1024x768 or higher',
+    category: 'Teknis',
+    question: 'Peramban mana saja yang didukung?',
+    answer: 'Atlas Keswa mendukung peramban modern:\n\n**Direkomendasikan**:\n- Google Chrome (versi terbaru)\n- Mozilla Firefox (versi terbaru)\n- Microsoft Edge (versi terbaru)\n- Safari (versi terbaru)\n\n**Persyaratan minimum**:\n- JavaScript diaktifkan\n- Cookie diaktifkan\n- Resolusi layar: 1024x768 atau lebih tinggi',
   },
 ];
 
 const breadcrumbs = [
-  { label: 'Dashboard', href: '/dashboard' },
-  { label: 'Help & Documentation', href: '/dashboard/help' },
+  { label: 'Dasbor', href: '/dashboard' },
+  { label: 'Bantuan & Dokumentasi', href: '/dashboard/help' },
   { label: 'FAQ' },
 ];
 
@@ -110,24 +110,24 @@ export default function FAQPage() {
     <>
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-6">
+      <div className="flex flex-1 flex-col gap-4">
         <div className="px-8 pt-8">
-          <h1 className="text-2xl font-bold">Frequently Asked Questions</h1>
+          <h1 className="text-2xl font-bold">Pertanyaan yang Sering Diajukan</h1>
           <p className="text-muted-foreground">
-            Find answers to common questions about using Atlas Keswa
+            Temukan jawaban atas pertanyaan umum tentang penggunaan Atlas Keswa
           </p>
         </div>
 
         <Separator />
 
-        <div className="flex flex-col gap-6 px-8 pb-8">
+        <div className="flex flex-col gap-4 px-8 pb-8">
         {/* Search and Filter */}
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="flex-1 max-w-md">
             <div className="relative">
               <HugeiconsIcon icon={Search01Icon} size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Search questions..."
+                placeholder="Cari pertanyaan..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10"
@@ -142,7 +142,7 @@ export default function FAQPage() {
                 className="cursor-pointer"
                 onClick={() => setSelectedCategory(category)}
               >
-                {category.charAt(0).toUpperCase() + category.slice(1)}
+                {category === 'all' ? 'Semua' : category}
               </Badge>
             ))}
           </div>
@@ -172,7 +172,7 @@ export default function FAQPage() {
         ) : (
           <div className="text-center py-12">
             <p className="text-muted-foreground">
-              No FAQs found matching your search.
+              Tidak ada FAQ yang cocok dengan pencarian Anda.
             </p>
           </div>
         )}
@@ -180,15 +180,15 @@ export default function FAQPage() {
         {/* Still have questions */}
         <div className="bg-blue-50 rounded-lg p-6">
           <div className="text-center">
-            <h3 className="font-semibold text-blue-900 mb-2">Still have questions?</h3>
+            <h3 className="font-semibold text-blue-900 mb-2">Masih punya pertanyaan?</h3>
             <p className="text-sm text-blue-700 mb-4">
-              Can't find what you're looking for? Contact our support team for assistance.
+              Tidak menemukan yang Anda cari? Hubungi tim dukungan kami untuk bantuan.
             </p>
             <a
               href="/dashboard/help/support"
               className="inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
             >
-              Contact Support
+              Hubungi Dukungan
             </a>
           </div>
         </div>

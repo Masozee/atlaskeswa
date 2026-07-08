@@ -52,7 +52,7 @@ interface User {
 }
 
 const breadcrumbs: BreadcrumbItemType[] = [
-  { label: 'Enumerator Management', href: '/enumerators' },
+  { label: 'Pengguna & Enumerator', href: '/dashboard/users' },
   { label: 'Activity Log' },
 ];
 

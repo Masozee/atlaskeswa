@@ -1,19 +1,21 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { PageHeader } from '@/components/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { ButtonGroup } from '@/components/ui/button-group';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   Table,
   TableBody,
@@ -78,32 +80,66 @@ function formatValues(values: any): string {
   return JSON.stringify(values).slice(0, 80);
 }
 
-const breadcrumbs = [
-  { label: 'Dashboard', href: '/dashboard' },
-  { label: 'Logs & Monitoring', href: '/dashboard/logs' },
-  { label: 'Data Change Logs' },
+const TIME_RANGE_OPTIONS = [
+  { value: 'today', label: 'Hari Ini' },
+  { value: 'yesterday', label: 'Kemarin' },
+  { value: 'week', label: '7 Hari Terakhir' },
+  { value: 'month', label: '30 Hari Terakhir' },
+  { value: 'all', label: 'Semua Waktu' },
 ];
+const TIME_RANGE_LABELS: Record<string, string> = Object.fromEntries(
+  TIME_RANGE_OPTIONS.map((o) => [o.value, o.label]),
+);
+
+const OPERATION_OPTIONS = [
+  { value: 'INSERT', label: 'Insert' },
+  { value: 'UPDATE', label: 'Update' },
+  { value: 'DELETE', label: 'Delete' },
+  { value: 'BULK_INSERT', label: 'Bulk Insert' },
+  { value: 'BULK_UPDATE', label: 'Bulk Update' },
+  { value: 'BULK_DELETE', label: 'Bulk Delete' },
+];
+
+const ENTITY_OPTIONS = [
+  { value: 'service', label: 'Service' },
+  { value: 'survey', label: 'Survey' },
+  { value: 'user', label: 'User' },
+];
+
+const breadcrumbs = [
+  { label: 'Dasbor', href: '/dashboard' },
+  { label: 'Log & Pemantauan', href: '/dashboard/logs' },
+  { label: 'Log Perubahan Data' },
+];
+
+const PAGE_SIZE = 50;
 
 export default function DataChangeLogsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [operationFilter, setOperationFilter] = useState<string>('all');
   const [entityFilter, setEntityFilter] = useState<string>('all');
   const [timeRange, setTimeRange] = useState<string>('today');
+  const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery, operationFilter, entityFilter, timeRange]);
 
   const queryParams = useMemo(() => {
-    const params: Record<string, unknown> = { page_size: 100 };
+    const params: Record<string, unknown> = { page, page_size: PAGE_SIZE };
     if (operationFilter !== 'all') params.operation = operationFilter;
     if (entityFilter !== 'all') params.model_name = entityFilter;
     if (searchQuery) params.search = searchQuery;
     const gte = getTimestampGte(timeRange);
     if (gte) params.timestamp__gte = gte;
     return params;
-  }, [operationFilter, entityFilter, searchQuery, timeRange]);
+  }, [operationFilter, entityFilter, searchQuery, timeRange, page]);
 
   const { data, isLoading, isError } = useDataChangeLogs(queryParams);
 
   const logs = data?.results ?? [] as any[];
   const total = data?.count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const stats = useMemo(() => ({
     total,
@@ -116,26 +152,26 @@ export default function DataChangeLogsPage() {
     <>
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-4">
+      <div className="flex flex-1 flex-col gap-3">
 
-        <div className="px-8 pt-8 flex items-center justify-between">
+        <div className="flex items-start justify-between gap-3 px-6 pt-6">
           <div>
-            <h1 className="text-2xl font-bold">Data Change Logs</h1>
-            <p className="text-muted-foreground">Audit trail perubahan data dalam sistem</p>
+            <h1 className="text-xl font-bold">Log Perubahan Data</h1>
+            <p className="text-sm text-muted-foreground">Jejak audit perubahan data dalam sistem</p>
           </div>
-          <Button>
+          <Button size="sm" className="h-9 rounded-sm shadow-none">
             <HugeiconsIcon icon={Download01Icon} size={16} className="mr-2" />
-            Export Audit Trail
+            Ekspor Jejak Audit
           </Button>
         </div>
 
         <Separator />
 
-        <div className="flex flex-col gap-4 px-8 pb-8">
+        <div className="flex flex-col gap-3 px-6 pb-6">
 
           {/* Statistics */}
-          <div className="grid gap-4 md:grid-cols-4">
-            <Card>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <Card className="border-0 bg-white shadow-none">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Total Perubahan</CardTitle>
               </CardHeader>
@@ -144,7 +180,7 @@ export default function DataChangeLogsPage() {
                 <p className="text-xs text-muted-foreground mt-1">Semua waktu</p>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="border-0 bg-white shadow-none">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium text-green-600">Dibuat</CardTitle>
               </CardHeader>
@@ -153,7 +189,7 @@ export default function DataChangeLogsPage() {
                 <p className="text-xs text-muted-foreground mt-1">Data baru</p>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="border-0 bg-white shadow-none">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium text-blue-600">Diperbarui</CardTitle>
               </CardHeader>
@@ -162,7 +198,7 @@ export default function DataChangeLogsPage() {
                 <p className="text-xs text-muted-foreground mt-1">Modifikasi data</p>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="border-0 bg-white shadow-none">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium text-red-600">Dihapus</CardTitle>
               </CardHeader>
@@ -174,95 +210,111 @@ export default function DataChangeLogsPage() {
           </div>
 
           {/* Filters */}
-          <div className="space-y-3">
-            <div>
-              <h3 className="text-sm font-medium">Filter & Pencarian</h3>
-              <p className="text-xs text-muted-foreground">Gunakan filter di bawah untuk mempersempit hasil pencarian</p>
-            </div>
-            <div className="flex items-end justify-between gap-4">
-              <div className="flex-1 max-w-md">
-                <Label htmlFor="search" className="text-xs text-muted-foreground mb-1.5 block">Pencarian</Label>
-                <div className="relative">
-                  <HugeiconsIcon icon={Search01Icon} size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    id="search"
-                    placeholder="Cari entitas, pengguna..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10 h-10"
-                  />
-                </div>
-              </div>
-              <div className="flex gap-3">
-                <div className="w-56">
-                  <Label htmlFor="timeRange" className="text-xs text-muted-foreground mb-1.5 block">Rentang Waktu</Label>
-                  <Select value={timeRange} onValueChange={setTimeRange}>
-                    <SelectTrigger id="timeRange" className="h-10 w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="today">Hari Ini</SelectItem>
-                      <SelectItem value="yesterday">Kemarin</SelectItem>
-                      <SelectItem value="week">7 Hari Terakhir</SelectItem>
-                      <SelectItem value="month">30 Hari Terakhir</SelectItem>
-                      <SelectItem value="all">Semua Waktu</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="w-56">
-                  <Label htmlFor="operation" className="text-xs text-muted-foreground mb-1.5 block">Jenis Operasi</Label>
-                  <Select value={operationFilter} onValueChange={setOperationFilter}>
-                    <SelectTrigger id="operation" className="h-10 w-full">
-                      <SelectValue placeholder="Operasi" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Semua Operasi</SelectItem>
-                      <SelectItem value="INSERT">Insert</SelectItem>
-                      <SelectItem value="UPDATE">Update</SelectItem>
-                      <SelectItem value="DELETE">Delete</SelectItem>
-                      <SelectItem value="BULK_INSERT">Bulk Insert</SelectItem>
-                      <SelectItem value="BULK_UPDATE">Bulk Update</SelectItem>
-                      <SelectItem value="BULK_DELETE">Bulk Delete</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="w-56">
-                  <Label htmlFor="entity" className="text-xs text-muted-foreground mb-1.5 block">Tipe Entitas</Label>
-                  <Select value={entityFilter} onValueChange={setEntityFilter}>
-                    <SelectTrigger id="entity" className="h-10 w-full">
-                      <SelectValue placeholder="Entitas" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Semua Entitas</SelectItem>
-                      <SelectItem value="service">Service</SelectItem>
-                      <SelectItem value="survey">Survey</SelectItem>
-                      <SelectItem value="user">User</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
+          <div className="flex gap-2 justify-between items-center">
+            <ButtonGroup aria-label="Filter log perubahan data">
+              {/* Rentang Waktu */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="min-h-9 bg-white shadow-none">
+                    {TIME_RANGE_LABELS[timeRange] ?? 'Rentang Waktu'}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-48">
+                  <DropdownMenuLabel>Rentang Waktu</DropdownMenuLabel>
+                  {TIME_RANGE_OPTIONS.map((o) => (
+                    <DropdownMenuCheckboxItem
+                      key={o.value}
+                      checked={timeRange === o.value}
+                      onCheckedChange={() => setTimeRange(o.value)}
+                      onSelect={(e) => e.preventDefault()}
+                    >
+                      {o.label}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Jenis Operasi */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="min-h-9 bg-white shadow-none">
+                    {operationFilter === 'all' ? 'Jenis Operasi' : operationFilter}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-48">
+                  <DropdownMenuLabel>Jenis Operasi</DropdownMenuLabel>
+                  {OPERATION_OPTIONS.map((o) => (
+                    <DropdownMenuCheckboxItem
+                      key={o.value}
+                      checked={operationFilter === o.value}
+                      onCheckedChange={() => setOperationFilter(o.value)}
+                      onSelect={(e) => e.preventDefault()}
+                    >
+                      {o.label}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                  {operationFilter !== 'all' && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onSelect={() => setOperationFilter('all')}>Hapus filter</DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Tipe Entitas */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="min-h-9 bg-white shadow-none">
+                    {entityFilter === 'all' ? 'Tipe Entitas' : entityFilter}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-48">
+                  <DropdownMenuLabel>Tipe Entitas</DropdownMenuLabel>
+                  {ENTITY_OPTIONS.map((o) => (
+                    <DropdownMenuCheckboxItem
+                      key={o.value}
+                      checked={entityFilter === o.value}
+                      onCheckedChange={() => setEntityFilter(o.value)}
+                      onSelect={(e) => e.preventDefault()}
+                    >
+                      {o.label}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                  {entityFilter !== 'all' && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onSelect={() => setEntityFilter('all')}>Hapus filter</DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </ButtonGroup>
+
+            <div className="relative w-64">
+              <HugeiconsIcon icon={Search01Icon} size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Cari entitas, pengguna..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 min-h-9 rounded-sm bg-white shadow-none"
+                aria-label="Cari log perubahan data"
+              />
             </div>
           </div>
 
           {/* Change Logs Table */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Riwayat Perubahan Data</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Menampilkan {logs.length} dari {total} log perubahan
-              </p>
-            </CardHeader>
-            <div className="px-6 pb-6">
-              <div className="rounded-lg border">
+          <div>
+            <div className="rounded-sm border bg-white overflow-hidden">
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead>Waktu</TableHead>
-                      <TableHead>Pengguna</TableHead>
-                      <TableHead>Entitas & Operasi</TableHead>
-                      <TableHead>Nama & Field</TableHead>
-                      <TableHead>Perubahan</TableHead>
-                      <TableHead>Alasan</TableHead>
+                    <TableRow className="bg-muted/50">
+                      <TableHead className="border-r last:border-r-0">Waktu</TableHead>
+                      <TableHead className="border-r last:border-r-0">Pengguna</TableHead>
+                      <TableHead className="border-r last:border-r-0">Entitas & Operasi</TableHead>
+                      <TableHead className="border-r last:border-r-0">Nama & Field</TableHead>
+                      <TableHead className="border-r last:border-r-0">Perubahan</TableHead>
+                      <TableHead className="border-r last:border-r-0">Alasan</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -294,7 +346,7 @@ export default function DataChangeLogsPage() {
                         ? log.changed_fields.join(', ')
                         : log.changed_fields ?? '-';
                       return (
-                        <TableRow key={log.id}>
+                        <TableRow key={log.id} className="even:bg-muted">
                           <TableCell className="font-mono text-xs">
                             {new Date(log.timestamp).toLocaleString('id-ID')}
                           </TableCell>
@@ -347,9 +399,41 @@ export default function DataChangeLogsPage() {
                     })}
                   </TableBody>
                 </Table>
-              </div>
             </div>
-          </Card>
+
+            {total > 0 && (
+              <div className="flex items-center justify-between mt-3">
+                <p className="text-sm text-muted-foreground">
+                  Menampilkan {(page - 1) * PAGE_SIZE + 1}
+                  {'–'}
+                  {Math.min(page * PAGE_SIZE, total)} dari {total} log perubahan
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="shadow-none rounded-sm"
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page <= 1}
+                  >
+                    Sebelumnya
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
+                    Halaman {page} dari {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="shadow-none rounded-sm"
+                    onClick={() => setPage((p) => p + 1)}
+                    disabled={page >= totalPages}
+                  >
+                    Selanjutnya
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </>

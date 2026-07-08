@@ -22,13 +22,13 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { FloppyDiskIcon, RefreshIcon, Loading03Icon } from "@hugeicons/core-free-icons";
+import { FloppyDiskIcon, RefreshIcon } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
 import { Separator } from '@/components/ui/separator';
 
 const breadcrumbs = [
-  { label: 'Dashboard', href: '/dashboard' },
-  { label: 'Settings' },
+  { label: 'Dasbor', href: '/dashboard' },
+  { label: 'Pengaturan' },
 ];
 
 export default function SettingsPage() {
@@ -50,28 +50,33 @@ export default function SettingsPage() {
   const handleSave = async () => {
     try {
       await updateSettings.mutateAsync(formData);
-      toast.success('Settings updated successfully');
+      toast.success('Pengaturan berhasil diperbarui');
     } catch (error) {
-      toast.error('Failed to update settings');
+      toast.error('Gagal memperbarui pengaturan');
     }
   };
 
   const handleReset = async () => {
     try {
       await resetSettings.mutateAsync();
-      toast.success('Settings reset to defaults');
+      toast.success('Pengaturan disetel ulang ke nilai bawaan');
       setFormData({});
     } catch (error) {
-      toast.error('Failed to reset settings');
+      toast.error('Gagal menyetel ulang pengaturan');
     }
   };
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-full gap-2" role="status" aria-live="polite" aria-busy="true">
-        <HugeiconsIcon icon={Loading03Icon} size={20} className="animate-spin text-muted-foreground" aria-hidden="true" />
-        <span className="text-muted-foreground">Loading settings...</span>
-      </div>
+      <>
+        <PageHeader breadcrumbs={breadcrumbs} />
+        <div className="flex flex-1 items-center justify-center">
+          <div className="text-center">
+            <div className="h-16 w-16 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto mb-4"></div>
+            <p className="text-sm text-muted-foreground">Memuat pengaturan...</p>
+          </div>
+        </div>
+      </>
     );
   }
 
@@ -83,33 +88,33 @@ export default function SettingsPage() {
 
         <div className="px-8 pt-8 flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold">System Settings</h1>
-            <p className="text-muted-foreground">Manage system-wide configuration</p>
+            <h1 className="text-2xl font-bold">Pengaturan Sistem</h1>
+            <p className="text-muted-foreground">Kelola konfigurasi seluruh sistem</p>
           </div>
           <div className="flex gap-2">
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="outline" disabled={resetSettings.isPending}>
                   <HugeiconsIcon icon={RefreshIcon} size={16} className="mr-2" aria-hidden="true" />
-                  {resetSettings.isPending ? 'Resetting...' : 'Reset to Defaults'}
+                  {resetSettings.isPending ? 'Menyetel ulang...' : 'Setel Ulang ke Bawaan'}
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Reset Settings</AlertDialogTitle>
+                  <AlertDialogTitle>Setel Ulang Pengaturan</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Are you sure you want to reset all settings to default values? This action cannot be undone.
+                    Apakah Anda yakin ingin menyetel ulang semua pengaturan ke nilai bawaan? Tindakan ini tidak dapat dibatalkan.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleReset}>Reset</AlertDialogAction>
+                  <AlertDialogCancel>Batal</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleReset}>Setel Ulang</AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
             <Button onClick={handleSave} disabled={updateSettings.isPending}>
               <HugeiconsIcon icon={FloppyDiskIcon} size={16} className="mr-2" aria-hidden="true" />
-              {updateSettings.isPending ? 'Saving...' : 'Save Changes'}
+              {updateSettings.isPending ? 'Menyimpan...' : 'Simpan Perubahan'}
             </Button>
           </div>
         </div>
@@ -120,22 +125,22 @@ export default function SettingsPage() {
 
         <Tabs defaultValue="general" className="w-full">
           <TabsList>
-            <TabsTrigger value="general">General</TabsTrigger>
+            <TabsTrigger value="general">Umum</TabsTrigger>
             <TabsTrigger value="email">Email</TabsTrigger>
-            <TabsTrigger value="security">Security</TabsTrigger>
-            <TabsTrigger value="survey">Survey</TabsTrigger>
-            <TabsTrigger value="advanced">Advanced</TabsTrigger>
+            <TabsTrigger value="security">Keamanan</TabsTrigger>
+            <TabsTrigger value="survey">Survei</TabsTrigger>
+            <TabsTrigger value="advanced">Lanjutan</TabsTrigger>
           </TabsList>
 
           <TabsContent value="general" className="space-y-4">
-            <Card>
+            <Card className="border-0 bg-white shadow-none">
               <CardHeader>
-                <CardTitle>Application Settings</CardTitle>
-                <CardDescription>Configure basic application information</CardDescription>
+                <CardTitle>Pengaturan Aplikasi</CardTitle>
+                <CardDescription>Konfigurasikan informasi dasar aplikasi</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="app_name">Application Name</Label>
+                  <Label htmlFor="app_name">Nama Aplikasi</Label>
                   <Input
                     id="app_name"
                     value={formData.app_name || ''}
@@ -143,7 +148,7 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="app_description">Application Description</Label>
+                  <Label htmlFor="app_description">Deskripsi Aplikasi</Label>
                   <Textarea
                     id="app_description"
                     value={formData.app_description || ''}
@@ -154,14 +159,14 @@ export default function SettingsPage() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border-0 bg-white shadow-none">
               <CardHeader>
-                <CardTitle>Pagination Settings</CardTitle>
-                <CardDescription>Configure default pagination behavior</CardDescription>
+                <CardTitle>Pengaturan Paginasi</CardTitle>
+                <CardDescription>Konfigurasikan perilaku paginasi bawaan</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="default_page_size">Default Page Size</Label>
+                  <Label htmlFor="default_page_size">Ukuran Halaman Bawaan</Label>
                   <Input
                     id="default_page_size"
                     type="number"
@@ -171,10 +176,10 @@ export default function SettingsPage() {
                     onChange={(e) => handleChange('default_page_size', parseInt(e.target.value))}
                     aria-describedby="default_page_size_desc"
                   />
-                  <p id="default_page_size_desc" className="text-sm text-muted-foreground">Number of items per page (5-100)</p>
+                  <p id="default_page_size_desc" className="text-sm text-muted-foreground">Jumlah item per halaman (5-100)</p>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="max_page_size">Maximum Page Size</Label>
+                  <Label htmlFor="max_page_size">Ukuran Halaman Maksimum</Label>
                   <Input
                     id="max_page_size"
                     type="number"
@@ -184,21 +189,21 @@ export default function SettingsPage() {
                     onChange={(e) => handleChange('max_page_size', parseInt(e.target.value))}
                     aria-describedby="max_page_size_desc"
                   />
-                  <p id="max_page_size_desc" className="text-sm text-muted-foreground">Maximum items per page (10-500)</p>
+                  <p id="max_page_size_desc" className="text-sm text-muted-foreground">Item maksimum per halaman (10-500)</p>
                 </div>
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border-0 bg-white shadow-none">
               <CardHeader>
-                <CardTitle>Maintenance Mode</CardTitle>
-                <CardDescription>Enable maintenance mode to prevent user access</CardDescription>
+                <CardTitle>Mode Pemeliharaan</CardTitle>
+                <CardDescription>Aktifkan mode pemeliharaan untuk mencegah akses pengguna</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label htmlFor="maintenance_mode">Maintenance Mode</Label>
-                    <p id="maintenance_mode_desc" className="text-sm text-muted-foreground">System is currently in maintenance</p>
+                    <Label htmlFor="maintenance_mode">Mode Pemeliharaan</Label>
+                    <p id="maintenance_mode_desc" className="text-sm text-muted-foreground">Sistem saat ini dalam pemeliharaan</p>
                   </div>
                   <Switch
                     id="maintenance_mode"
@@ -208,7 +213,7 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="maintenance_message">Maintenance Message</Label>
+                  <Label htmlFor="maintenance_message">Pesan Pemeliharaan</Label>
                   <Textarea
                     id="maintenance_message"
                     value={formData.maintenance_message || ''}
@@ -221,16 +226,16 @@ export default function SettingsPage() {
           </TabsContent>
 
           <TabsContent value="email" className="space-y-4">
-            <Card>
+            <Card className="border-0 bg-white shadow-none">
               <CardHeader>
-                <CardTitle>Email Configuration</CardTitle>
-                <CardDescription>Configure email notification settings</CardDescription>
+                <CardTitle>Konfigurasi Email</CardTitle>
+                <CardDescription>Konfigurasikan pengaturan notifikasi email</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label htmlFor="email_notifications_enabled">Email Notifications</Label>
-                    <p id="email_notifications_desc" className="text-sm text-muted-foreground">Enable system email notifications</p>
+                    <Label htmlFor="email_notifications_enabled">Notifikasi Email</Label>
+                    <p id="email_notifications_desc" className="text-sm text-muted-foreground">Aktifkan notifikasi email sistem</p>
                   </div>
                   <Switch
                     id="email_notifications_enabled"
@@ -240,7 +245,7 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="email_from_address">From Email Address</Label>
+                  <Label htmlFor="email_from_address">Alamat Email Pengirim</Label>
                   <Input
                     id="email_from_address"
                     type="email"
@@ -249,7 +254,7 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="email_from_name">From Name</Label>
+                  <Label htmlFor="email_from_name">Nama Pengirim</Label>
                   <Input
                     id="email_from_name"
                     value={formData.email_from_name || ''}
@@ -261,14 +266,14 @@ export default function SettingsPage() {
           </TabsContent>
 
           <TabsContent value="security" className="space-y-4">
-            <Card>
+            <Card className="border-0 bg-white shadow-none">
               <CardHeader>
-                <CardTitle>Security Settings</CardTitle>
-                <CardDescription>Configure security and authentication settings</CardDescription>
+                <CardTitle>Pengaturan Keamanan</CardTitle>
+                <CardDescription>Konfigurasikan pengaturan keamanan dan autentikasi</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="session_timeout">Session Timeout (minutes)</Label>
+                  <Label htmlFor="session_timeout">Batas Waktu Sesi (menit)</Label>
                   <Input
                     id="session_timeout"
                     type="number"
@@ -278,10 +283,10 @@ export default function SettingsPage() {
                     onChange={(e) => handleChange('session_timeout', parseInt(e.target.value))}
                     aria-describedby="session_timeout_desc"
                   />
-                  <p id="session_timeout_desc" className="text-sm text-muted-foreground">Session timeout in minutes (5-1440)</p>
+                  <p id="session_timeout_desc" className="text-sm text-muted-foreground">Batas waktu sesi dalam menit (5-1440)</p>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="password_min_length">Minimum Password Length</Label>
+                  <Label htmlFor="password_min_length">Panjang Kata Sandi Minimum</Label>
                   <Input
                     id="password_min_length"
                     type="number"
@@ -291,12 +296,12 @@ export default function SettingsPage() {
                     onChange={(e) => handleChange('password_min_length', parseInt(e.target.value))}
                     aria-describedby="password_min_length_desc"
                   />
-                  <p id="password_min_length_desc" className="text-sm text-muted-foreground">Minimum password length (6-32)</p>
+                  <p id="password_min_length_desc" className="text-sm text-muted-foreground">Panjang kata sandi minimum (6-32)</p>
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label htmlFor="require_email_verification">Require Email Verification</Label>
-                    <p id="require_email_verification_desc" className="text-sm text-muted-foreground">Users must verify email before login</p>
+                    <Label htmlFor="require_email_verification">Wajibkan Verifikasi Email</Label>
+                    <p id="require_email_verification_desc" className="text-sm text-muted-foreground">Pengguna harus memverifikasi email sebelum masuk</p>
                   </div>
                   <Switch
                     id="require_email_verification"
@@ -307,8 +312,8 @@ export default function SettingsPage() {
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label htmlFor="enable_two_factor_auth">Enable Two-Factor Authentication</Label>
-                    <p id="enable_two_factor_auth_desc" className="text-sm text-muted-foreground">Require 2FA for user accounts</p>
+                    <Label htmlFor="enable_two_factor_auth">Aktifkan Autentikasi Dua Faktor</Label>
+                    <p id="enable_two_factor_auth_desc" className="text-sm text-muted-foreground">Wajibkan 2FA untuk akun pengguna</p>
                   </div>
                   <Switch
                     id="enable_two_factor_auth"
@@ -322,16 +327,16 @@ export default function SettingsPage() {
           </TabsContent>
 
           <TabsContent value="survey" className="space-y-4">
-            <Card>
+            <Card className="border-0 bg-white shadow-none">
               <CardHeader>
-                <CardTitle>Survey Settings</CardTitle>
-                <CardDescription>Configure survey-related settings</CardDescription>
+                <CardTitle>Pengaturan Survei</CardTitle>
+                <CardDescription>Konfigurasikan pengaturan terkait survei</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label htmlFor="survey_auto_approval">Auto-Approve Surveys</Label>
-                    <p id="survey_auto_approval_desc" className="text-sm text-muted-foreground">Skip verification workflow</p>
+                    <Label htmlFor="survey_auto_approval">Setujui Survei Otomatis</Label>
+                    <p id="survey_auto_approval_desc" className="text-sm text-muted-foreground">Lewati alur kerja verifikasi</p>
                   </div>
                   <Switch
                     id="survey_auto_approval"
@@ -341,7 +346,7 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="survey_draft_expiry_days">Draft Expiry Days</Label>
+                  <Label htmlFor="survey_draft_expiry_days">Hari Kedaluwarsa Draf</Label>
                   <Input
                     id="survey_draft_expiry_days"
                     type="number"
@@ -351,21 +356,21 @@ export default function SettingsPage() {
                     onChange={(e) => handleChange('survey_draft_expiry_days', parseInt(e.target.value))}
                     aria-describedby="survey_draft_expiry_days_desc"
                   />
-                  <p id="survey_draft_expiry_days_desc" className="text-sm text-muted-foreground">Days before draft surveys expire (7-180)</p>
+                  <p id="survey_draft_expiry_days_desc" className="text-sm text-muted-foreground">Hari sebelum draf survei kedaluwarsa (7-180)</p>
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
 
           <TabsContent value="advanced" className="space-y-4">
-            <Card>
+            <Card className="border-0 bg-white shadow-none">
               <CardHeader>
-                <CardTitle>Data & Privacy</CardTitle>
-                <CardDescription>Configure data retention and audit settings</CardDescription>
+                <CardTitle>Data & Privasi</CardTitle>
+                <CardDescription>Konfigurasikan pengaturan retensi data dan audit</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="data_retention_days">Data Retention Days</Label>
+                  <Label htmlFor="data_retention_days">Hari Retensi Data</Label>
                   <Input
                     id="data_retention_days"
                     type="number"
@@ -375,12 +380,12 @@ export default function SettingsPage() {
                     onChange={(e) => handleChange('data_retention_days', parseInt(e.target.value))}
                     aria-describedby="data_retention_days_desc"
                   />
-                  <p id="data_retention_days_desc" className="text-sm text-muted-foreground">Days to retain data (30-3650)</p>
+                  <p id="data_retention_days_desc" className="text-sm text-muted-foreground">Hari untuk menyimpan data (30-3650)</p>
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label htmlFor="enable_audit_logs">Enable Audit Logs</Label>
-                    <p id="enable_audit_logs_desc" className="text-sm text-muted-foreground">Track all system changes</p>
+                    <Label htmlFor="enable_audit_logs">Aktifkan Log Audit</Label>
+                    <p id="enable_audit_logs_desc" className="text-sm text-muted-foreground">Lacak semua perubahan sistem</p>
                   </div>
                   <Switch
                     id="enable_audit_logs"
@@ -392,19 +397,19 @@ export default function SettingsPage() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border-0 bg-white shadow-none">
               <CardHeader>
-                <CardTitle>Settings Metadata</CardTitle>
-                <CardDescription>Information about last settings update</CardDescription>
+                <CardTitle>Metadata Pengaturan</CardTitle>
+                <CardDescription>Informasi tentang pembaruan pengaturan terakhir</CardDescription>
               </CardHeader>
               <CardContent className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Last Updated:</span>
-                  <span>{settings?.updated_at ? new Date(settings.updated_at).toLocaleString() : 'Never'}</span>
+                  <span className="text-muted-foreground">Terakhir Diperbarui:</span>
+                  <span>{settings?.updated_at ? new Date(settings.updated_at).toLocaleString() : 'Tidak pernah'}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Updated By:</span>
-                  <span>{settings?.updated_by_name || settings?.updated_by_email || 'System'}</span>
+                  <span className="text-muted-foreground">Diperbarui Oleh:</span>
+                  <span>{settings?.updated_by_name || settings?.updated_by_email || 'Sistem'}</span>
                 </div>
               </CardContent>
             </Card>

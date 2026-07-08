@@ -24,11 +24,15 @@ import {
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ButtonGroup } from "@/components/ui/button-group";
+import { Separator } from "@/components/ui/separator";
 import {
   ColumnDef,
   flexRender,
@@ -46,8 +50,6 @@ import {
   Edit04Icon,
   Delete01Icon,
   EyeIcon,
-  ArrowLeft01Icon,
-  ArrowRight01Icon,
   Search01Icon,
 } from 'hugeicons-react';
 import {
@@ -75,7 +77,7 @@ const LEVEL_OPTIONS = [
 ];
 
 const breadcrumbs = [
-  { label: 'Dashboard', href: '/dashboard' },
+  { label: 'Dasbor', href: '/dashboard' },
   { label: 'Layanan', href: '/dashboard/services' },
   { label: 'Wilayah Geografis' },
 ];
@@ -109,11 +111,11 @@ function ImportDialog({ open, onOpenChange, onImport, isPending, result }: {
             Upload CSV/XLSX/JSON dengan kolom: <span className="font-mono text-xs bg-muted px-1 rounded">code</span>, <span className="font-mono text-xs bg-muted px-1 rounded">name</span>, <span className="font-mono text-xs bg-muted px-1 rounded">level</span>, <span className="font-mono text-xs bg-muted px-1 rounded">parent</span>
           </p>
           <div className="space-y-2">
-            <Label>File * <span className="text-muted-foreground font-normal">(CSV, XLSX, JSON)</span></Label>
+            <Label>Berkas * <span className="text-muted-foreground font-normal">(CSV, XLSX, JSON)</span></Label>
             <div className="flex rounded-md border overflow-hidden">
-              <label htmlFor="geo-import-file" className="flex items-center justify-center px-4 py-1.5 text-sm font-medium hover:bg-accent transition-colors cursor-pointer whitespace-nowrap">Pilih File</label>
+              <label htmlFor="geo-import-file" className="flex items-center justify-center px-4 py-1.5 text-sm font-medium hover:bg-accent transition-colors cursor-pointer whitespace-nowrap">Pilih Berkas</label>
               <div className="w-px bg-border" />
-              <span className="flex items-center px-3 py-1.5 text-sm text-muted-foreground truncate flex-1">{file ? file.name : 'Belum ada file'}</span>
+              <span className="flex items-center px-3 py-1.5 text-sm text-muted-foreground truncate flex-1">{file ? file.name : 'Belum ada berkas dipilih'}</span>
               <input id="geo-import-file" type="file" accept=".csv,.xlsx,.json" className="sr-only" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
             </div>
           </div>
@@ -275,8 +277,8 @@ export default function GeographicUnitsPage() {
       accessorKey: 'is_active',
       header: 'Status',
       cell: ({ row }) => row.getValue('is_active')
-        ? <Badge variant="outline" className="text-green-600 border-green-600">Aktif</Badge>
-        : <Badge variant="outline" className="text-red-600 border-red-600">Tidak Aktif</Badge>,
+        ? <Badge variant="default">Aktif</Badge>
+        : <Badge variant="secondary">Tidak Aktif</Badge>,
     },
     {
       id: 'actions',
@@ -284,7 +286,7 @@ export default function GeographicUnitsPage() {
       cell: ({ row }) => (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-8 w-8 p-0"><MoreHorizontalIcon className="h-4 w-4" /></Button>
+            <Button variant="outline" size="sm" className="h-8 w-8 p-0 rounded-sm"><MoreHorizontalIcon className="h-4 w-4" /></Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={() => openEdit(row.original)}><Edit04Icon className="mr-2 h-4 w-4" />Edit</DropdownMenuItem>
@@ -329,78 +331,106 @@ export default function GeographicUnitsPage() {
   return (
     <>
       <PageHeader breadcrumbs={breadcrumbs} />
-      <div className="flex flex-1 flex-col gap-4 p-4">
-        <div className="border-b pb-4 flex items-start justify-between">
+      <div className="flex flex-1 flex-col gap-3">
+        <div className="flex items-start justify-between gap-3 px-6 pt-6">
           <div>
-            <h1 className="text-2xl font-bold">Wilayah Geografis</h1>
-            <p className="text-muted-foreground">Kelola data Provinsi, Kabupaten/Kota, Kecamatan, dan Desa/Kelurahan</p>
+            <h1 className="text-xl font-bold">Wilayah Geografis</h1>
+            <p className="text-sm text-muted-foreground">Kelola data Provinsi, Kabupaten/Kota, Kecamatan, dan Desa/Kelurahan</p>
           </div>
-          <div className="flex items-center rounded-md border overflow-hidden">
-            <button onClick={() => { setImportResult(null); setImportOpen(true); }} className="flex items-center justify-center gap-2 w-28 py-1.5 text-sm font-medium hover:bg-accent transition-colors">
-              <Upload01Icon className="w-4 h-4" />Import
-            </button>
-            <div className="w-px bg-border" />
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" className="h-9 rounded-sm shadow-none" onClick={() => { setImportResult(null); setImportOpen(true); }}>
+              <Upload01Icon className="w-4 h-4 mr-2" />Impor
+            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="flex items-center justify-center gap-2 w-32 py-1.5 text-sm font-medium hover:bg-accent transition-colors">
-                  <Download01Icon className="w-4 h-4" />Export All
-                </button>
+                <Button variant="outline" size="sm" className="h-9 rounded-sm shadow-none">
+                  <Download01Icon className="w-4 h-4 mr-2" />Ekspor Semua
+                </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => exportGeographicUnits(undefined, 'csv').then(() => toast.success('Export CSV berhasil')).catch((e) => toast.error(e.message))}>Export sebagai CSV</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => exportGeographicUnits(undefined, 'xlsx').then(() => toast.success('Export XLSX berhasil')).catch((e) => toast.error(e.message))}>Export sebagai XLSX</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => exportGeographicUnits(undefined, 'json').then(() => toast.success('Export JSON berhasil')).catch((e) => toast.error(e.message))}>Export sebagai JSON</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportGeographicUnits(undefined, 'csv').then(() => toast.success('Ekspor CSV berhasil')).catch((e) => toast.error(e.message))}>Ekspor sebagai CSV</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportGeographicUnits(undefined, 'xlsx').then(() => toast.success('Ekspor XLSX berhasil')).catch((e) => toast.error(e.message))}>Ekspor sebagai XLSX</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportGeographicUnits(undefined, 'json').then(() => toast.success('Ekspor JSON berhasil')).catch((e) => toast.error(e.message))}>Ekspor sebagai JSON</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <div className="w-px bg-border" />
-            <button onClick={openAdd} className="flex items-center justify-center gap-2 w-36 py-1.5 text-sm font-medium hover:bg-accent transition-colors">
-              <Add01Icon className="w-4 h-4" />
+            <Button size="sm" className="h-9 rounded-sm shadow-none" onClick={openAdd}>
+              <Add01Icon className="w-4 h-4 mr-2" />
               Tambah Wilayah
-            </button>
+            </Button>
           </div>
         </div>
 
-        <div className="flex gap-2 items-center">
-          <div className="relative flex-1 max-w-sm">
+        <Separator />
+
+        <div className="flex flex-col gap-3 px-6 pb-6">
+
+        <div className="flex gap-2 justify-between items-center">
+          <ButtonGroup aria-label="Filter wilayah geografis">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="min-h-9 bg-white shadow-none">
+                  {levelFilter ? (LEVEL_LABELS[levelFilter] ?? 'Level') : 'Level'}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-52">
+                <DropdownMenuLabel>Level</DropdownMenuLabel>
+                {LEVEL_OPTIONS.map(opt => (
+                  <DropdownMenuCheckboxItem
+                    key={opt.value}
+                    checked={levelFilter === opt.value}
+                    onCheckedChange={() => { setLevelFilter(levelFilter === opt.value ? '' : opt.value); setPagination(p => ({ ...p, pageIndex: 0 })); }}
+                    onSelect={(e) => e.preventDefault()}
+                  >
+                    {opt.label}
+                  </DropdownMenuCheckboxItem>
+                ))}
+                {levelFilter && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onSelect={() => { setLevelFilter(''); setPagination(p => ({ ...p, pageIndex: 0 })); }}>Hapus filter</DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="min-h-9 bg-white shadow-none">
+                  {statusFilter === 'active' ? 'Aktif' : statusFilter === 'inactive' ? 'Tidak Aktif' : 'Status'}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-44">
+                <DropdownMenuLabel>Status</DropdownMenuLabel>
+                <DropdownMenuCheckboxItem checked={statusFilter === 'active'} onCheckedChange={() => { setStatusFilter(statusFilter === 'active' ? '' : 'active'); setPagination(p => ({ ...p, pageIndex: 0 })); }} onSelect={(e) => e.preventDefault()}>Aktif</DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem checked={statusFilter === 'inactive'} onCheckedChange={() => { setStatusFilter(statusFilter === 'inactive' ? '' : 'inactive'); setPagination(p => ({ ...p, pageIndex: 0 })); }} onSelect={(e) => e.preventDefault()}>Tidak Aktif</DropdownMenuCheckboxItem>
+                {statusFilter && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onSelect={() => { setStatusFilter(''); setPagination(p => ({ ...p, pageIndex: 0 })); }}>Hapus filter</DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </ButtonGroup>
+
+          <div className="relative w-64">
             <Search01Icon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Cari kode atau nama..."
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPagination(p => ({ ...p, pageIndex: 0 })); }}
-              className="pl-9"
+              className="pl-9 min-h-9 rounded-sm bg-white shadow-none"
             />
-          </div>
-          <div className="flex items-center rounded-md border overflow-hidden">
-            <select
-              value={levelFilter}
-              onChange={(e) => { setLevelFilter(e.target.value); setPagination(p => ({ ...p, pageIndex: 0 })); }}
-              className="px-3 py-1.5 text-sm font-medium bg-transparent outline-none hover:bg-accent transition-colors cursor-pointer"
-            >
-              <option value="">Semua Level</option>
-              {LEVEL_OPTIONS.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-            <div className="w-px bg-border" />
-            <select
-              value={statusFilter}
-              onChange={(e) => { setStatusFilter(e.target.value); setPagination(p => ({ ...p, pageIndex: 0 })); }}
-              className="px-3 py-1.5 text-sm font-medium bg-transparent outline-none hover:bg-accent transition-colors cursor-pointer"
-            >
-              <option value="">Semua Status</option>
-              <option value="active">Aktif</option>
-              <option value="inactive">Tidak Aktif</option>
-            </select>
           </div>
         </div>
 
-        <div className="rounded-lg border">
+        <div className="rounded-sm border bg-white overflow-hidden">
           <Table>
             <TableHeader>
               {table.getHeaderGroups().map((hg) => (
-                <TableRow key={hg.id}>
+                <TableRow key={hg.id} className="bg-muted/50">
                   {hg.headers.map((h) => (
-                    <TableHead key={h.id}>
+                    <TableHead key={h.id} className="border-r last:border-r-0">
                       {h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}
                     </TableHead>
                   ))}
@@ -410,7 +440,7 @@ export default function GeographicUnitsPage() {
             <TableBody>
               {table.getRowModel().rows.length ? (
                 table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id}>
+                  <TableRow key={row.id} className="even:bg-muted">
                     {row.getVisibleCells().map((cell) => (
                       <TableCell key={cell.id}>
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -421,7 +451,7 @@ export default function GeographicUnitsPage() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={columns.length} className="h-24 text-center">
-                    Tidak ada data wilayah geografis.
+                    Tidak ada wilayah geografis ditemukan.
                   </TableCell>
                 </TableRow>
               )}
@@ -435,29 +465,30 @@ export default function GeographicUnitsPage() {
               ? `Menampilkan ${pagination.pageIndex * pagination.pageSize + 1}–${Math.min((pagination.pageIndex + 1) * pagination.pageSize, searchedData.length)} dari ${searchedData.length}`
               : 'Tidak ada hasil'}
           </p>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
-              className="h-8 w-8 p-0"
+              className="shadow-none rounded-sm"
               onClick={() => table.previousPage()}
               disabled={!table.getCanPreviousPage()}
             >
-              <ArrowLeft01Icon className="h-4 w-4" />
+              Sebelumnya
             </Button>
-            <span className="text-sm px-2">
+            <span className="text-sm text-muted-foreground">
               Halaman {table.getState().pagination.pageIndex + 1} dari {table.getPageCount()}
             </span>
             <Button
               variant="outline"
               size="sm"
-              className="h-8 w-8 p-0"
+              className="shadow-none rounded-sm"
               onClick={() => table.nextPage()}
               disabled={!table.getCanNextPage()}
             >
-              <ArrowRight01Icon className="h-4 w-4" />
+              Selanjutnya
             </Button>
           </div>
+        </div>
         </div>
       </div>
 

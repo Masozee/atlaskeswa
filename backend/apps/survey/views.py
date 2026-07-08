@@ -893,12 +893,30 @@ class QuestionChoiceViewSet(viewsets.ModelViewSet):
         return [IsAuthenticated()]
 
 
+class NumberInFilter(django_filters.BaseInFilter, django_filters.NumberFilter):
+    """Accepts a comma-separated list of numbers: ?kecamatan=1,2,3"""
+    pass
+
+
+class CharInFilter(django_filters.BaseInFilter, django_filters.CharFilter):
+    """Accepts a comma-separated list of strings: ?verification_status=SUBMITTED,VERIFIED"""
+    pass
+
+
 class DynamicSurveyResponseFilter(django_filters.FilterSet):
-    """Custom filters for the survey response list (kategori + geo + date range)."""
+    """Custom filters for the survey response list (kategori + geo + date range).
+
+    Multi-value filters accept a comma-separated list and match ANY of the
+    values (union), so the UI can offer multi-select checkboxes.
+    """
 
     kategori = django_filters.CharFilter(method='filter_kategori')
-    kecamatan = django_filters.NumberFilter(method='filter_kecamatan')
-    desa = django_filters.NumberFilter(method='filter_desa')
+    kecamatan = NumberInFilter(method='filter_kecamatan')
+    desa = NumberInFilter(method='filter_desa')
+    surveyor = NumberInFilter(field_name='surveyor_id', lookup_expr='in')
+    # Multi-value status filter: ?verification_status=SUBMITTED,VERIFIED (union).
+    # Single value still works (?verification_status=VERIFIED).
+    verification_status = CharInFilter(field_name='verification_status', lookup_expr='in')
     survey_date_after = django_filters.DateFilter(field_name='survey_date', lookup_expr='gte')
     survey_date_before = django_filters.DateFilter(field_name='survey_date', lookup_expr='lte')
 
@@ -907,8 +925,6 @@ class DynamicSurveyResponseFilter(django_filters.FilterSet):
         fields = {
             'template': ['exact'],
             'service': ['exact'],
-            'surveyor': ['exact'],
-            'verification_status': ['exact'],
             'assigned_verifier': ['exact'],
             'deletion_requested': ['exact'],
             'survey_date': ['exact', 'gte', 'lte'],
@@ -916,26 +932,40 @@ class DynamicSurveyResponseFilter(django_filters.FilterSet):
         }
 
     def filter_kategori(self, queryset, name, value):
-        """FASKES = has a Q3 answer with choice label 'Kesehatan'; NON FASKES = otherwise."""
-        value = (value or '').strip().upper()
+        """FASKES = has a Q3 answer with choice label 'Kesehatan'; NON FASKES = otherwise.
+
+        Accepts a comma-separated list. Selecting both (or none) returns all rows.
+        """
+        raw = [v.strip().upper() for v in (value or '').split(',') if v.strip()]
+        norm = set()
+        for v in raw:
+            if v == 'FASKES':
+                norm.add('FASKES')
+            elif v in ('NON FASKES', 'NON_FASKES', 'NONFASKES'):
+                norm.add('NON FASKES')
         faskes_q = Q(
             answers__question__code='Q3',
             answers__selected_choices__label__iexact='kesehatan',
         )
-        if value == 'FASKES':
+        # Both or neither selected -> no narrowing
+        if not norm or norm == {'FASKES', 'NON FASKES'}:
+            return queryset
+        if norm == {'FASKES'}:
             return queryset.filter(faskes_q).distinct()
-        if value in ('NON FASKES', 'NON_FASKES', 'NONFASKES'):
-            return queryset.exclude(faskes_q).distinct()
-        return queryset
+        return queryset.exclude(faskes_q).distinct()
 
     def filter_kecamatan(self, queryset, name, value):
+        if not value:
+            return queryset
         return queryset.filter(
-            answers__question__code='Q7', answers__geographic_unit_id=value
+            answers__question__code='Q7', answers__geographic_unit_id__in=value
         ).distinct()
 
     def filter_desa(self, queryset, name, value):
+        if not value:
+            return queryset
         return queryset.filter(
-            answers__question__code='Q8', answers__geographic_unit_id=value
+            answers__question__code='Q8', answers__geographic_unit_id__in=value
         ).distinct()
 
 
@@ -977,9 +1007,26 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
     def get_serializer_class(self):
         if self.action == 'list':
             return DynamicSurveyResponseListSerializer
-        elif self.action in ['create']:
+        elif self.action in ['create', 'update', 'partial_update']:
             return DynamicSurveyResponseCreateSerializer
         return DynamicSurveyResponseDetailSerializer
+
+    def update(self, request, *args, **kwargs):
+        """Block editing responses that are locked in the verification workflow."""
+        instance = self.get_object()
+        editable = [
+            DynamicSurveyResponse.Status.DRAFT,
+            DynamicSurveyResponse.Status.REJECTED,
+        ]
+        if instance.verification_status not in editable:
+            return Response(
+                {'detail': 'Survei yang sudah diajukan atau terverifikasi tidak dapat diubah.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        response = super().update(request, *args, **kwargs)
+        # Return the detail representation so the client gets nested answers back
+        instance.refresh_from_db()
+        return Response(DynamicSurveyResponseDetailSerializer(instance, context=self.get_serializer_context()).data)
 
     def _is_mobile_request(self):
         """Check if request comes from mobile app based on User-Agent."""

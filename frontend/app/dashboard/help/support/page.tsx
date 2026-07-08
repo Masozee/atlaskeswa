@@ -19,7 +19,7 @@ import { Badge } from '@/components/ui/badge';
 const myTickets = [
   {
     id: 1,
-    subject: 'Unable to upload survey documents',
+    subject: 'Tidak dapat mengunggah dokumen survei',
     status: 'in_progress',
     priority: 'high',
     created_at: '2025-12-15 10:30:00',
@@ -27,13 +27,27 @@ const myTickets = [
   },
   {
     id: 2,
-    subject: 'Question about DESDE-LTC classification',
+    subject: 'Pertanyaan tentang klasifikasi DESDE-LTC',
     status: 'resolved',
     priority: 'medium',
     created_at: '2025-12-14 14:20:00',
     replies_count: 3,
   },
 ];
+
+const statusLabels: Record<string, string> = {
+  open: 'terbuka',
+  in_progress: 'sedang diproses',
+  resolved: 'selesai',
+  closed: 'ditutup',
+};
+
+const priorityLabels: Record<string, string> = {
+  low: 'rendah',
+  medium: 'sedang',
+  high: 'tinggi',
+  urgent: 'mendesak',
+};
 
 const statusColors = {
   open: 'bg-blue-100 text-blue-800',
@@ -50,9 +64,9 @@ const priorityColors = {
 };
 
 const breadcrumbs = [
-  { label: 'Dashboard', href: '/dashboard' },
-  { label: 'Help & Documentation', href: '/dashboard/help' },
-  { label: 'Contact Support' },
+  { label: 'Dasbor', href: '/dashboard' },
+  { label: 'Bantuan & Dokumentasi', href: '/dashboard/help' },
+  { label: 'Hubungi Dukungan' },
 ];
 
 export default function SupportPage() {
@@ -71,34 +85,34 @@ export default function SupportPage() {
     <>
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-6">
+      <div className="flex flex-1 flex-col gap-4">
         <div className="px-8 pt-8">
-          <h1 className="text-2xl font-bold">Contact Support</h1>
+          <h1 className="text-2xl font-bold">Hubungi Dukungan</h1>
           <p className="text-muted-foreground">
-            Get help from our support team
+            Dapatkan bantuan dari tim dukungan kami
           </p>
         </div>
 
         <Separator />
 
-        <div className="flex flex-col gap-6 px-8 pb-8">
+        <div className="flex flex-col gap-4 px-8 pb-8">
         <div className="grid gap-6 lg:grid-cols-3">
           {/* Left Column - New Ticket Form */}
           <div className="lg:col-span-2">
             <div className="space-y-4">
               <div>
-                <h2 className="text-lg font-semibold mb-1">Submit a Support Request</h2>
+                <h2 className="text-lg font-semibold mb-1">Ajukan Permintaan Dukungan</h2>
                 <p className="text-sm text-muted-foreground">
-                  Fill out the form below and our team will get back to you as soon as possible
+                  Isi formulir di bawah ini dan tim kami akan segera menghubungi Anda
                 </p>
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="subject">Subject *</Label>
+                  <Label htmlFor="subject">Subjek *</Label>
                   <Input
                     id="subject"
-                    placeholder="Brief description of your issue"
+                    placeholder="Deskripsi singkat masalah Anda"
                     value={subject}
                     onChange={(e) => setSubject(e.target.value)}
                     required
@@ -107,55 +121,55 @@ export default function SupportPage() {
 
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="category">Category *</Label>
+                    <Label htmlFor="category">Kategori *</Label>
                     <Select value={category} onValueChange={(value) => value && setCategory(value)} required>
                       <SelectTrigger id="category">
-                        <SelectValue placeholder="Select category" />
+                        <SelectValue placeholder="Pilih kategori" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="technical">Technical Issue</SelectItem>
-                        <SelectItem value="account">Account & Access</SelectItem>
-                        <SelectItem value="survey">Survey Related</SelectItem>
-                        <SelectItem value="data">Data & Reports</SelectItem>
-                        <SelectItem value="classification">DESDE-LTC Classification</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
+                        <SelectItem value="technical">Masalah Teknis</SelectItem>
+                        <SelectItem value="account">Akun & Akses</SelectItem>
+                        <SelectItem value="survey">Terkait Survei</SelectItem>
+                        <SelectItem value="data">Data & Laporan</SelectItem>
+                        <SelectItem value="classification">Klasifikasi DESDE-LTC</SelectItem>
+                        <SelectItem value="other">Lainnya</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="priority">Priority *</Label>
+                    <Label htmlFor="priority">Prioritas *</Label>
                     <Select value={priority} onValueChange={(value) => value && setPriority(value)} required>
                       <SelectTrigger id="priority">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="low">Low</SelectItem>
-                        <SelectItem value="medium">Medium</SelectItem>
-                        <SelectItem value="high">High</SelectItem>
-                        <SelectItem value="urgent">Urgent</SelectItem>
+                        <SelectItem value="low">Rendah</SelectItem>
+                        <SelectItem value="medium">Sedang</SelectItem>
+                        <SelectItem value="high">Tinggi</SelectItem>
+                        <SelectItem value="urgent">Mendesak</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="description">Description *</Label>
+                  <Label htmlFor="description">Deskripsi *</Label>
                   <Textarea
                     id="description"
-                    placeholder="Please provide as much detail as possible about your issue..."
+                    placeholder="Mohon berikan detail sebanyak mungkin tentang masalah Anda..."
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     rows={6}
                     required
                   />
                   <p className="text-xs text-muted-foreground">
-                    Include any error messages, steps to reproduce, or screenshots if applicable
+                    Sertakan pesan error, langkah-langkah untuk mereproduksi, atau tangkapan layar jika ada
                   </p>
                 </div>
 
                 <Button type="submit" className="w-full">
-                  Submit Request
+                  Kirim Permintaan
                 </Button>
               </form>
             </div>
@@ -165,7 +179,7 @@ export default function SupportPage() {
           <div className="space-y-6">
             {/* Contact Information */}
             <div className="space-y-3">
-              <h2 className="text-lg font-semibold">Contact Information</h2>
+              <h2 className="text-lg font-semibold">Informasi Kontak</h2>
               <div className="space-y-3 text-sm">
                 <div>
                   <div className="font-medium mb-1">Email</div>
@@ -174,16 +188,16 @@ export default function SupportPage() {
                   </a>
                 </div>
                 <div>
-                  <div className="font-medium mb-1">Response Time</div>
+                  <div className="font-medium mb-1">Waktu Respon</div>
                   <p className="text-muted-foreground">
-                    We typically respond within 24 hours on business days
+                    Kami biasanya merespon dalam 24 jam pada hari kerja
                   </p>
                 </div>
                 <div>
-                  <div className="font-medium mb-1">Support Hours</div>
+                  <div className="font-medium mb-1">Jam Dukungan</div>
                   <p className="text-muted-foreground">
-                    Monday - Friday<br />
-                    9:00 AM - 5:00 PM (GMT+7)
+                    Senin - Jumat<br />
+                    09.00 - 17.00 (GMT+7)
                   </p>
                 </div>
               </div>
@@ -191,7 +205,7 @@ export default function SupportPage() {
 
             {/* My Tickets */}
             <div className="space-y-3">
-              <h2 className="text-lg font-semibold">My Recent Tickets</h2>
+              <h2 className="text-lg font-semibold">Tiket Terbaru Saya</h2>
               <div className="space-y-3">
                 {myTickets.map((ticket) => (
                   <div
@@ -206,22 +220,22 @@ export default function SupportPage() {
                         variant="outline"
                         className={statusColors[ticket.status as keyof typeof statusColors]}
                       >
-                        {ticket.status.replace('_', ' ')}
+                        {statusLabels[ticket.status] ?? ticket.status.replace('_', ' ')}
                       </Badge>
                       <Badge
                         variant="outline"
                         className={priorityColors[ticket.priority as keyof typeof priorityColors]}
                       >
-                        {ticket.priority}
+                        {priorityLabels[ticket.priority] ?? ticket.priority}
                       </Badge>
                       <span className="text-xs text-muted-foreground">
-                        {ticket.replies_count} replies
+                        {ticket.replies_count} balasan
                       </span>
                     </div>
                   </div>
                 ))}
                 <Button variant="outline" className="w-full" size="sm">
-                  View All Tickets
+                  Lihat Semua Tiket
                 </Button>
               </div>
             </div>

@@ -12,45 +12,45 @@ import { Separator } from '@/components/ui/separator';
 const mockArticles = [
   {
     id: 1,
-    title: 'Getting Started with Atlas Keswa',
+    title: 'Memulai dengan Atlas Keswa',
     slug: 'getting-started',
-    summary: 'Learn the basics of navigating and using the Atlas Keswa mental health service directory platform.',
+    summary: 'Pelajari dasar-dasar navigasi dan penggunaan platform direktori layanan kesehatan jiwa Atlas Keswa.',
     is_featured: true,
     views_count: 142,
     created_at: '2025-01-01T07:00:00+07:00',
   },
   {
     id: 2,
-    title: 'Managing Services',
+    title: 'Mengelola Layanan',
     slug: 'managing-services',
-    summary: 'Learn how to add, edit, and manage mental health services in the directory.',
+    summary: 'Pelajari cara menambah, mengedit, dan mengelola layanan kesehatan jiwa di direktori.',
     is_featured: true,
     views_count: 98,
     created_at: '2025-01-01T07:00:00+07:00',
   },
   {
     id: 3,
-    title: 'Survey Management Guide',
+    title: 'Panduan Manajemen Survei',
     slug: 'survey-management',
-    summary: 'Complete guide to creating, managing, and verifying surveys in the system.',
+    summary: 'Panduan lengkap untuk membuat, mengelola, dan memverifikasi survei dalam sistem.',
     is_featured: false,
     views_count: 76,
     created_at: '2025-01-01T07:00:00+07:00',
   },
   {
     id: 4,
-    title: 'Understanding User Roles',
+    title: 'Memahami Peran Pengguna',
     slug: 'user-roles',
-    summary: 'Learn about different user roles and their permissions in the Atlas Keswa platform.',
+    summary: 'Pelajari tentang berbagai peran pengguna dan izinnya di platform Atlas Keswa.',
     is_featured: false,
     views_count: 65,
     created_at: '2025-01-01T07:00:00+07:00',
   },
   {
     id: 5,
-    title: 'Data Export and Reporting',
+    title: 'Ekspor Data dan Pelaporan',
     slug: 'data-export',
-    summary: 'How to export data and generate reports from the system.',
+    summary: 'Cara mengekspor data dan membuat laporan dari sistem.',
     is_featured: false,
     views_count: 54,
     created_at: '2025-01-01T07:00:00+07:00',
@@ -58,9 +58,9 @@ const mockArticles = [
 ];
 
 const breadcrumbs = [
-  { label: 'Dashboard', href: '/dashboard' },
-  { label: 'Help & Documentation', href: '/dashboard/help' },
-  { label: 'User Guide' },
+  { label: 'Dasbor', href: '/dashboard' },
+  { label: 'Bantuan & Dokumentasi', href: '/dashboard/help' },
+  { label: 'Panduan Pengguna' },
 ];
 
 export default function UserGuidePage() {
@@ -79,23 +79,23 @@ export default function UserGuidePage() {
     <>
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-6">
+      <div className="flex flex-1 flex-col gap-4">
         <div className="px-8 pt-8">
-          <h1 className="text-2xl font-bold">User Guide</h1>
+          <h1 className="text-2xl font-bold">Panduan Pengguna</h1>
           <p className="text-muted-foreground">
-            Comprehensive guides and tutorials for using the Atlas Keswa platform
+            Panduan dan tutorial lengkap untuk menggunakan platform Atlas Keswa
           </p>
         </div>
 
         <Separator />
 
-        <div className="flex flex-col gap-6 px-8 pb-8">
+        <div className="flex flex-col gap-4 px-8 pb-8">
         {/* Search */}
         <div className="max-w-md">
           <div className="relative">
             <HugeiconsIcon icon={Search01Icon} size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search articles..."
+              placeholder="Cari artikel..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10"
@@ -106,21 +106,21 @@ export default function UserGuidePage() {
         {/* Featured Articles */}
         {featuredArticles.length > 0 && (
           <div>
-            <h2 className="text-lg font-semibold mb-4">Featured Guides</h2>
+            <h2 className="text-lg font-semibold mb-4">Panduan Unggulan</h2>
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {featuredArticles.map((article) => (
                 <div key={article.id} className="p-4 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer">
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <h3 className="font-medium">{article.title}</h3>
                     <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200 shrink-0">
-                      Featured
+                      Unggulan
                     </Badge>
                   </div>
                   <p className="text-sm text-muted-foreground mb-3">
                     {article.summary}
                   </p>
                   <div className="text-xs text-muted-foreground">
-                    {article.views_count} views
+                    {article.views_count} tampilan
                   </div>
                 </div>
               ))}
@@ -131,7 +131,7 @@ export default function UserGuidePage() {
         {/* All Articles */}
         {regularArticles.length > 0 && (
           <div>
-            <h2 className="text-lg font-semibold mb-4">All Guides</h2>
+            <h2 className="text-lg font-semibold mb-4">Semua Panduan</h2>
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {regularArticles.map((article) => (
                 <div key={article.id} className="p-4 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer">
@@ -140,7 +140,7 @@ export default function UserGuidePage() {
                     {article.summary}
                   </p>
                   <div className="text-xs text-muted-foreground">
-                    {article.views_count} views
+                    {article.views_count} tampilan
                   </div>
                 </div>
               ))}
@@ -152,7 +152,7 @@ export default function UserGuidePage() {
         {filteredArticles.length === 0 && (
           <div className="text-center py-12">
             <p className="text-muted-foreground">
-              No articles found matching your search.
+              Tidak ada artikel yang cocok dengan pencarian Anda.
             </p>
           </div>
         )}

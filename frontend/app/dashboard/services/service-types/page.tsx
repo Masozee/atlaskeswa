@@ -25,9 +25,9 @@ import { Input } from "@/components/ui/input";
 import { Separator } from '@/components/ui/separator';
 
 const breadcrumbs = [
-  { label: 'Dashboard', href: '/dashboard' },
-  { label: 'Services', href: '/dashboard/services' },
-  { label: 'Service Types' },
+  { label: 'Dasbor', href: '/dashboard' },
+  { label: 'Layanan', href: '/dashboard/services' },
+  { label: 'Jenis Layanan' },
 ];
 
 export default function ServiceTypesPage() {
@@ -46,14 +46,14 @@ export default function ServiceTypesPage() {
       },
       {
         accessorKey: "name",
-        header: "Service Type",
+        header: "Jenis Layanan",
         cell: ({ row }) => (
           <div className="font-medium">{row.getValue("name")}</div>
         ),
       },
       {
         accessorKey: "description",
-        header: "Description",
+        header: "Deskripsi",
         cell: ({ row }) => {
           const description = row.getValue("description") as string;
           return (
@@ -70,7 +70,7 @@ export default function ServiceTypesPage() {
           const isActive = row.getValue("is_active");
           return (
             <Badge variant={isActive ? "default" : "secondary"}>
-              {isActive ? "Active" : "Inactive"}
+              {isActive ? "Aktif" : "Nonaktif"}
             </Badge>
           );
         },
@@ -107,35 +107,35 @@ export default function ServiceTypesPage() {
     <>
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-4">
+      <div className="flex flex-1 flex-col gap-3">
 
-        <div className="px-8 pt-8">
-          <h1 className="text-2xl font-bold tracking-tight">Service Types</h1>
-          <p className="text-muted-foreground">
-            Types of mental health services available
+        <div className="px-6 pt-6">
+          <h1 className="text-xl font-bold tracking-tight">Jenis Layanan</h1>
+          <p className="text-sm text-muted-foreground">
+            Jenis layanan kesehatan jiwa yang tersedia
           </p>
         </div>
 
         <Separator />
 
-        <div className="flex flex-col gap-4 px-8 pb-8">
+        <div className="flex flex-col gap-3 px-6 pb-6">
 
-        <div className="flex gap-2 justify-between items-center">
+        <div className="flex gap-2 justify-end items-center">
           <Input
-            placeholder="Search service types..."
+            placeholder="Cari jenis layanan..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-64"
+            className="w-64 min-h-9 rounded-sm bg-white shadow-none"
           />
         </div>
 
-        <div className="rounded-lg border">
+        <div className="rounded-sm border bg-white overflow-hidden">
           <Table>
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id}>
+                <TableRow key={headerGroup.id} className="bg-muted/50">
                   {headerGroup.headers.map((header) => (
-                    <TableHead key={header.id}>
+                    <TableHead key={header.id} className="border-r last:border-r-0">
                       {header.isPlaceholder
                         ? null
                         : flexRender(
@@ -151,12 +151,12 @@ export default function ServiceTypesPage() {
               {isLoading ? (
                 <TableRow>
                   <TableCell colSpan={columns.length} className="h-24 text-center">
-                    Loading...
+                    Memuat...
                   </TableCell>
                 </TableRow>
               ) : table.getRowModel().rows?.length ? (
                 table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id}>
+                  <TableRow key={row.id} className="even:bg-muted">
                     {row.getVisibleCells().map((cell) => (
                       <TableCell key={cell.id}>
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -167,7 +167,7 @@ export default function ServiceTypesPage() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={columns.length} className="h-24 text-center">
-                    No service types found.
+                    Tidak ada jenis layanan ditemukan.
                   </TableCell>
                 </TableRow>
               )}
@@ -178,7 +178,7 @@ export default function ServiceTypesPage() {
         {filteredData && filteredData.length > 0 && (
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
-              Showing {filteredData.length} service type{filteredData.length !== 1 ? 's' : ''}
+              Menampilkan {filteredData.length} jenis layanan
             </p>
           </div>
         )}
