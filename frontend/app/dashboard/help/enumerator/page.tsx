@@ -6,64 +6,64 @@ import { Separator } from '@/components/ui/separator';
 
 const checklistItems = {
   before: [
-    'Review the survey form thoroughly',
-    'Prepare necessary documents and ID',
-    'Charge your device fully',
-    'Test internet connection',
-    'Download offline survey forms (if needed)',
+    'Tinjau formulir survei dengan saksama',
+    'Siapkan dokumen dan identitas yang diperlukan',
+    'Isi daya perangkat hingga penuh',
+    'Uji koneksi internet',
+    'Unduh formulir survei luring (jika diperlukan)',
   ],
   during: [
-    'Introduce yourself professionally',
-    'Explain the purpose of the survey',
-    'Request and obtain consent',
-    'Follow the survey flow systematically',
-    'Ask clarifying questions when needed',
-    'Document evidence (photos, documents)',
-    'Verify all information provided',
+    'Perkenalkan diri secara profesional',
+    'Jelaskan tujuan survei',
+    'Minta dan peroleh persetujuan',
+    'Ikuti alur survei secara sistematis',
+    'Ajukan pertanyaan klarifikasi bila diperlukan',
+    'Dokumentasikan bukti (foto, dokumen)',
+    'Verifikasi semua informasi yang diberikan',
   ],
   after: [
-    'Submit the survey promptly',
-    'Upload all supporting documents',
-    'Note any issues or concerns',
-    'Follow up if additional information needed',
-    'Review for completeness',
+    'Kirim survei dengan segera',
+    'Unggah semua dokumen pendukung',
+    'Catat setiap masalah atau kekhawatiran',
+    'Tindak lanjuti jika diperlukan informasi tambahan',
+    'Tinjau kelengkapannya',
   ],
 };
 
 const commonIssues = [
   {
-    issue: 'GPS Not Working',
+    issue: 'GPS Tidak Berfungsi',
     solutions: [
-      'Enable location services in device settings',
-      'Move to an open area with clear sky view',
-      'Restart the GPS/location service',
-      'Manually enter coordinates if GPS fails',
+      'Aktifkan layanan lokasi di pengaturan perangkat',
+      'Pindah ke area terbuka dengan pandangan langit yang jelas',
+      'Mulai ulang layanan GPS/lokasi',
+      'Masukkan koordinat secara manual jika GPS gagal',
     ],
   },
   {
-    issue: 'Service Not in Database',
+    issue: 'Layanan Tidak Ada di Basis Data',
     solutions: [
-      'Use "Add New Service" form',
-      'Provide detailed information about the service',
-      'Document the service with photos',
-      'Note why it wasn\'t previously registered',
+      'Gunakan formulir "Tambah Layanan Baru"',
+      'Berikan informasi rinci tentang layanan tersebut',
+      'Dokumentasikan layanan dengan foto',
+      'Catat alasan mengapa belum terdaftar sebelumnya',
     ],
   },
   {
-    issue: 'Respondent Unavailable',
+    issue: 'Responden Tidak Tersedia',
     solutions: [
-      'Schedule a callback appointment',
-      'Leave contact information',
-      'Document the attempt in notes',
-      'Try alternative contact methods',
+      'Jadwalkan janji temu ulang',
+      'Tinggalkan informasi kontak',
+      'Dokumentasikan upaya dalam catatan',
+      'Coba metode kontak alternatif',
     ],
   },
 ];
 
 const breadcrumbs = [
-  { label: 'Dashboard', href: '/dashboard' },
-  { label: 'Help & Documentation', href: '/dashboard/help' },
-  { label: 'Enumerator Handbook' },
+  { label: 'Dasbor', href: '/dashboard' },
+  { label: 'Bantuan & Dokumentasi', href: '/dashboard/help' },
+  { label: 'Buku Panduan Enumerator' },
 ];
 
 export default function EnumeratorPage() {
@@ -71,21 +71,21 @@ export default function EnumeratorPage() {
     <>
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-6">
+      <div className="flex flex-1 flex-col gap-4">
         <div className="px-8 pt-8">
-          <h1 className="text-2xl font-bold">Enumerator Handbook</h1>
+          <h1 className="text-2xl font-bold">Buku Panduan Enumerator</h1>
           <p className="text-muted-foreground">
-            Quick reference guide for conducting mental health service surveys
+            Panduan referensi cepat untuk melakukan survei layanan kesehatan jiwa
           </p>
         </div>
 
         <Separator />
 
-        <div className="flex flex-col gap-6 px-8 pb-8">
+        <div className="flex flex-col gap-4 px-8 pb-8">
         {/* Checklists */}
         <div className="grid gap-4 md:grid-cols-3">
           <div className="p-4 rounded-lg bg-muted/50">
-            <h3 className="font-semibold text-base mb-3">Before Starting</h3>
+            <h3 className="font-semibold text-base mb-3">Sebelum Memulai</h3>
             <ul className="space-y-2">
               {checklistItems.before.map((item, idx) => (
                 <li key={idx} className="flex items-start gap-2 text-sm">
@@ -97,7 +97,7 @@ export default function EnumeratorPage() {
           </div>
 
           <div className="p-4 rounded-lg bg-muted/50">
-            <h3 className="font-semibold text-base mb-3">During Survey</h3>
+            <h3 className="font-semibold text-base mb-3">Selama Survei</h3>
             <ul className="space-y-2">
               {checklistItems.during.map((item, idx) => (
                 <li key={idx} className="flex items-start gap-2 text-sm">
@@ -109,7 +109,7 @@ export default function EnumeratorPage() {
           </div>
 
           <div className="p-4 rounded-lg bg-muted/50">
-            <h3 className="font-semibold text-base mb-3">After Survey</h3>
+            <h3 className="font-semibold text-base mb-3">Setelah Survei</h3>
             <ul className="space-y-2">
               {checklistItems.after.map((item, idx) => (
                 <li key={idx} className="flex items-start gap-2 text-sm">
@@ -123,42 +123,42 @@ export default function EnumeratorPage() {
 
         {/* Service Details Section */}
         <div className="p-4 rounded-lg bg-muted/50">
-          <h2 className="text-lg font-semibold mb-4">Key Information to Collect</h2>
+          <h2 className="text-lg font-semibold mb-4">Informasi Utama yang Harus Dikumpulkan</h2>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <h4 className="font-medium text-sm">Basic Information</h4>
+              <h4 className="font-medium text-sm">Informasi Dasar</h4>
               <ul className="space-y-1 text-sm text-muted-foreground">
-                <li>• Service name and type</li>
-                <li>• Complete address and location</li>
-                <li>• Contact information (phone, email)</li>
-                <li>• GPS coordinates</li>
+                <li>• Nama dan jenis layanan</li>
+                <li>• Alamat dan lokasi lengkap</li>
+                <li>• Informasi kontak (telepon, email)</li>
+                <li>• Koordinat GPS</li>
               </ul>
             </div>
             <div className="space-y-2">
-              <h4 className="font-medium text-sm">Service Details</h4>
+              <h4 className="font-medium text-sm">Detail Layanan</h4>
               <ul className="space-y-1 text-sm text-muted-foreground">
-                <li>• Services provided (MTC/BSIC classification)</li>
-                <li>• Operating hours and schedule</li>
-                <li>• Available resources and capacity</li>
-                <li>• Target populations served</li>
+                <li>• Layanan yang disediakan (klasifikasi MTC/BSIC)</li>
+                <li>• Jam dan jadwal operasional</li>
+                <li>• Sumber daya dan kapasitas yang tersedia</li>
+                <li>• Populasi sasaran yang dilayani</li>
               </ul>
             </div>
             <div className="space-y-2">
-              <h4 className="font-medium text-sm">Quality Checks</h4>
+              <h4 className="font-medium text-sm">Pemeriksaan Kualitas</h4>
               <ul className="space-y-1 text-sm text-muted-foreground">
-                <li>• Verify GPS coordinates accuracy</li>
-                <li>• Validate contact details</li>
-                <li>• Confirm service classifications</li>
-                <li>• Ensure all required fields complete</li>
+                <li>• Verifikasi akurasi koordinat GPS</li>
+                <li>• Validasi detail kontak</li>
+                <li>• Konfirmasi klasifikasi layanan</li>
+                <li>• Pastikan semua kolom wajib terisi lengkap</li>
               </ul>
             </div>
             <div className="space-y-2">
-              <h4 className="font-medium text-sm">Documentation</h4>
+              <h4 className="font-medium text-sm">Dokumentasi</h4>
               <ul className="space-y-1 text-sm text-muted-foreground">
-                <li>• Photos of facility (exterior/interior)</li>
-                <li>• Supporting documents</li>
-                <li>• License or certification copies</li>
-                <li>• Contact person details</li>
+                <li>• Foto fasilitas (eksterior/interior)</li>
+                <li>• Dokumen pendukung</li>
+                <li>• Salinan lisensi atau sertifikasi</li>
+                <li>• Detail narahubung</li>
               </ul>
             </div>
           </div>
@@ -166,7 +166,7 @@ export default function EnumeratorPage() {
 
         {/* Common Issues */}
         <div className="space-y-4">
-          <h2 className="text-lg font-semibold">Common Issues & Solutions</h2>
+          <h2 className="text-lg font-semibold">Masalah Umum & Solusi</h2>
           <div className="grid gap-4">
             {commonIssues.map((item, idx) => (
               <div key={idx} className="p-4 rounded-lg bg-muted/50">
@@ -186,13 +186,13 @@ export default function EnumeratorPage() {
 
         {/* Best Practices */}
         <div className="bg-blue-50 rounded-lg p-6">
-          <h2 className="text-lg font-semibold text-blue-900 mb-4">Best Practices</h2>
+          <h2 className="text-lg font-semibold text-blue-900 mb-4">Praktik Terbaik</h2>
           <ul className="space-y-2 text-sm text-blue-800">
-            <li>• Always be professional and respectful with respondents</li>
-            <li>• Verify information from multiple sources when possible</li>
-            <li>• Take clear, well-lit photos for documentation</li>
-            <li>• Submit surveys on the same day whenever possible</li>
-            <li>• Keep detailed notes for any unusual situations</li>
+            <li>• Selalu bersikap profesional dan hormat kepada responden</li>
+            <li>• Verifikasi informasi dari berbagai sumber bila memungkinkan</li>
+            <li>• Ambil foto yang jelas dan terang untuk dokumentasi</li>
+            <li>• Kirim survei pada hari yang sama bila memungkinkan</li>
+            <li>• Buat catatan rinci untuk setiap situasi yang tidak biasa</li>
           </ul>
         </div>
         </div>

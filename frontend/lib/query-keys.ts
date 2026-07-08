@@ -20,6 +20,7 @@ export const queryKeys = {
     infinite: (params?: Record<string, unknown>) => [...queryKeys.users.all, 'infinite', params] as const,
     details: () => [...queryKeys.users.all, 'detail'] as const,
     detail: (id: number) => [...queryKeys.users.details(), id] as const,
+    stats: () => [...queryKeys.users.all, 'stats'] as const,
   },
 
   // Surveys

@@ -64,7 +64,7 @@ const STATUS_COLORS = {
 };
 
 const breadcrumbs: BreadcrumbItemType[] = [
-  { label: 'Enumerator Management', href: '/enumerators' },
+  { label: 'Pengguna & Enumerator', href: '/dashboard/users' },
   { label: 'Performance Report' },
 ];
 

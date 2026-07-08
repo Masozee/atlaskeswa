@@ -16,9 +16,9 @@ import { HugeiconsIcon } from "@hugeicons/react"
 import {Upload01Icon, File02Icon, AlertCircleIcon, Tick02Icon, Cancel01Icon} from "@hugeicons/core-free-icons";
 
 const breadcrumbs = [
-  { label: 'Dashboard', href: '/dashboard' },
-  { label: 'Survey Management', href: '/dashboard/survey' },
-  { label: 'Bulk Upload' },
+  { label: 'Dasbor', href: '/dashboard' },
+  { label: 'Manajemen Survei', href: '/dashboard/survey' },
+  { label: 'Unggah Massal' },
 ];
 
 interface ParsedSurvey {
@@ -85,19 +85,19 @@ export default function BulkUploadPage() {
 
     // Required fields
     if (!row.service_id) {
-      errors.push({ row: rowNum, field: 'service_id', message: 'Service ID is required' });
+      errors.push({ row: rowNum, field: 'service_id', message: 'Service ID wajib diisi' });
     }
     if (!row.survey_date) {
-      errors.push({ row: rowNum, field: 'survey_date', message: 'Survey date is required' });
+      errors.push({ row: rowNum, field: 'survey_date', message: 'Tanggal survei wajib diisi' });
     }
     if (!row.survey_period_start) {
-      errors.push({ row: rowNum, field: 'survey_period_start', message: 'Survey period start is required' });
+      errors.push({ row: rowNum, field: 'survey_period_start', message: 'Awal periode survei wajib diisi' });
     }
     if (!row.survey_period_end) {
-      errors.push({ row: rowNum, field: 'survey_period_end', message: 'Survey period end is required' });
+      errors.push({ row: rowNum, field: 'survey_period_end', message: 'Akhir periode survei wajib diisi' });
     }
     if (!row.surveyor_id) {
-      errors.push({ row: rowNum, field: 'surveyor_id', message: 'Surveyor ID is required' });
+      errors.push({ row: rowNum, field: 'surveyor_id', message: 'Surveyor ID wajib diisi' });
     }
 
     // Validate date formats
@@ -105,7 +105,7 @@ export default function BulkUploadPage() {
     dateFields.forEach(field => {
       const value = row[field as keyof ParsedSurvey];
       if (value && !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-        errors.push({ row: rowNum, field, message: `${field} must be in YYYY-MM-DD format` });
+        errors.push({ row: rowNum, field, message: `${field} harus dalam format YYYY-MM-DD` });
       }
     });
 
@@ -123,7 +123,7 @@ export default function BulkUploadPage() {
     numericFields.forEach(field => {
       const value = row[field as keyof ParsedSurvey];
       if (value && (isNaN(Number(value)) || Number(value) < 0)) {
-        errors.push({ row: rowNum, field, message: `${field} must be a positive number` });
+        errors.push({ row: rowNum, field, message: `${field} harus berupa angka positif` });
       }
     });
 
@@ -132,7 +132,7 @@ export default function BulkUploadPage() {
     decimalFields.forEach(field => {
       const value = row[field as keyof ParsedSurvey];
       if (value && isNaN(Number(value))) {
-        errors.push({ row: rowNum, field, message: `${field} must be a valid number` });
+        errors.push({ row: rowNum, field, message: `${field} harus berupa angka yang valid` });
       }
     });
 
@@ -140,7 +140,7 @@ export default function BulkUploadPage() {
     if (row.patient_satisfaction_score) {
       const score = Number(row.patient_satisfaction_score);
       if (score < 0 || score > 5) {
-        errors.push({ row: rowNum, field: 'patient_satisfaction_score', message: 'Must be between 0 and 5' });
+        errors.push({ row: rowNum, field: 'patient_satisfaction_score', message: 'Harus di antara 0 dan 5' });
       }
     }
 
@@ -175,7 +175,7 @@ export default function BulkUploadPage() {
         setIsValidating(false);
       },
       error: (error) => {
-        setValidationErrors([{ row: 0, field: 'file', message: `Parse error: ${error.message}` }]);
+        setValidationErrors([{ row: 0, field: 'file', message: `Kesalahan parsing: ${error.message}` }]);
         setIsValidating(false);
       }
     });
@@ -246,12 +246,12 @@ export default function BulkUploadPage() {
         };
 
         await createSurvey.mutateAsync(payload);
-        results.push({ row: rowNum, status: 'success', message: 'Survey created successfully' });
+        results.push({ row: rowNum, status: 'success', message: 'Survei berhasil dibuat' });
       } catch (error: any) {
         results.push({
           row: rowNum,
           status: 'error',
-          message: error?.message || 'Failed to create survey'
+          message: error?.message || 'Gagal membuat survei'
         });
       }
 
@@ -282,20 +282,25 @@ export default function BulkUploadPage() {
     <>
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-4 p-8">
-        <div>
-          <h1 className="text-3xl font-bold">Bulk Upload Surveys</h1>
+      <div className="flex flex-1 flex-col gap-4">
+
+        <div className="px-8 pt-8">
+          <h1 className="text-2xl font-bold">Unggah Massal Survei</h1>
           <p className="text-muted-foreground mt-1">
-            Upload multiple survey records at once using a CSV file
+            Unggah beberapa catatan survei sekaligus menggunakan berkas CSV
           </p>
         </div>
 
+        <Separator />
+
+        <div className="flex flex-col gap-4 px-8 pb-8">
+
         <div className="grid gap-6 lg:grid-cols-2">
-          <Card>
+          <Card className="border-0 bg-white shadow-none">
             <CardHeader>
-              <CardTitle>Upload CSV File</CardTitle>
+              <CardTitle>Unggah Berkas CSV</CardTitle>
               <CardDescription>
-                Upload a CSV file containing survey data. Download the template to see the required format.
+                Unggah berkas CSV berisi data survei. Unduh templat untuk melihat format yang dibutuhkan.
               </CardDescription>
             </CardHeader>
             <Separator />
@@ -316,9 +321,9 @@ export default function BulkUploadPage() {
                   </div>
                   <div>
                     <p className="text-sm font-medium">
-                      {file ? file.name : 'Drag and drop your CSV file here'}
+                      {file ? file.name : 'Seret dan lepas berkas CSV Anda di sini'}
                     </p>
-                    <p className="text-xs text-muted-foreground mt-1">or click to browse</p>
+                    <p className="text-xs text-muted-foreground mt-1">atau klik untuk menelusuri</p>
                   </div>
                   <input
                     type="file"
@@ -329,7 +334,7 @@ export default function BulkUploadPage() {
                   />
                   <label htmlFor="file-upload">
                     <Button type="button" variant="outline" size="sm" asChild>
-                      <span>Choose File</span>
+                      <span>Pilih Berkas</span>
                     </Button>
                   </label>
                 </div>
@@ -337,13 +342,13 @@ export default function BulkUploadPage() {
 
               <Button onClick={downloadTemplate} variant="outline" className="w-full">
                 <HugeiconsIcon icon={File02Icon} size={16} className="mr-2" />
-                Download CSV Template
+                Unduh Templat CSV
               </Button>
 
               {isValidating && (
                 <Alert>
                   <HugeiconsIcon icon={AlertCircleIcon} size={16} />
-                  <AlertDescription>Validating CSV file...</AlertDescription>
+                  <AlertDescription>Memvalidasi berkas CSV...</AlertDescription>
                 </Alert>
               )}
 
@@ -351,7 +356,7 @@ export default function BulkUploadPage() {
                 <Alert>
                   <HugeiconsIcon icon={Tick02Icon} size={16} className="text-green-600" />
                   <AlertDescription className="text-green-600">
-                    ✓ File validated successfully. {parsedData.length} surveys ready to upload.
+                    Berkas berhasil divalidasi. {parsedData.length} survei siap diunggah.
                   </AlertDescription>
                 </Alert>
               )}
@@ -360,18 +365,18 @@ export default function BulkUploadPage() {
                 <Alert variant="destructive">
                   <HugeiconsIcon icon={AlertCircleIcon} size={16} />
                   <AlertDescription>
-                    Found {validationErrors.length} validation error(s). Please fix them before uploading.
+                    Ditemukan {validationErrors.length} kesalahan validasi. Perbaiki terlebih dahulu sebelum mengunggah.
                   </AlertDescription>
                 </Alert>
               )}
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-0 bg-white shadow-none">
             <CardHeader>
-              <CardTitle>Upload Status</CardTitle>
+              <CardTitle>Status Unggahan</CardTitle>
               <CardDescription>
-                Track the progress of your bulk upload
+                Pantau progres unggahan massal Anda
               </CardDescription>
             </CardHeader>
             <Separator />
@@ -379,11 +384,11 @@ export default function BulkUploadPage() {
               {parsedData.length > 0 && (
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Total surveys</span>
+                    <span className="text-muted-foreground">Total survei</span>
                     <span className="font-medium">{parsedData.length}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Validation errors</span>
+                    <span className="text-muted-foreground">Kesalahan validasi</span>
                     <Badge variant={validationErrors.length > 0 ? 'destructive' : 'default'}>
                       {validationErrors.length}
                     </Badge>
@@ -394,7 +399,7 @@ export default function BulkUploadPage() {
               {isUploading && (
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Upload progress</span>
+                    <span className="text-muted-foreground">Progres unggahan</span>
                     <span className="font-medium">{Math.round(uploadProgress)}%</span>
                   </div>
                   <Progress value={uploadProgress} />
@@ -404,13 +409,13 @@ export default function BulkUploadPage() {
               {uploadResults.length > 0 && (
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Successful</span>
-                    <Badge variant="default" className="bg-green-600">
+                    <span className="text-muted-foreground">Berhasil</span>
+                    <Badge variant="default">
                       {successCount}
                     </Badge>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Failed</span>
+                    <span className="text-muted-foreground">Gagal</span>
                     <Badge variant="destructive">{errorCount}</Badge>
                   </div>
                 </div>
@@ -422,7 +427,7 @@ export default function BulkUploadPage() {
                   disabled={parsedData.length === 0 || validationErrors.length > 0 || isUploading}
                   className="w-full"
                 >
-                  {isUploading ? 'Uploading...' : 'Upload Surveys'}
+                  {isUploading ? 'Mengunggah...' : 'Unggah Survei'}
                 </Button>
 
                 {uploadResults.length > 0 && !isUploading && (
@@ -431,7 +436,7 @@ export default function BulkUploadPage() {
                     variant="outline"
                     className="w-full"
                   >
-                    View All Surveys
+                    Lihat Semua Survei
                   </Button>
                 )}
               </div>
@@ -440,11 +445,11 @@ export default function BulkUploadPage() {
         </div>
 
         {validationErrors.length > 0 && (
-          <Card>
+          <Card className="border-0 bg-white shadow-none">
             <CardHeader>
-              <CardTitle>Validation Errors</CardTitle>
+              <CardTitle>Kesalahan Validasi</CardTitle>
               <CardDescription>
-                Fix these errors before uploading
+                Perbaiki kesalahan berikut sebelum mengunggah
               </CardDescription>
             </CardHeader>
             <Separator />
@@ -452,9 +457,9 @@ export default function BulkUploadPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Row</TableHead>
-                    <TableHead>Field</TableHead>
-                    <TableHead>Error</TableHead>
+                    <TableHead>Baris</TableHead>
+                    <TableHead>Kolom</TableHead>
+                    <TableHead>Kesalahan</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -472,11 +477,11 @@ export default function BulkUploadPage() {
         )}
 
         {parsedData.length > 0 && validationErrors.length === 0 && (
-          <Card>
+          <Card className="border-0 bg-white shadow-none">
             <CardHeader>
-              <CardTitle>Preview Data ({parsedData.length} surveys)</CardTitle>
+              <CardTitle>Pratinjau Data ({parsedData.length} survei)</CardTitle>
               <CardDescription>
-                Review the data before uploading
+                Tinjau data sebelum mengunggah
               </CardDescription>
             </CardHeader>
             <Separator />
@@ -485,13 +490,13 @@ export default function BulkUploadPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Row</TableHead>
+                      <TableHead>Baris</TableHead>
                       <TableHead>Service ID</TableHead>
-                      <TableHead>Survey Date</TableHead>
-                      <TableHead>Period</TableHead>
+                      <TableHead>Tanggal Survei</TableHead>
+                      <TableHead>Periode</TableHead>
                       <TableHead>Surveyor ID</TableHead>
-                      <TableHead>Patients</TableHead>
-                      <TableHead>Beds</TableHead>
+                      <TableHead>Pasien</TableHead>
+                      <TableHead>Tempat Tidur</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -501,7 +506,7 @@ export default function BulkUploadPage() {
                         <TableCell>{row.service_id}</TableCell>
                         <TableCell>{row.survey_date}</TableCell>
                         <TableCell className="text-xs">
-                          {row.survey_period_start} to {row.survey_period_end}
+                          {row.survey_period_start} s/d {row.survey_period_end}
                         </TableCell>
                         <TableCell>{row.surveyor_id}</TableCell>
                         <TableCell>{row.total_patients_served || 0}</TableCell>
@@ -512,7 +517,7 @@ export default function BulkUploadPage() {
                 </Table>
                 {parsedData.length > 10 && (
                   <p className="text-sm text-muted-foreground text-center py-4">
-                    Showing 10 of {parsedData.length} surveys
+                    Menampilkan 10 dari {parsedData.length} survei
                   </p>
                 )}
               </div>
@@ -521,11 +526,11 @@ export default function BulkUploadPage() {
         )}
 
         {uploadResults.length > 0 && (
-          <Card>
+          <Card className="border-0 bg-white shadow-none">
             <CardHeader>
-              <CardTitle>Upload Results</CardTitle>
+              <CardTitle>Hasil Unggahan</CardTitle>
               <CardDescription>
-                Detailed results for each survey upload
+                Hasil rinci untuk setiap unggahan survei
               </CardDescription>
             </CardHeader>
             <Separator />
@@ -534,9 +539,9 @@ export default function BulkUploadPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Row</TableHead>
+                      <TableHead>Baris</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead>Message</TableHead>
+                      <TableHead>Pesan</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -545,14 +550,14 @@ export default function BulkUploadPage() {
                         <TableCell>{result.row}</TableCell>
                         <TableCell>
                           {result.status === 'success' ? (
-                            <Badge variant="default" className="bg-green-600">
+                            <Badge variant="default">
                               <HugeiconsIcon icon={Tick02Icon} size={12} className="mr-1" />
-                              Success
+                              Berhasil
                             </Badge>
                           ) : (
                             <Badge variant="destructive">
                               <HugeiconsIcon icon={Cancel01Icon} size={12} className="mr-1" />
-                              Error
+                              Gagal
                             </Badge>
                           )}
                         </TableCell>
@@ -567,6 +572,7 @@ export default function BulkUploadPage() {
             </CardContent>
           </Card>
         )}
+        </div>
       </div>
     </>
   );

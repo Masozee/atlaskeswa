@@ -9,59 +9,59 @@ import { Separator } from '@/components/ui/separator';
 const mtcCategories = [
   {
     code: 'R',
-    name: 'Residential Care',
-    description: 'Services providing accommodation and 24-hour care',
+    name: 'Perawatan Residensial',
+    description: 'Layanan yang menyediakan akomodasi dan perawatan 24 jam',
     color: 'bg-blue-100 text-blue-800',
-    examples: ['Psychiatric hospitals', 'Residential homes', 'Crisis residential care'],
+    examples: ['Rumah sakit jiwa', 'Rumah perawatan', 'Perawatan residensial krisis'],
   },
   {
     code: 'D',
-    name: 'Day Care',
-    description: 'Services providing structured daytime activities',
+    name: 'Perawatan Harian',
+    description: 'Layanan yang menyediakan kegiatan terstruktur pada siang hari',
     color: 'bg-green-100 text-green-800',
-    examples: ['Day centres', 'Day hospitals', 'Therapeutic workshops'],
+    examples: ['Pusat harian', 'Rumah sakit harian', 'Lokakarya terapeutik'],
   },
   {
     code: 'O',
-    name: 'Outpatient Care',
-    description: 'Services providing scheduled consultations and treatments',
+    name: 'Perawatan Rawat Jalan',
+    description: 'Layanan yang menyediakan konsultasi dan pengobatan terjadwal',
     color: 'bg-purple-100 text-purple-800',
-    examples: ['Outpatient clinics', 'Mental health centres', 'Primary care'],
+    examples: ['Klinik rawat jalan', 'Pusat kesehatan jiwa', 'Perawatan primer'],
   },
   {
     code: 'A',
-    name: 'Accessibility to Care',
-    description: 'Services facilitating access to care',
+    name: 'Aksesibilitas Perawatan',
+    description: 'Layanan yang memfasilitasi akses ke perawatan',
     color: 'bg-yellow-100 text-yellow-800',
-    examples: ['Emergency services', 'Mobile teams', 'Hotlines'],
+    examples: ['Layanan darurat', 'Tim bergerak', 'Saluran bantuan'],
   },
   {
     code: 'I',
-    name: 'Information',
-    description: 'Services providing information about available care',
+    name: 'Informasi',
+    description: 'Layanan yang menyediakan informasi tentang perawatan yang tersedia',
     color: 'bg-orange-100 text-orange-800',
-    examples: ['Information services', 'Advocacy services', 'Registers'],
+    examples: ['Layanan informasi', 'Layanan advokasi', 'Registrasi'],
   },
   {
     code: 'W',
-    name: 'Work and Training',
-    description: 'Services for vocational rehabilitation',
+    name: 'Kerja dan Pelatihan',
+    description: 'Layanan untuk rehabilitasi vokasional',
     color: 'bg-cyan-100 text-cyan-800',
-    examples: ['Sheltered workshops', 'Transitional employment', 'Job training'],
+    examples: ['Lokakarya terlindung', 'Pekerjaan transisi', 'Pelatihan kerja'],
   },
   {
     code: 'S',
-    name: 'Self-help and Voluntary Work',
-    description: 'User-led and peer support services',
+    name: 'Swadaya dan Kerja Sukarela',
+    description: 'Layanan dukungan sebaya dan yang dipimpin pengguna',
     color: 'bg-pink-100 text-pink-800',
-    examples: ['Self-help groups', 'Peer support', 'User organizations'],
+    examples: ['Kelompok swadaya', 'Dukungan sebaya', 'Organisasi pengguna'],
   },
 ];
 
 const breadcrumbs = [
-  { label: 'Dashboard', href: '/dashboard' },
-  { label: 'Help & Documentation', href: '/dashboard/help' },
-  { label: 'DESDE-LTC Classification' },
+  { label: 'Dasbor', href: '/dashboard' },
+  { label: 'Bantuan & Dokumentasi', href: '/dashboard/help' },
+  { label: 'Klasifikasi DESDE-LTC' },
 ];
 
 export default function DESDELTCPage() {
@@ -71,9 +71,9 @@ export default function DESDELTCPage() {
     <>
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-6">
+      <div className="flex flex-1 flex-col gap-4">
         <div className="px-8 pt-8">
-          <h1 className="text-2xl font-bold">DESDE-LTC Classification Reference</h1>
+          <h1 className="text-2xl font-bold">Referensi Klasifikasi DESDE-LTC</h1>
           <p className="text-muted-foreground">
             Description and Evaluation of Services and DirectoriEs for Long Term Care
           </p>
@@ -81,41 +81,41 @@ export default function DESDELTCPage() {
 
         <Separator />
 
-        <div className="flex flex-col gap-6 px-8 pb-8">
+        <div className="flex flex-col gap-4 px-8 pb-8">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="mtc">Main Types of Care (MTC)</TabsTrigger>
-            <TabsTrigger value="bsic">BSIC Codes</TabsTrigger>
+            <TabsTrigger value="overview">Ikhtisar</TabsTrigger>
+            <TabsTrigger value="mtc">Jenis Perawatan Utama (MTC)</TabsTrigger>
+            <TabsTrigger value="bsic">Kode BSIC</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6 mt-6">
             <div className="space-y-4">
-              <h2 className="text-lg font-semibold">What is DESDE-LTC?</h2>
+              <h2 className="text-lg font-semibold">Apa itu DESDE-LTC?</h2>
               <p className="text-sm text-muted-foreground">
-                DESDE-LTC (Description and Evaluation of Services and DirectoriEs for Long Term Care) is a
-                standardized instrument for describing and classifying services for mental health and long-term care.
+                DESDE-LTC (Description and Evaluation of Services and DirectoriEs for Long Term Care) adalah
+                instrumen standar untuk mendeskripsikan dan mengklasifikasikan layanan kesehatan jiwa dan perawatan jangka panjang.
               </p>
               <div className="space-y-2">
-                <h4 className="font-medium">Key Features:</h4>
+                <h4 className="font-medium">Fitur Utama:</h4>
                 <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
-                  <li>Standardized classification system</li>
-                  <li>International comparability</li>
-                  <li>Comprehensive service description</li>
-                  <li>Evidence-based categorization</li>
+                  <li>Sistem klasifikasi yang terstandardisasi</li>
+                  <li>Keterbandingan internasional</li>
+                  <li>Deskripsi layanan yang komprehensif</li>
+                  <li>Kategorisasi berbasis bukti</li>
                 </ul>
               </div>
             </div>
 
             <div className="space-y-4">
-              <h2 className="text-lg font-semibold">Classification Structure</h2>
+              <h2 className="text-lg font-semibold">Struktur Klasifikasi</h2>
               <div className="space-y-2">
-                <h4 className="font-medium">Service Code Format</h4>
+                <h4 className="font-medium">Format Kode Layanan</h4>
                 <div className="bg-muted p-4 rounded-lg font-mono text-sm">
-                  <div className="mb-2">Example: <strong>R2.1</strong></div>
+                  <div className="mb-2">Contoh: <strong>R2.1</strong></div>
                   <div className="space-y-1 text-xs">
-                    <div><strong>R</strong> = Main Type of Care (MTC)</div>
-                    <div><strong>2.1</strong> = Basic Service Identification Code (BSIC)</div>
+                    <div><strong>R</strong> = Jenis Perawatan Utama (MTC)</div>
+                    <div><strong>2.1</strong> = Kode Identifikasi Layanan Dasar (BSIC)</div>
                   </div>
                 </div>
               </div>
@@ -134,7 +134,7 @@ export default function DESDELTCPage() {
                   </div>
                   <p className="text-sm text-muted-foreground mb-3">{category.description}</p>
                   <div>
-                    <h4 className="text-sm font-medium mb-2">Examples:</h4>
+                    <h4 className="text-sm font-medium mb-2">Contoh:</h4>
                     <div className="flex flex-wrap gap-2">
                       {category.examples.map((example, idx) => (
                         <Badge key={idx} variant="outline" className="text-xs">
@@ -150,45 +150,45 @@ export default function DESDELTCPage() {
 
           <TabsContent value="bsic" className="space-y-6 mt-6">
             <div className="space-y-4">
-              <h2 className="text-lg font-semibold">Basic Service Identification Codes (BSIC)</h2>
+              <h2 className="text-lg font-semibold">Kode Identifikasi Layanan Dasar (BSIC)</h2>
               <p className="text-sm text-muted-foreground">
-                BSIC codes provide detailed classification of services within each Main Type of Care.
-                Each code consists of a number and decimal to indicate specific service types.
+                Kode BSIC menyediakan klasifikasi rinci layanan dalam setiap Jenis Perawatan Utama.
+                Setiap kode terdiri dari angka dan desimal untuk menunjukkan jenis layanan spesifik.
               </p>
 
               <div className="space-y-3">
                 <div className="bg-muted/50 rounded-lg p-4">
-                  <div className="font-medium mb-2">Example: Residential Care (R)</div>
+                  <div className="font-medium mb-2">Contoh: Perawatan Residensial (R)</div>
                   <div className="space-y-1.5 text-sm">
                     <div className="flex items-start gap-2">
                       <code className="bg-muted px-2 py-0.5 rounded text-xs">R1</code>
-                      <span className="text-muted-foreground">Acute/crisis residential care</span>
+                      <span className="text-muted-foreground">Perawatan residensial akut/krisis</span>
                     </div>
                     <div className="flex items-start gap-2">
                       <code className="bg-muted px-2 py-0.5 rounded text-xs">R2</code>
-                      <span className="text-muted-foreground">Long-term residential care</span>
+                      <span className="text-muted-foreground">Perawatan residensial jangka panjang</span>
                     </div>
                     <div className="flex items-start gap-2">
                       <code className="bg-muted px-2 py-0.5 rounded text-xs">R3</code>
-                      <span className="text-muted-foreground">Supported housing</span>
+                      <span className="text-muted-foreground">Hunian dengan dukungan</span>
                     </div>
                   </div>
                 </div>
 
                 <div className="bg-muted/50 rounded-lg p-4">
-                  <div className="font-medium mb-2">Example: Outpatient Care (O)</div>
+                  <div className="font-medium mb-2">Contoh: Perawatan Rawat Jalan (O)</div>
                   <div className="space-y-1.5 text-sm">
                     <div className="flex items-start gap-2">
                       <code className="bg-muted px-2 py-0.5 rounded text-xs">O1</code>
-                      <span className="text-muted-foreground">Acute/crisis outpatient care</span>
+                      <span className="text-muted-foreground">Perawatan rawat jalan akut/krisis</span>
                     </div>
                     <div className="flex items-start gap-2">
                       <code className="bg-muted px-2 py-0.5 rounded text-xs">O2</code>
-                      <span className="text-muted-foreground">Non-acute outpatient care</span>
+                      <span className="text-muted-foreground">Perawatan rawat jalan non-akut</span>
                     </div>
                     <div className="flex items-start gap-2">
                       <code className="bg-muted px-2 py-0.5 rounded text-xs">O3</code>
-                      <span className="text-muted-foreground">Community mental health care</span>
+                      <span className="text-muted-foreground">Perawatan kesehatan jiwa masyarakat</span>
                     </div>
                   </div>
                 </div>
@@ -196,10 +196,10 @@ export default function DESDELTCPage() {
 
               <div className="bg-blue-50 rounded-lg p-4">
                 <div className="text-sm">
-                  <p className="font-medium text-blue-900 mb-1">Need more details?</p>
+                  <p className="font-medium text-blue-900 mb-1">Butuh detail lebih lanjut?</p>
                   <p className="text-blue-700">
-                    For complete BSIC code listings and detailed definitions, please refer to the
-                    official DESDE-LTC manual or contact your system administrator.
+                    Untuk daftar kode BSIC lengkap dan definisi rinci, silakan merujuk pada
+                    manual resmi DESDE-LTC atau hubungi administrator sistem Anda.
                   </p>
                 </div>
               </div>

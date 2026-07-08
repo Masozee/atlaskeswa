@@ -8,7 +8,7 @@ import { useState } from 'react'
 import { Separator } from '@/components/ui/separator';
 
 const breadcrumbs = [
-  { label: 'Dashboard', href: '/dashboard' },
+  { label: 'Dasbor', href: '/dashboard' },
   { label: 'Peta Distribusi Layanan' },
 ];
 
@@ -66,18 +66,18 @@ export default function ServiceDistributionMapPage() {
 
       <div className="flex flex-1 flex-col gap-4">
 
-        <div className="px-4 pt-4">
+        <div className="px-8 pt-8">
           <h1 className="text-2xl font-bold">Peta Distribusi Layanan</h1>
           <p className="text-muted-foreground">Visualisasi geografis layanan kesehatan jiwa di Kabupaten Kebumen</p>
         </div>
 
         <Separator />
 
-        <div className="flex flex-col gap-4 px-4 pb-4">
+        <div className="flex flex-col gap-4 px-8 pb-8">
 
         <div className="grid gap-4 lg:grid-cols-4">
           {/* Map */}
-          <Card className="lg:col-span-3">
+          <Card className="lg:col-span-3 border-0 bg-white shadow-none">
             <CardHeader className="pb-2">
               <CardTitle>Peta Kecamatan Kebumen</CardTitle>
               <CardDescription>
@@ -128,7 +128,7 @@ export default function ServiceDistributionMapPage() {
 
           {/* Statistics */}
           <div className="space-y-4">
-            <Card>
+            <Card className="border-0 bg-white shadow-none">
               <CardHeader>
                 <CardTitle>Statistik Cakupan</CardTitle>
                 <CardDescription>Metrik distribusi layanan</CardDescription>
@@ -151,7 +151,7 @@ export default function ServiceDistributionMapPage() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border-0 bg-white shadow-none">
               <CardHeader>
                 <CardTitle>Kecamatan Teratas</CardTitle>
                 <CardDescription>Cakupan layanan tertinggi</CardDescription>
@@ -170,7 +170,7 @@ export default function ServiceDistributionMapPage() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border-0 bg-white shadow-none">
               <CardHeader>
                 <CardTitle>Legenda</CardTitle>
               </CardHeader>

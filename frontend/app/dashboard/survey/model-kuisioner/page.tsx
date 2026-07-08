@@ -556,8 +556,12 @@ function QuestionDialog({ open, onOpenChange, editTarget, onSubmit, isPending, a
 
 // ─── Questions Table ──────────────────────────────────────────────────────────
 
-function QuestionsTable({ questions, showMtc, onEdit, onDelete, onView }: {
+function QuestionsTable({ questions, showMtc, honorUrlPage = true, onEdit, onDelete, onView }: {
   questions: Question[]; showMtc: boolean;
+  // On the initial page load we honor ?page from the URL; after a tab switch the
+  // parent passes false so the freshly-mounted table always starts at page 1
+  // (avoids a URL-update race and stale/out-of-range pages).
+  honorUrlPage?: boolean;
   onEdit: (q: Question) => void; onDelete: (q: Question) => void; onView: (q: Question) => void;
 }) {
   const router = useRouter();
@@ -569,7 +573,7 @@ function QuestionsTable({ questions, showMtc, onEdit, onDelete, onView }: {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [pagination, setPagination] = useState<PaginationState>(() => ({
-    pageIndex: Math.max(0, (Number(searchParams.get("page")) || 1) - 1),
+    pageIndex: honorUrlPage ? Math.max(0, (Number(searchParams.get("page")) || 1) - 1) : 0,
     pageSize: Number(searchParams.get("size")) || 10,
   }));
   const [jumpPage, setJumpPage] = useState("");
@@ -664,6 +668,15 @@ function QuestionsTable({ questions, showMtc, onEdit, onDelete, onView }: {
     enableRowSelection: true,
     autoResetPageIndex: false,
   });
+
+  // Clamp an out-of-range page (e.g. ?page=5 on a section with 1 page, or after
+  // filtering shrinks the result set) down to the last valid page.
+  const pageCountForClamp = table.getPageCount();
+  useEffect(() => {
+    if (pageCountForClamp > 0 && pagination.pageIndex > pageCountForClamp - 1) {
+      setPagination((p) => ({ ...p, pageIndex: pageCountForClamp - 1 }));
+    }
+  }, [pageCountForClamp, pagination.pageIndex]);
 
   const selectedIds = table.getSelectedRowModel().rows.map((r) => r.original.id);
   const selectedCount = selectedIds.length;
@@ -965,7 +978,24 @@ function QuestionDrawer({ question, open, onOpenChange, onSave, allQuestions = [
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function ModelKuisionerPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<number | null>(null);
+  // Only the initial mount honors ?page from the URL; once the user switches
+  // section tabs, every subsequent table always starts at page 1.
+  const [hasSwitchedTab, setHasSwitchedTab] = useState(false);
+
+  // Switch section tab and reset pagination back to page 1. The table is keyed
+  // by activeTab so it remounts; passing honorUrlPage={false} makes it start at
+  // page 1 regardless of the (async) URL update, then we sync the URL to match.
+  const handleTabChange = useCallback((id: number) => {
+    if (id === activeTab) return;
+    setHasSwitchedTab(true);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("page", "1");
+    router.replace(`?${params.toString()}`, { scroll: false });
+    setActiveTab(id);
+  }, [activeTab, router, searchParams]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Question | null>(null);
   const [drawerTarget, setDrawerTarget] = useState<Question | null>(null);
@@ -1070,16 +1100,17 @@ export default function ModelKuisionerPage() {
           </div>
         </div>
 
-        {/* Section tabs */}
-        <div className="flex gap-1.5 flex-wrap">
+        {/* Section tabs — grouped segmented switcher */}
+        <div className="inline-flex w-fit max-w-full flex-wrap gap-1 rounded-lg border bg-muted p-1">
           {sectionTabs.map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              onClick={() => handleTabChange(tab.id)}
+              aria-pressed={activeTab === tab.id}
+              className={`inline-flex items-center rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
                 activeTab === tab.id
-                  ? "bg-primary text-white"
-                  : "bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/80"
+                  ? "bg-primary text-white shadow-sm"
+                  : "text-muted-foreground hover:text-foreground hover:bg-background/60"
               }`}
             >
               {tab.name}
@@ -1092,6 +1123,7 @@ export default function ModelKuisionerPage() {
           key={activeTab ?? 0}
           questions={activeQuestions}
           showMtc={true}
+          honorUrlPage={!hasSwitchedTab}
           onEdit={(q) => { setEditTarget(q); setDialogOpen(true); }}
           onDelete={handleDelete}
           onView={(q) => { setDrawerTarget(q); setDrawerOpen(true); }}

@@ -8,14 +8,10 @@ import {
   DashboardSquare01Icon,
   ServiceIcon,
   ClipboardIcon,
-  ShieldUserIcon,
-  UserIcon,
   UserMultiple02Icon,
   Settings01Icon,
-  Database01Icon,
   Location01Icon,
   Analytics01Icon,
-  FileAttachmentIcon,
   HelpCircleIcon,
   Mail01Icon,
   BookOpen01Icon,
@@ -23,9 +19,6 @@ import {
   Search01Icon,
   // Dasbor submenus
   ChartLineData01Icon,
-  MapsCircle01Icon,
-  InboxIcon,
-  Queue01Icon,
   // Manajemen Layanan submenus
   Folder01Icon,
   AddCircleIcon,
@@ -36,19 +29,10 @@ import {
   // Manajemen Survei submenus
   FileSearchIcon,
   Clock01Icon,
-  CheckmarkCircle01Icon,
-  CancelCircleIcon,
   File01Icon,
   Audit01Icon,
-  // Verifikasi & QC submenus
   CheckListIcon,
-  SearchAreaIcon,
-  CheckmarkBadge01Icon,
-  Camera01Icon,
-  AlertCircleIcon,
-  Time01Icon,
   // Manajemen Enumerator submenus
-  UserGroupIcon,
   UserAdd01Icon,
   Activity01Icon,
   AssignmentsIcon,
@@ -68,17 +52,12 @@ import {
   Globe02Icon,
   Upload01Icon,
   // Laporan & Analitik submenus
-  BarChartIcon,
   Building01Icon,
   Pdf01Icon,
   Briefcase01Icon,
   // Konfigurasi Sistem submenus
   Settings02Icon,
   Edit01Icon,
-  DocumentValidationIcon,
-  Key01Icon,
-  CloudUploadIcon,
-  Notification01Icon,
   // Log & Pemantauan submenus
   SecurityCheckIcon,
   Bug01Icon,
@@ -127,16 +106,21 @@ import { cn } from "@/lib/utils"
 const data = {
   navMain: [
     {
-      title: "Dasbor",
+      title: "Dasbor & Analitik",
       url: "/dashboard",
       icon: DashboardSquare01Icon,
       isActive: true,
       submenus: [
         { title: "Ringkasan", url: "/dashboard", icon: DashboardSquare01Icon },
         { title: "Indikator Utama", url: "/dashboard/indicators", icon: ChartLineData01Icon },
-        { title: "Peta Distribusi Layanan", url: "/dashboard/map", icon: MapsCircle01Icon },
-        { title: "Pengajuan Terbaru", url: "/dashboard/submissions", icon: InboxIcon },
-        { title: "Antrian Verifikasi", url: "/dashboard/queue", icon: Queue01Icon },
+        { title: "Tabel Layanan", url: "/data/services", icon: GridTableIcon },
+        { title: "Matriks MTC", url: "/data/mtc-matrix", icon: GridViewIcon },
+        { title: "Analisis Cakupan Populasi", url: "/data/coverage", icon: PieChart01Icon },
+        { title: "Kesenjangan Layanan", url: "/data/gaps", icon: AlertDiamondIcon },
+        { title: "Laporan Ketersediaan", url: "/reports/availability", icon: FileSearchIcon },
+        { title: "Laporan Tenaga Kerja", url: "/reports/workforce", icon: Briefcase01Icon },
+        { title: "Profil Fasilitas", url: "/reports/facilities", icon: Building01Icon },
+        { title: "Unduh & Ekspor", url: "/reports/export", icon: Pdf01Icon },
       ],
     },
     {
@@ -148,10 +132,10 @@ const data = {
         { title: "Semua Layanan", url: "/dashboard/services", icon: Folder01Icon },
         { title: "Tambah Layanan Baru", url: "/dashboard/services/new", icon: AddCircleIcon },
         { title: "Kategori Layanan (BSIC)", url: "/dashboard/services/categories", icon: GridTableIcon },
-        { title: "Jenis Layanan", url: "/dashboard/services/mtc", icon: Hospital01Icon },
+        { title: "Klasifikasi MTC", url: "/dashboard/services/mtc", icon: Hospital01Icon },
+        { title: "Jenis Layanan", url: "/dashboard/services/service-types", icon: Tag01Icon },
         { title: "Wilayah Geografis", url: "/dashboard/services/geographic-units", icon: Location01Icon },
         { title: "Populasi Sasaran", url: "/dashboard/services/target-populations", icon: Target01Icon },
-        { title: "Jenis Layanan", url: "/dashboard/services/service-types", icon: Tag01Icon },
       ],
     },
     {
@@ -161,44 +145,14 @@ const data = {
       isActive: false,
       submenus: [
         { title: "Semua Catatan Survei", url: "/dashboard/survey", icon: ClipboardIcon },
-        { title: "Entri Survei Baru", url: "/survey/new", icon: AddCircleIcon },
         { title: "Pengajuan Tertunda", url: "/dashboard/survey/pending", icon: Clock01Icon },
-        { title: "Survei Disetujui", url: "/dashboard/survey/approved", icon: CheckmarkCircle01Icon },
-        { title: "Survei Ditolak", url: "/dashboard/survey/rejected", icon: CancelCircleIcon },
         { title: "Model Kuisioner", url: "/dashboard/survey/model-kuisioner", icon: CheckListIcon },
         { title: "Template Survei", url: "/dashboard/survey/templates", icon: File01Icon },
         { title: "Log Audit Survei", url: "/dashboard/survey/audit", icon: Audit01Icon },
       ],
     },
     {
-      title: "Verifikasi & QC",
-      url: "/verification",
-      icon: ShieldUserIcon,
-      isActive: false,
-      submenus: [
-        { title: "Antrian Verifikasi", url: "/verification/queue", icon: CheckListIcon },
-        { title: "Verifikasi Detail Layanan", url: "/verification/services", icon: SearchAreaIcon },
-        { title: "Validasi MTC", url: "/verification/mtc", icon: CheckmarkBadge01Icon },
-        { title: "Tinjauan Bukti Lapangan", url: "/verification/evidence", icon: Camera01Icon },
-        { title: "Laporan Ketidaksesuaian", url: "/verification/discrepancies", icon: AlertCircleIcon },
-        { title: "Riwayat Verifikasi", url: "/verification/history", icon: Time01Icon },
-      ],
-    },
-    {
-      title: "Manajemen Enumerator",
-      url: "/enumerators",
-      icon: UserIcon,
-      isActive: false,
-      submenus: [
-        { title: "Semua Enumerator", url: "/enumerators", icon: UserGroupIcon },
-        { title: "Tambah Enumerator", url: "/enumerators/new", icon: UserAdd01Icon },
-        { title: "Log Aktivitas Enumerator", url: "/enumerators/activity", icon: Activity01Icon },
-        { title: "Daftar Penugasan", url: "/enumerators/assignments", icon: AssignmentsIcon },
-        { title: "Laporan Kinerja", url: "/enumerators/performance", icon: ChartColumnIcon },
-      ],
-    },
-    {
-      title: "Pengguna & Peran",
+      title: "Pengguna & Enumerator",
       url: "/dashboard/users",
       icon: UserMultiple02Icon,
       isActive: false,
@@ -206,20 +160,9 @@ const data = {
         { title: "Semua Pengguna", url: "/dashboard/users", icon: UserMultiple02Icon },
         { title: "Tambah Pengguna", url: "/dashboard/users/new", icon: UserAdd01Icon },
         { title: "Peran & Izin", url: "/dashboard/users/roles", icon: LockPasswordIcon },
+        { title: "Penugasan Enumerator", url: "/enumerators/assignments", icon: AssignmentsIcon },
+        { title: "Kinerja Enumerator", url: "/enumerators/performance", icon: ChartColumnIcon },
         { title: "Riwayat Login", url: "/dashboard/users/login-history", icon: Login01Icon },
-      ],
-    },
-    {
-      title: "Penjelajah Data",
-      url: "/data",
-      icon: Database01Icon,
-      isActive: false,
-      submenus: [
-        { title: "Tabel Layanan", url: "/data/services", icon: GridTableIcon },
-        { title: "Tampilan Matriks MTC", url: "/data/mtc-matrix", icon: GridViewIcon },
-        { title: "Analisis Cakupan Populasi", url: "/data/coverage", icon: PieChart01Icon },
-        { title: "Kesenjangan & Kebutuhan Layanan", url: "/data/gaps", icon: AlertDiamondIcon },
-        { title: "Unduh Data", url: "/data/download", icon: Download01Icon },
       ],
     },
     {
@@ -230,45 +173,18 @@ const data = {
       submenus: [
         { title: "Peta Lokasi Layanan", url: "/map", icon: MapPinIcon },
         { title: "Peta Panas", url: "/map/heatmap", icon: FireIcon },
-        { title: "Tampilan Lapisan MTC", url: "/map/mtc-layers", icon: Layers01Icon },
+        { title: "Lapisan MTC", url: "/map/mtc-layers", icon: Layers01Icon },
         { title: "Perbandingan Wilayah", url: "/map/regions", icon: Globe02Icon },
         { title: "Unggah Data Geospasial", url: "/map/upload", icon: Upload01Icon },
       ],
     },
     {
-      title: "Laporan & Analitik",
-      url: "/reports",
-      icon: Analytics01Icon,
-      isActive: false,
-      submenus: [
-        { title: "Laporan Ketersediaan Layanan", url: "/reports/availability", icon: FileSearchIcon },
-        { title: "Distribusi MTC", url: "/reports/mtc", icon: BarChartIcon },
-        { title: "Perbandingan Regional", url: "/reports/regions", icon: Globe02Icon },
-        { title: "Laporan Tenaga Kerja & Kapasitas", url: "/reports/workforce", icon: Briefcase01Icon },
-        { title: "Laporan Profil Fasilitas", url: "/reports/facilities", icon: Building01Icon },
-        { title: "Ekspor PDF / Unduh", url: "/reports/export", icon: Pdf01Icon },
-      ],
-    },
-    {
-      title: "Konfigurasi Sistem",
+      title: "Sistem",
       url: "/dashboard/settings",
       icon: Settings01Icon,
       isActive: false,
       submenus: [
         { title: "Pengaturan Umum", url: "/dashboard/settings", icon: Settings02Icon },
-        { title: "Pembangun Formulir Survei", url: "/settings/form-builder", icon: Edit01Icon },
-        { title: "Aturan Validasi Data", url: "/settings/validation", icon: DocumentValidationIcon },
-        { title: "Kunci API", url: "/settings/api-keys", icon: Key01Icon },
-        { title: "Cadangan & Pemulihan", url: "/settings/backup", icon: CloudUploadIcon },
-        { title: "Notifikasi Email", url: "/settings/notifications", icon: Notification01Icon },
-      ],
-    },
-    {
-      title: "Log & Pemantauan",
-      url: "/dashboard/logs",
-      icon: FileAttachmentIcon,
-      isActive: false,
-      submenus: [
         { title: "Log Aktivitas", url: "/dashboard/logs/activity", icon: Activity01Icon },
         { title: "Log Verifikasi", url: "/dashboard/logs/verification", icon: SecurityCheckIcon },
         { title: "Log Perubahan Data", url: "/dashboard/logs/changes", icon: Edit01Icon },
@@ -298,7 +214,7 @@ function isSubmenuActive(pathname: string, submenuUrl: string, allSubmenus?: { u
   // Exact match is always active
   if (pathname === submenuUrl) return true
 
-  // Check if pathname starts with submenu URL (for dynamic routes like /dashboard/submissions/123)
+  // Check if pathname starts with submenu URL (for dynamic routes like /dashboard/survey/123)
   if (pathname.startsWith(submenuUrl + '/')) {
     // But make sure no other sibling submenu is a better (longer) match
     const hasBetterMatch = allSubmenus?.some(other =>
@@ -318,27 +234,12 @@ function filterMenuByRole(menuItems: typeof data.navMain, userRole?: string) {
 
   return menuItems.filter(item => {
     // User Management - ADMIN only
-    if (item.title === 'Manajemen Pengguna') {
+    if (item.title === 'Pengguna & Enumerator') {
       return userRole === 'ADMIN'
     }
 
-    // Verification & QC - ADMIN and VERIFIER only
-    if (item.title === 'Verifikasi & QC') {
-      return ['ADMIN', 'VERIFIER'].includes(userRole)
-    }
-
-    // Reports & Analytics - All except SURVEYOR
-    if (item.title === 'Laporan & Analitik' || item.title === 'Penjelajah Data') {
-      return ['ADMIN', 'VERIFIER', 'VIEWER'].includes(userRole)
-    }
-
-    // Logs & Monitoring - ADMIN only
-    if (item.title === 'Log & Pemantauan') {
-      return userRole === 'ADMIN'
-    }
-
-    // System Configuration - ADMIN only
-    if (item.title === 'Konfigurasi Sistem') {
+    // System (Settings + Logs) - ADMIN only
+    if (item.title === 'Sistem') {
       return userRole === 'ADMIN'
     }
 
@@ -360,6 +261,11 @@ function filterMenuByRole(menuItems: typeof data.navMain, userRole?: string) {
           return ['ADMIN', 'VERIFIER'].includes(userRole)
         }
 
+        // Analytics/report subs (data + reports paths) - All except SURVEYOR
+        if (submenu.url.startsWith('/data/') || submenu.url.startsWith('/reports/')) {
+          return ['ADMIN', 'VERIFIER', 'VIEWER'].includes(userRole)
+        }
+
         return true
       })
 
@@ -374,11 +280,11 @@ function filterMenuByRole(menuItems: typeof data.navMain, userRole?: string) {
 
 // Mobile Sidebar Component
 function MobileSidebar({ filteredNavMain, pathname }: { filteredNavMain: typeof data.navMain, pathname: string }) {
-  const logoSrc = "/OMMHA.png"
+  const logoSrc = "/logo-white.png"
 
   return (
-    <Sidebar collapsible="offcanvas" className="flex-1">
-      <SidebarHeader className="border-b p-4">
+    <Sidebar collapsible="offcanvas" className="flex-1 bg-[#0a0a0a] text-white [&_[data-sidebar=sidebar]]:bg-[#0a0a0a]">
+      <SidebarHeader className="border-b border-white/10 p-4 bg-[#0a0a0a]">
         <a href="/dashboard" className="flex items-center gap-3">
           <div className="flex size-10 shrink-0 items-center justify-center rounded-lg overflow-hidden relative">
             <Image
@@ -389,12 +295,12 @@ function MobileSidebar({ filteredNavMain, pathname }: { filteredNavMain: typeof 
             />
           </div>
           <div className="grid flex-1 text-left text-sm leading-tight">
-            <span className="truncate font-semibold text-base">OMMHA</span>
-            <span className="truncate text-xs text-muted-foreground">One Map for Mental Health Atlas</span>
+            <span className="truncate font-semibold text-base text-white">OMMHA</span>
+            <span className="truncate text-xs text-zinc-400">One Map for Mental Health Atlas</span>
           </div>
         </a>
       </SidebarHeader>
-      <SidebarContent className="overflow-y-auto">
+      <SidebarContent className="overflow-y-auto bg-[#0a0a0a]">
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -415,7 +321,7 @@ function MobileSidebar({ filteredNavMain, pathname }: { filteredNavMain: typeof 
                       <CollapsibleTrigger asChild>
                         <SidebarMenuButton
                           isActive={isActive || hasActiveSubmenu}
-                          className="w-full justify-between"
+                          className="w-full justify-between text-zinc-300 hover:bg-white/5 hover:text-white data-[active=true]:bg-white/5 data-[active=true]:text-white"
                         >
                           <span className="flex items-center gap-3">
                             <HugeiconsIcon icon={item.icon} size={20} />
@@ -429,17 +335,24 @@ function MobileSidebar({ filteredNavMain, pathname }: { filteredNavMain: typeof 
                         </SidebarMenuButton>
                       </CollapsibleTrigger>
                       <CollapsibleContent>
-                        <SidebarMenuSub>
-                          {item.submenus?.map((submenu) => (
-                            <SidebarMenuSubItem key={submenu.url}>
-                              <SidebarMenuSubButton asChild isActive={isSubmenuActive(pathname, submenu.url, item.submenus)}>
-                                <a href={submenu.url} className="flex items-center gap-2">
-                                  {submenu.icon && <HugeiconsIcon icon={submenu.icon} size={14} />}
-                                  {submenu.title}
-                                </a>
-                              </SidebarMenuSubButton>
-                            </SidebarMenuSubItem>
-                          ))}
+                        <SidebarMenuSub className="border-white/10">
+                          {item.submenus?.map((submenu) => {
+                            const active = isSubmenuActive(pathname, submenu.url, item.submenus)
+                            return (
+                              <SidebarMenuSubItem key={submenu.url}>
+                                <SidebarMenuSubButton
+                                  asChild
+                                  isActive={active}
+                                  className="text-zinc-400 hover:bg-white/5 hover:text-white data-[active=true]:bg-[#07579E]/15 data-[active=true]:text-white"
+                                >
+                                  <a href={submenu.url} className="flex items-center gap-2">
+                                    {submenu.icon && <HugeiconsIcon icon={submenu.icon} size={14} />}
+                                    {submenu.title}
+                                  </a>
+                                </SidebarMenuSubButton>
+                              </SidebarMenuSubItem>
+                            )
+                          })}
                         </SidebarMenuSub>
                       </CollapsibleContent>
                     </SidebarMenuItem>
@@ -450,7 +363,7 @@ function MobileSidebar({ filteredNavMain, pathname }: { filteredNavMain: typeof 
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="border-t p-2">
+      <SidebarFooter className="border-t border-white/10 p-2 bg-[#0a0a0a]">
         <NavUser />
       </SidebarFooter>
     </Sidebar>
@@ -472,7 +385,12 @@ function DesktopSidebar({
   setOpen: (open: boolean) => void
 }) {
   const [commandOpen, setCommandOpen] = React.useState(false)
-  const logoSrc = "/OMMHA.png"
+  const logoSrc = "/logo-white.png"
+
+  // Utility menus pinned to the bottom of the icon rail
+  const FOOTER_TITLES = ["Sistem", "Bantuan & Dokumentasi"]
+  const topNav = filteredNavMain.filter((item) => !FOOTER_TITLES.includes(item.title))
+  const footerNav = filteredNavMain.filter((item) => FOOTER_TITLES.includes(item.title))
 
   // Keyboard shortcut for command palette (Cmd+K / Ctrl+K)
   React.useEffect(() => {
@@ -496,14 +414,14 @@ function DesktopSidebar({
       {/* This will make the sidebar appear as icons. */}
       <Sidebar
         collapsible="none"
-        className="w-[calc(var(--sidebar-width-icon)+1px)]! border-r bg-sidebar"
+        className="w-[3.75rem]! border-r border-white/10 bg-[#064a86] text-white"
       >
-        <SidebarHeader>
+        <SidebarHeader className="bg-[#064a86] py-4">
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton size="lg" asChild className="md:h-8 md:p-0">
-                <a href="/dashboard" className="flex items-center gap-2">
-                  <div className="flex size-8 shrink-0 items-center justify-center rounded-lg overflow-hidden relative">
+              <SidebarMenuButton size="lg" asChild className="md:h-10 md:p-0 hover:bg-transparent">
+                <a href="/dashboard" className="flex items-center justify-center">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-lg overflow-hidden relative">
                     <Image
                       src={logoSrc}
                       alt="Logo OMMHA"
@@ -511,20 +429,16 @@ function DesktopSidebar({
                       className="object-contain"
                     />
                   </div>
-                  <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-medium">OMMHA</span>
-                    <span className="truncate text-xs">One Map</span>
-                  </div>
                 </a>
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarHeader>
-        <SidebarContent>
-          <SidebarGroup>
-            <SidebarGroupContent className="px-1.5 md:px-0">
-              <SidebarMenu>
-                {filteredNavMain.slice(0, 9).map((item) => (
+        <SidebarContent className="bg-[#064a86]">
+          <SidebarGroup className="px-0">
+            <SidebarGroupContent className="flex flex-col items-center px-0">
+              <SidebarMenu className="items-center gap-2">
+                {topNav.map((item) => (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton
                       tooltip={{
@@ -536,10 +450,10 @@ function DesktopSidebar({
                         setOpen(true)
                       }}
                       isActive={activeItem?.title === item.title}
-                      className="px-2.5 md:px-2"
+                      className="size-10 justify-center rounded-xl p-0 text-white/70 hover:bg-white/10 hover:text-white data-[active=true]:bg-white/20 data-[active=true]:text-white [&>svg]:size-5"
                     >
-                      <HugeiconsIcon icon={item.icon} size={20} />
-                      <span>{item.title}</span>
+                      <HugeiconsIcon icon={item.icon} size={20} strokeWidth={2} />
+                      <span className="sr-only">{item.title}</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 ))}
@@ -547,9 +461,9 @@ function DesktopSidebar({
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>
-        <SidebarFooter>
-          <SidebarMenu>
-            {filteredNavMain.slice(9).map((item) => (
+        <SidebarFooter className="bg-[#064a86] items-center">
+          <SidebarMenu className="items-center gap-2">
+            {footerNav.map((item) => (
               <SidebarMenuItem key={item.title}>
                 <SidebarMenuButton
                   tooltip={{
@@ -561,34 +475,34 @@ function DesktopSidebar({
                     setOpen(true)
                   }}
                   isActive={activeItem?.title === item.title}
-                  className="px-2.5 md:px-2"
+                  className="size-11 justify-center rounded-xl p-0 text-white/70 hover:bg-white/15 hover:text-white data-[active=true]:bg-white data-[active=true]:text-[#07579E] [&>svg]:size-6"
                 >
-                  <HugeiconsIcon icon={item.icon} size={20} />
-                  <span>{item.title}</span>
+                  <HugeiconsIcon icon={item.icon} size={24} strokeWidth={2} />
+                  <span className="sr-only">{item.title}</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             ))}
           </SidebarMenu>
-          <NavUser />
+          <NavUser compact />
         </SidebarFooter>
       </Sidebar>
 
       {/* This is the second sidebar */}
       {/* We disable collapsible and let it fill remaining space */}
-      <Sidebar collapsible="none" className="hidden flex-1 md:flex bg-background text-foreground">
-        <SidebarHeader className="gap-3.5 border-b p-4">
+      <Sidebar collapsible="none" className="hidden flex-1 md:flex bg-[#07579E] text-white border-r border-white/10">
+        <SidebarHeader className="gap-3.5 border-b border-white/15 p-4 bg-[#07579E]">
           <div className="flex w-full items-center justify-between">
-            <div className="text-foreground text-base font-medium">
+            <div className="text-white text-base font-semibold">
               {activeItem?.title}
             </div>
           </div>
           <button
             onClick={() => setCommandOpen(true)}
-            className="flex h-9 w-full items-center gap-2 rounded-md border border-input bg-background px-3 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+            className="flex h-9 w-full items-center gap-2 rounded-md border border-white/20 bg-white/10 px-3 text-sm text-white/70 hover:bg-white/20 hover:text-white transition-colors"
           >
             <HugeiconsIcon icon={Search01Icon} size={16} />
             <span>Cari submenu...</span>
-            <kbd className="ml-auto pointer-events-none hidden h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 sm:flex">
+            <kbd className="ml-auto pointer-events-none hidden h-5 select-none items-center gap-1 rounded border border-white/20 bg-white/10 px-1.5 font-mono text-[10px] font-medium text-white/70 opacity-100 sm:flex">
               <span className="text-xs">⌘</span>K
             </kbd>
           </button>
@@ -614,58 +528,62 @@ function DesktopSidebar({
             </CommandList>
           </CommandDialog>
         </SidebarHeader>
-        <SidebarContent>
+        <SidebarContent className="bg-[#07579E]">
           <SidebarGroup className="px-0">
             <SidebarGroupContent className="px-2">
-              <SidebarMenu>
-                {activeItem?.submenus?.map((submenu) => (
-                  <SidebarMenuItem key={submenu.url}>
-                    <SidebarMenuButton asChild isActive={isSubmenuActive(pathname, submenu.url, activeItem?.submenus)}>
-                      <a
-                        href={submenu.url}
-                        className="flex items-center gap-2 px-3 py-2.5 text-sm"
+              <SidebarMenu className="gap-0.5">
+                {activeItem?.submenus?.map((submenu) => {
+                  const active = isSubmenuActive(pathname, submenu.url, activeItem?.submenus)
+                  return (
+                    <SidebarMenuItem key={submenu.url}>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={active}
+                        className={cn(
+                          "relative rounded-md text-white/70 hover:bg-white/10 hover:text-white",
+                          "data-[active=true]:bg-white/20 data-[active=true]:text-white",
+                          active && "before:absolute before:left-0 before:top-1/2 before:h-5 before:w-[3px] before:-translate-y-1/2 before:rounded-r before:bg-white"
+                        )}
                       >
-                        {submenu.icon && <HugeiconsIcon icon={submenu.icon} size={16} />}
-                        {submenu.title}
-                      </a>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
+                        <a
+                          href={submenu.url}
+                          className="flex items-center gap-2.5 px-3 py-2.5 text-sm"
+                        >
+                          {submenu.icon && <HugeiconsIcon icon={submenu.icon} size={16} className={cn(!active && "text-white/60")} />}
+                          {submenu.title}
+                        </a>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )
+                })}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>
-        <SidebarFooter className="p-4 border-t">
-          <div className="rounded-lg border bg-card p-4">
-            <div className="flex items-start gap-3 mb-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                <HugeiconsIcon icon={HelpCircleIcon} size={20} className="text-primary" />
-              </div>
-              <div className="flex-1">
-                <h3 className="font-semibold text-sm mb-1">Butuh Bantuan?</h3>
-                <p className="text-xs text-muted-foreground mb-3">
-                  Dapatkan dukungan dan pelajari lebih lanjut tentang sistem
-                </p>
-              </div>
+        <SidebarFooter className="p-4 border-t border-white/15 bg-[#07579E]">
+          <div className="rounded-lg border border-white/15 bg-white/10 p-4">
+            <div className="mb-3">
+              <h3 className="font-semibold text-sm mb-1 text-white">Butuh Bantuan?</h3>
+              <p className="text-xs text-white/70">
+                Dapatkan dukungan dan pelajari lebih lanjut tentang sistem
+              </p>
             </div>
             <div className="space-y-2">
               <a
                 href="/help/faq"
-                className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                className="block text-xs text-white/70 hover:text-white transition-colors"
               >
-                <HugeiconsIcon icon={BookOpen01Icon} size={14} />
-                <span>Lihat FAQ</span>
+                Lihat FAQ
               </a>
               <a
                 href="/help/support"
-                className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                className="block text-xs text-white/70 hover:text-white transition-colors"
               >
-                <HugeiconsIcon icon={Mail01Icon} size={14} />
-                <span>Hubungi Dukungan</span>
+                Hubungi Dukungan
               </a>
             </div>
-            <div className="mt-3 pt-3 border-t text-xs text-muted-foreground">
-              <span className="font-medium">Email:</span> support@atlaskeswa.id
+            <div className="mt-3 pt-3 border-t border-white/15 text-xs text-white/70">
+              <span className="font-medium text-white/90">Email:</span> support@atlaskeswa.id
             </div>
           </div>
         </SidebarFooter>

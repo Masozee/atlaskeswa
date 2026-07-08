@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSurveyResponses, useVerifySurvey } from '@/hooks/use-survey-responses';
 import { PageHeader } from "@/components/page-header";
@@ -44,7 +44,6 @@ import {
   ColumnDef,
   flexRender,
   getCoreRowModel,
-  getSortedRowModel,
   SortingState,
   useReactTable,
 } from "@tanstack/react-table";
@@ -58,25 +57,39 @@ type VerificationAction = {
 };
 
 const breadcrumbs = [
-  { label: 'Dashboard', href: '/dashboard' },
-  { label: 'Surveys', href: '/dashboard/survey' },
-  { label: 'Pending Submissions' },
+  { label: 'Dasbor', href: '/dashboard' },
+  { label: 'Survei', href: '/dashboard/survey' },
+  { label: 'Menunggu Verifikasi' },
 ];
+
+const PAGE_SIZE = 50;
 
 export default function PendingSurveysPage() {
   const router = useRouter();
   const [search, setSearch] = useState('');
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [page, setPage] = useState(1);
   const [verificationDialog, setVerificationDialog] = useState<VerificationAction | null>(null);
   const [notes, setNotes] = useState('');
   const [rejectionReason, setRejectionReason] = useState('');
 
+  useEffect(() => {
+    setPage(1);
+  }, [search, sorting]);
+
+  const ordering = sorting.length > 0
+    ? `${sorting[0].desc ? '-' : ''}${sorting[0].id}`
+    : '-created_at';
+
   const { data, isLoading } = useSurveyResponses({
     search,
     verification_status: 'SUBMITTED',
-    ordering: '-created_at',
-    page_size: 50,
+    ordering,
+    page,
+    page_size: PAGE_SIZE,
   });
+
+  const totalPages = data ? Math.max(1, Math.ceil(data.count / PAGE_SIZE)) : 1;
 
   const verifySurvey = useVerifySurvey(verificationDialog?.surveyId || 0);
 
@@ -84,7 +97,7 @@ export default function PendingSurveysPage() {
     setVerificationDialog({
       surveyId: survey.id!,
       action,
-      surveyName: survey.service_name || 'Unknown',
+      surveyName: survey.service_name || 'Tidak diketahui',
     });
     setNotes('');
     setRejectionReason('');
@@ -116,18 +129,18 @@ export default function PendingSurveysPage() {
     },
     {
       accessorKey: "service_name",
-      header: "Service Name",
+      header: "Nama Layanan",
       cell: ({ row }) => {
         return <div className="font-medium max-w-xs truncate">{row.getValue("service_name")}</div>
       },
     },
     {
       accessorKey: "service_city",
-      header: "City",
+      header: "Kota",
     },
     {
       accessorKey: "survey_date",
-      header: "Survey Date",
+      header: "Tanggal Survei",
       cell: ({ row }) => {
         const date = new Date(row.getValue("survey_date"));
         return <div>{date.toLocaleDateString('id-ID')}</div>
@@ -142,19 +155,19 @@ export default function PendingSurveysPage() {
     },
     {
       accessorKey: "verifier_name",
-      header: "Assigned Verifier",
+      header: "Verifikator",
       cell: ({ row }) => {
         const verifier = row.getValue("verifier_name") as string | null;
         return verifier ? (
           <div className="text-sm">{verifier}</div>
         ) : (
-          <Badge variant="outline-muted">Unassigned</Badge>
+          <Badge variant="outline-muted">Belum ditugaskan</Badge>
         );
       },
     },
     {
       accessorKey: "created_at",
-      header: "Submitted",
+      header: "Dikirim",
       cell: ({ row }) => {
         const date = new Date(row.getValue("created_at"));
         return <div className="text-sm text-muted-foreground">{date.toLocaleDateString('id-ID')}</div>
@@ -168,22 +181,22 @@ export default function PendingSurveysPage() {
         return (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="h-8 w-8 p-0">
-                <span className="sr-only">Open menu</span>
+              <Button variant="outline" size="sm" className="h-8 w-8 p-0 shadow-none rounded-sm">
+                <span className="sr-only">Buka menu</span>
                 <HugeiconsIcon icon={MoreHorizontalIcon} size={16} />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => router.push(`/dashboard/survey/${survey.id}`)}>
                 <HugeiconsIcon icon={ViewIcon} size={16} />
-                View details
+                Lihat Detail
               </DropdownMenuItem>
               <DropdownMenuItem
                 className="text-green-600"
                 onClick={() => handleVerificationAction(survey, 'verify')}
               >
                 <HugeiconsIcon icon={Tick02Icon} size={16} />
-                Approve
+                Setujui
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
@@ -191,7 +204,7 @@ export default function PendingSurveysPage() {
                 onClick={() => handleVerificationAction(survey, 'reject')}
               >
                 <HugeiconsIcon icon={Cancel01Icon} size={16} />
-                Reject
+                Tolak
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -204,7 +217,7 @@ export default function PendingSurveysPage() {
     data: (data?.results ?? []) as SurveyResponse[],
     columns,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
+    manualSorting: true,
     onSortingChange: setSorting,
     state: {
       sorting,
@@ -218,7 +231,7 @@ export default function PendingSurveysPage() {
         <div className="flex flex-1 items-center justify-center">
           <div className="text-center">
             <div className="h-16 w-16 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto mb-4"></div>
-            <p className="text-sm text-muted-foreground">Loading pending surveys...</p>
+            <p className="text-sm text-muted-foreground">Memuat survei menunggu verifikasi...</p>
           </div>
         </div>
       </>
@@ -231,9 +244,11 @@ export default function PendingSurveysPage() {
 
       <div className="flex flex-1 flex-col gap-3">
 
-        <div className="px-6 pt-6">
-          <h1 className="text-xl font-bold">Pending Submissions</h1>
-          <p className="text-sm text-muted-foreground">Surveys waiting for verification and approval</p>
+        <div className="flex items-start justify-between gap-3 px-6 pt-6">
+          <div>
+            <h1 className="text-xl font-bold">Menunggu Verifikasi</h1>
+            <p className="text-sm text-muted-foreground">Survei yang menunggu verifikasi dan persetujuan</p>
+          </div>
         </div>
 
         <Separator />
@@ -241,6 +256,7 @@ export default function PendingSurveysPage() {
         <div className="flex flex-col gap-3 px-6 pb-6">
 
         <div className="flex gap-2 justify-between items-center">
+          <div />
           <div className="flex gap-2 items-center">
             <Select value={sorting.length > 0 ? `${sorting[0].id}-${sorting[0].desc ? 'desc' : 'asc'}` : 'default'} onValueChange={(value) => {
               if (value === 'default') {
@@ -250,37 +266,37 @@ export default function PendingSurveysPage() {
                 setSorting([{ id, desc: dir === 'desc' }]);
               }
             }}>
-              <SelectTrigger className="w-44" aria-label="Sort">
+              <SelectTrigger className="w-44 min-h-9 rounded-sm bg-white shadow-none" aria-label="Urutkan">
                 <HugeiconsIcon icon={SortingZA01Icon} size={16} />
-                <SelectValue placeholder="Sort" />
+                <SelectValue placeholder="Urutkan" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="default">Sort</SelectItem>
-                <SelectItem value="service_name-asc">Service A-Z</SelectItem>
-                <SelectItem value="service_name-desc">Service Z-A</SelectItem>
-                <SelectItem value="created_at-desc">Newest First</SelectItem>
-                <SelectItem value="created_at-asc">Oldest First</SelectItem>
-                <SelectItem value="survey_date-desc">Survey Date New</SelectItem>
-                <SelectItem value="survey_date-asc">Survey Date Old</SelectItem>
+                <SelectItem value="default">Urutkan</SelectItem>
+                <SelectItem value="service_name-asc">Layanan A-Z</SelectItem>
+                <SelectItem value="service_name-desc">Layanan Z-A</SelectItem>
+                <SelectItem value="created_at-desc">Terbaru</SelectItem>
+                <SelectItem value="created_at-asc">Terlama</SelectItem>
+                <SelectItem value="survey_date-desc">Tgl Survei Terbaru</SelectItem>
+                <SelectItem value="survey_date-asc">Tgl Survei Terlama</SelectItem>
               </SelectContent>
             </Select>
+            <Input
+              placeholder="Cari berdasarkan nama layanan, kota..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-64 min-h-9 rounded-sm bg-white shadow-none"
+              aria-label="Cari survei menunggu verifikasi"
+            />
           </div>
-          <Input
-            placeholder="Search by service name, city..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-64"
-            aria-label="Search pending surveys"
-          />
         </div>
 
-        <div className="rounded-lg border">
+        <div className="rounded-sm border bg-white overflow-hidden">
           <Table>
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id}>
+                <TableRow key={headerGroup.id} className="bg-muted/50">
                   {headerGroup.headers.map((header) => (
-                    <TableHead key={header.id}>
+                    <TableHead key={header.id} className="border-r last:border-r-0">
                       {header.isPlaceholder
                         ? null
                         : flexRender(
@@ -295,7 +311,7 @@ export default function PendingSurveysPage() {
             <TableBody>
               {table.getRowModel().rows?.length ? (
                 table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id}>
+                  <TableRow key={row.id} className="even:bg-muted">
                     {row.getVisibleCells().map((cell) => (
                       <TableCell key={cell.id}>
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -306,7 +322,7 @@ export default function PendingSurveysPage() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={columns.length} className="h-24 text-center">
-                    No pending surveys found.
+                    Tidak ada survei menunggu verifikasi.
                   </TableCell>
                 </TableRow>
               )}
@@ -317,8 +333,33 @@ export default function PendingSurveysPage() {
         {data && data.count > 0 && (
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
-              Showing {data.results.length} of {data.count} pending surveys
+              Menampilkan {(page - 1) * PAGE_SIZE + 1}
+              {'–'}
+              {Math.min(page * PAGE_SIZE, data.count)} dari {data.count} survei
             </p>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="shadow-none rounded-sm"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={!data.previous || page <= 1}
+              >
+                Sebelumnya
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                Halaman {page} dari {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="shadow-none rounded-sm"
+                onClick={() => setPage((p) => p + 1)}
+                disabled={!data.next || page >= totalPages}
+              >
+                Selanjutnya
+              </Button>
+            </div>
           </div>
         )}
               </div>

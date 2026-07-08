@@ -1,18 +1,12 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { PageHeader } from '@/components/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { ButtonGroup } from '@/components/ui/button-group';
 import {
   Table,
   TableBody,
@@ -35,8 +29,11 @@ import {
 } from "@hugeicons/core-free-icons";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Separator } from '@/components/ui/separator';
@@ -78,11 +75,54 @@ function getTimestampGte(timeRange: string): string | undefined {
   }
 }
 
-const breadcrumbs = [
-  { label: 'Dashboard', href: '/dashboard' },
-  { label: 'Logs & Monitoring', href: '/dashboard/logs' },
-  { label: 'System Errors' },
+const TIME_RANGE_OPTIONS = [
+  { value: 'today', label: 'Hari Ini' },
+  { value: 'yesterday', label: 'Kemarin' },
+  { value: 'week', label: '7 Hari Terakhir' },
+  { value: 'month', label: '30 Hari Terakhir' },
+  { value: 'all', label: 'Semua Waktu' },
 ];
+const TIME_RANGE_LABELS: Record<string, string> = Object.fromEntries(
+  TIME_RANGE_OPTIONS.map((o) => [o.value, o.label]),
+);
+
+const LEVEL_OPTIONS = [
+  { value: 'ERROR', label: 'Error' },
+  { value: 'CRITICAL', label: 'Critical' },
+  { value: 'WARNING', label: 'Warning' },
+  { value: 'INFO', label: 'Info' },
+  { value: 'DEBUG', label: 'Debug' },
+];
+
+const ERROR_TYPE_OPTIONS = [
+  { value: 'DATABASE', label: 'Database' },
+  { value: 'API', label: 'API' },
+  { value: 'AUTHENTICATION', label: 'Autentikasi' },
+  { value: 'VALIDATION', label: 'Validasi' },
+  { value: 'PERMISSION', label: 'Izin' },
+  { value: 'FILE_SYSTEM', label: 'Sistem File' },
+  { value: 'EXTERNAL_SERVICE', label: 'Layanan Eksternal' },
+  { value: 'RUNTIME', label: 'Runtime' },
+];
+const ERROR_TYPE_LABELS: Record<string, string> = Object.fromEntries(
+  ERROR_TYPE_OPTIONS.map((o) => [o.value, o.label]),
+);
+
+const STATUS_OPTIONS = [
+  { value: 'resolved', label: 'Terselesaikan' },
+  { value: 'unresolved', label: 'Belum Selesai' },
+];
+const STATUS_LABELS: Record<string, string> = Object.fromEntries(
+  STATUS_OPTIONS.map((o) => [o.value, o.label]),
+);
+
+const breadcrumbs = [
+  { label: 'Dasbor', href: '/dashboard' },
+  { label: 'Log & Pemantauan', href: '/dashboard/logs' },
+  { label: 'Error Sistem' },
+];
+
+const PAGE_SIZE = 50;
 
 export default function SystemErrorsPage() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -90,9 +130,14 @@ export default function SystemErrorsPage() {
   const [errorTypeFilter, setErrorTypeFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [timeRange, setTimeRange] = useState<string>('today');
+  const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery, levelFilter, errorTypeFilter, statusFilter, timeRange]);
 
   const queryParams = useMemo(() => {
-    const params: Record<string, unknown> = { page_size: 100 };
+    const params: Record<string, unknown> = { page, page_size: PAGE_SIZE };
     if (levelFilter !== 'all') params.severity = levelFilter;
     if (errorTypeFilter !== 'all') params.error_type = errorTypeFilter;
     if (statusFilter === 'resolved') params.is_resolved = true;
@@ -101,12 +146,13 @@ export default function SystemErrorsPage() {
     const gte = getTimestampGte(timeRange);
     if (gte) params.timestamp__gte = gte;
     return params;
-  }, [levelFilter, errorTypeFilter, statusFilter, searchQuery, timeRange]);
+  }, [levelFilter, errorTypeFilter, statusFilter, searchQuery, timeRange, page]);
 
   const { data, isLoading, isError, refetch } = useSystemErrors(queryParams);
 
   const logs = data?.results ?? [];
   const total = data?.count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const stats = useMemo(() => ({
     total,
@@ -120,70 +166,70 @@ export default function SystemErrorsPage() {
     <>
       <PageHeader breadcrumbs={breadcrumbs} />
 
-      <div className="flex flex-1 flex-col gap-4">
+      <div className="flex flex-1 flex-col gap-3">
 
-        <div className="px-8 pt-8 flex items-center justify-between">
+        <div className="flex items-start justify-between gap-3 px-6 pt-6">
           <div>
-            <h1 className="text-2xl font-bold">System Errors</h1>
-            <p className="text-muted-foreground">Monitor error dan warning dalam sistem</p>
+            <h1 className="text-xl font-bold">Error Sistem</h1>
+            <p className="text-sm text-muted-foreground">Pantau error dan peringatan dalam sistem</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => refetch()}>
+            <Button variant="outline" size="sm" className="h-9 rounded-sm shadow-none" onClick={() => refetch()}>
               <HugeiconsIcon icon={RefreshIcon} size={16} className="mr-2" />
-              Refresh
+              Muat Ulang
             </Button>
-            <Button>
+            <Button size="sm" className="h-9 rounded-sm shadow-none">
               <HugeiconsIcon icon={Download01Icon} size={16} className="mr-2" />
-              Export Logs
+              Ekspor Log
             </Button>
           </div>
         </div>
 
         <Separator />
 
-        <div className="flex flex-col gap-4 px-8 pb-8">
+        <div className="flex flex-col gap-3 px-6 pb-6">
 
           {/* Statistics */}
-          <div className="grid gap-4 md:grid-cols-5">
-            <Card>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <Card className="border-0 bg-white shadow-none">
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Total Logs</CardTitle>
+                <CardTitle className="text-sm font-medium text-muted-foreground">Total Log</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{total}</div>
                 <p className="text-xs text-muted-foreground mt-1">Semua waktu</p>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="border-0 bg-white shadow-none">
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-red-600">Errors</CardTitle>
+                <CardTitle className="text-sm font-medium text-red-600">Error</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-red-600">{stats.errors}</div>
                 <p className="text-xs text-muted-foreground mt-1">Perlu penanganan</p>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="border-0 bg-white shadow-none">
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-yellow-600">Warnings</CardTitle>
+                <CardTitle className="text-sm font-medium text-yellow-600">Peringatan</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-yellow-600">{stats.warnings}</div>
                 <p className="text-xs text-muted-foreground mt-1">Perlu perhatian</p>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="border-0 bg-white shadow-none">
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-green-600">Resolved</CardTitle>
+                <CardTitle className="text-sm font-medium text-green-600">Terselesaikan</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-green-600">{stats.resolved}</div>
                 <p className="text-xs text-muted-foreground mt-1">Sudah ditangani</p>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="border-0 bg-white shadow-none">
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-orange-600">Unresolved</CardTitle>
+                <CardTitle className="text-sm font-medium text-orange-600">Belum Selesai</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-orange-600">{stats.unresolved}</div>
@@ -193,97 +239,142 @@ export default function SystemErrorsPage() {
           </div>
 
           {/* Filters */}
-          <div className="flex items-center gap-3">
-            <div className="flex items-center rounded-md border">
-              <Select value={timeRange} onValueChange={setTimeRange}>
-                <SelectTrigger className="h-10 w-44 border-0 rounded-r-none">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="today">Hari Ini</SelectItem>
-                  <SelectItem value="yesterday">Kemarin</SelectItem>
-                  <SelectItem value="week">7 Hari Terakhir</SelectItem>
-                  <SelectItem value="month">30 Hari Terakhir</SelectItem>
-                  <SelectItem value="all">Semua Waktu</SelectItem>
-                </SelectContent>
-              </Select>
-              <div className="w-px h-5 bg-border" />
-              <Select value={levelFilter} onValueChange={setLevelFilter}>
-                <SelectTrigger className="h-10 w-36 border-0 rounded-none">
-                  <SelectValue placeholder="All" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Level</SelectItem>
-                  <SelectItem value="ERROR">Error</SelectItem>
-                  <SelectItem value="CRITICAL">Critical</SelectItem>
-                  <SelectItem value="WARNING">Warning</SelectItem>
-                  <SelectItem value="INFO">Info</SelectItem>
-                  <SelectItem value="DEBUG">Debug</SelectItem>
-                </SelectContent>
-              </Select>
-              <div className="w-px h-5 bg-border" />
-              <Select value={errorTypeFilter} onValueChange={setErrorTypeFilter}>
-                <SelectTrigger className="h-10 w-44 border-0 rounded-none">
-                  <SelectValue placeholder="All Type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Type</SelectItem>
-                  <SelectItem value="DATABASE">Database</SelectItem>
-                  <SelectItem value="API">API</SelectItem>
-                  <SelectItem value="AUTHENTICATION">Authentication</SelectItem>
-                  <SelectItem value="VALIDATION">Validation</SelectItem>
-                  <SelectItem value="PERMISSION">Permission</SelectItem>
-                  <SelectItem value="FILE_SYSTEM">File System</SelectItem>
-                  <SelectItem value="EXTERNAL_SERVICE">External Service</SelectItem>
-                  <SelectItem value="RUNTIME">Runtime</SelectItem>
-                </SelectContent>
-              </Select>
-              <div className="w-px h-5 bg-border" />
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="h-10 w-36 border-0 rounded-l-none">
-                  <SelectValue placeholder="All" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="resolved">Resolved</SelectItem>
-                  <SelectItem value="unresolved">Unresolved</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="w-px h-5 bg-border" />
-            <div className="relative flex-1 max-w-md">
+          <div className="flex gap-2 justify-between items-center">
+            <ButtonGroup aria-label="Filter error sistem">
+              {/* Rentang Waktu */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="min-h-9 bg-white shadow-none">
+                    {TIME_RANGE_LABELS[timeRange] ?? 'Rentang Waktu'}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-48">
+                  <DropdownMenuLabel>Rentang Waktu</DropdownMenuLabel>
+                  {TIME_RANGE_OPTIONS.map((o) => (
+                    <DropdownMenuCheckboxItem
+                      key={o.value}
+                      checked={timeRange === o.value}
+                      onCheckedChange={() => setTimeRange(o.value)}
+                      onSelect={(e) => e.preventDefault()}
+                    >
+                      {o.label}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Level */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="min-h-9 bg-white shadow-none">
+                    {levelFilter === 'all' ? 'Level' : levelFilter}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-44">
+                  <DropdownMenuLabel>Level</DropdownMenuLabel>
+                  {LEVEL_OPTIONS.map((o) => (
+                    <DropdownMenuCheckboxItem
+                      key={o.value}
+                      checked={levelFilter === o.value}
+                      onCheckedChange={() => setLevelFilter(o.value)}
+                      onSelect={(e) => e.preventDefault()}
+                    >
+                      {o.label}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                  {levelFilter !== 'all' && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onSelect={() => setLevelFilter('all')}>Hapus filter</DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Tipe Error */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="min-h-9 bg-white shadow-none">
+                    {errorTypeFilter === 'all' ? 'Tipe Error' : (ERROR_TYPE_LABELS[errorTypeFilter] ?? errorTypeFilter)}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-52">
+                  <DropdownMenuLabel>Tipe Error</DropdownMenuLabel>
+                  {ERROR_TYPE_OPTIONS.map((o) => (
+                    <DropdownMenuCheckboxItem
+                      key={o.value}
+                      checked={errorTypeFilter === o.value}
+                      onCheckedChange={() => setErrorTypeFilter(o.value)}
+                      onSelect={(e) => e.preventDefault()}
+                    >
+                      {o.label}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                  {errorTypeFilter !== 'all' && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onSelect={() => setErrorTypeFilter('all')}>Hapus filter</DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Status */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="min-h-9 bg-white shadow-none">
+                    {statusFilter === 'all' ? 'Status' : (STATUS_LABELS[statusFilter] ?? statusFilter)}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-44">
+                  <DropdownMenuLabel>Status</DropdownMenuLabel>
+                  {STATUS_OPTIONS.map((o) => (
+                    <DropdownMenuCheckboxItem
+                      key={o.value}
+                      checked={statusFilter === o.value}
+                      onCheckedChange={() => setStatusFilter(o.value)}
+                      onSelect={(e) => e.preventDefault()}
+                    >
+                      {o.label}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                  {statusFilter !== 'all' && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onSelect={() => setStatusFilter('all')}>Hapus filter</DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </ButtonGroup>
+
+            <div className="relative w-64">
               <HugeiconsIcon icon={Search01Icon} size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Cari error, endpoint..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 h-10"
+                className="pl-10 min-h-9 rounded-sm bg-white shadow-none"
+                aria-label="Cari error sistem"
               />
             </div>
           </div>
 
           {/* Error Logs Table */}
-          <Card>
-            <CardHeader>
-              <CardTitle>System Error Logs</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Menampilkan {logs.length} dari {total} error logs
-              </p>
-            </CardHeader>
-            <div className="px-6 pb-6">
-              <div className="rounded-lg border">
+          <div>
+            <div className="rounded-sm border bg-white overflow-hidden">
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead>Waktu</TableHead>
-                      <TableHead>Level</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Error Message</TableHead>
-                      <TableHead>Endpoint</TableHead>
-                      <TableHead>Code</TableHead>
-                      <TableHead>User</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Aksi</TableHead>
+                    <TableRow className="bg-muted/50">
+                      <TableHead className="border-r last:border-r-0">Waktu</TableHead>
+                      <TableHead className="border-r last:border-r-0">Level</TableHead>
+                      <TableHead className="border-r last:border-r-0">Tipe</TableHead>
+                      <TableHead className="border-r last:border-r-0">Pesan Error</TableHead>
+                      <TableHead className="border-r last:border-r-0">Endpoint</TableHead>
+                      <TableHead className="border-r last:border-r-0">Kode</TableHead>
+                      <TableHead className="border-r last:border-r-0">Pengguna</TableHead>
+                      <TableHead className="border-r last:border-r-0">Status</TableHead>
+                      <TableHead className="border-r last:border-r-0">Aksi</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -312,7 +403,7 @@ export default function SystemErrorsPage() {
                       const sev = log.severity?.toUpperCase() ?? 'ERROR';
                       const levelIcon = levelIcons[sev] ?? AlertCircleIcon;
                       return (
-                        <TableRow key={log.id}>
+                        <TableRow key={log.id} className="even:bg-muted">
                           <TableCell className="font-mono text-xs">
                             {new Date(log.timestamp).toLocaleString('id-ID')}
                           </TableCell>
@@ -343,31 +434,31 @@ export default function SystemErrorsPage() {
                           <TableCell>
                             {log.is_resolved ? (
                               <Badge variant="outline" className="border-green-300 text-green-700 bg-green-50">
-                                Resolved
+                                Terselesaikan
                               </Badge>
                             ) : (
                               <Badge variant="outline" className="border-red-300 text-red-700 bg-red-50">
-                                Unresolved
+                                Belum Selesai
                               </Badge>
                             )}
                           </TableCell>
                           <TableCell>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="outline" size="sm">
+                                <Button variant="outline" size="sm" className="h-8 w-8 p-0 rounded-sm">
                                   <HugeiconsIcon icon={MoreHorizontalIcon} size={16} />
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem>
                                   <HugeiconsIcon icon={CodeIcon} size={16} className="mr-2" />
-                                  View Details
+                                  Lihat Detail
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   onClick={() => navigator.clipboard.writeText(log.error_message)}
                                 >
                                   <HugeiconsIcon icon={Copy01Icon} size={16} className="mr-2" />
-                                  Copy Error Message
+                                  Salin Pesan Error
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -377,9 +468,41 @@ export default function SystemErrorsPage() {
                     })}
                   </TableBody>
                 </Table>
-              </div>
             </div>
-          </Card>
+
+            {total > 0 && (
+              <div className="flex items-center justify-between mt-3">
+                <p className="text-sm text-muted-foreground">
+                  Menampilkan {(page - 1) * PAGE_SIZE + 1}
+                  {'–'}
+                  {Math.min(page * PAGE_SIZE, total)} dari {total} log error
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="shadow-none rounded-sm"
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page <= 1}
+                  >
+                    Sebelumnya
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
+                    Halaman {page} dari {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="shadow-none rounded-sm"
+                    onClick={() => setPage((p) => p + 1)}
+                    disabled={page >= totalPages}
+                  >
+                    Selanjutnya
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </>

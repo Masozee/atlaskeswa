@@ -20,9 +20,9 @@ import {
 import { Separator } from '@/components/ui/separator';
 
 const breadcrumbs = [
-  { label: 'Dashboard', href: '/dashboard' },
-  { label: 'All Users', href: '/dashboard/users' },
-  { label: 'Add User' },
+  { label: 'Dasbor', href: '/dashboard' },
+  { label: 'Semua Pengguna', href: '/dashboard/users' },
+  { label: 'Tambah Pengguna' },
 ];
 
 export default function AddUserPage() {
@@ -60,8 +60,8 @@ export default function AddUserPage() {
       <div className="flex flex-1 flex-col gap-4">
 
         <div className="px-8 pt-8">
-          <h1 className="text-2xl font-bold">Add New User</h1>
-          <p className="text-muted-foreground">Create a new user account</p>
+          <h1 className="text-2xl font-bold">Tambah Pengguna Baru</h1>
+          <p className="text-muted-foreground">Buat akun pengguna baru</p>
         </div>
 
         <Separator />
@@ -71,8 +71,8 @@ export default function AddUserPage() {
         <div className="max-w-2xl">
           <Card>
             <CardHeader>
-              <CardTitle>User Information</CardTitle>
-              <CardDescription>Fill in the details to create a new user account</CardDescription>
+              <CardTitle>Informasi Pengguna</CardTitle>
+              <CardDescription>Isi detail untuk membuat akun pengguna baru</CardDescription>
             </CardHeader>
             <CardContent>
               <form
@@ -93,7 +93,7 @@ export default function AddUserPage() {
                   <form.Field name="first_name">
                     {(field) => (
                       <div className="space-y-2">
-                        <Label htmlFor={field.name}>First Name</Label>
+                        <Label htmlFor={field.name}>Nama Depan</Label>
                         <Input
                           id={field.name}
                           value={field.state.value || ''}
@@ -107,7 +107,7 @@ export default function AddUserPage() {
                   <form.Field name="last_name">
                     {(field) => (
                       <div className="space-y-2">
-                        <Label htmlFor={field.name}>Last Name</Label>
+                        <Label htmlFor={field.name}>Nama Belakang</Label>
                         <Input
                           id={field.name}
                           value={field.state.value || ''}
@@ -158,7 +158,7 @@ export default function AddUserPage() {
                   >
                     {(field) => (
                       <div className="space-y-2">
-                        <Label htmlFor={field.name}>Password *</Label>
+                        <Label htmlFor={field.name}>Kata Sandi *</Label>
                         <Input
                           id={field.name}
                           type="password"
@@ -192,7 +192,7 @@ export default function AddUserPage() {
                   >
                     {(field) => (
                       <div className="space-y-2">
-                        <Label htmlFor={field.name}>Confirm Password *</Label>
+                        <Label htmlFor={field.name}>Konfirmasi Kata Sandi *</Label>
                         <Input
                           id={field.name}
                           type="password"
@@ -220,16 +220,16 @@ export default function AddUserPage() {
                 >
                   {(field) => (
                     <div className="space-y-2">
-                      <Label htmlFor={field.name}>Role *</Label>
+                      <Label htmlFor={field.name}>Peran *</Label>
                       <Select value={field.state.value} onValueChange={(v) => field.handleChange(v as typeof field.state.value)}>
                         <SelectTrigger id={field.name} className={field.state.meta.errors?.length ? 'border-destructive' : ''}>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="ADMIN">Admin</SelectItem>
-                          <SelectItem value="SURVEYOR">Surveyor</SelectItem>
+                          <SelectItem value="ADMIN">Administrator</SelectItem>
+                          <SelectItem value="SURVEYOR">Surveyor/Enumerator</SelectItem>
                           <SelectItem value="VERIFIER">Verifier</SelectItem>
-                          <SelectItem value="VIEWER">Viewer</SelectItem>
+                          <SelectItem value="VIEWER">Viewer/Analyst</SelectItem>
                         </SelectContent>
                       </Select>
                       {field.state.meta.errors?.length > 0 && (
@@ -242,7 +242,7 @@ export default function AddUserPage() {
                 <form.Field name="phone_number">
                   {(field) => (
                     <div className="space-y-2">
-                      <Label htmlFor={field.name}>Phone Number</Label>
+                      <Label htmlFor={field.name}>Nomor Telepon</Label>
                       <Input
                         id={field.name}
                         type="tel"
@@ -257,7 +257,7 @@ export default function AddUserPage() {
                 <form.Field name="organization">
                   {(field) => (
                     <div className="space-y-2">
-                      <Label htmlFor={field.name}>Organization</Label>
+                      <Label htmlFor={field.name}>Organisasi</Label>
                       <Input
                         id={field.name}
                         value={field.state.value || ''}
@@ -270,14 +270,14 @@ export default function AddUserPage() {
 
                 <div className="flex gap-2">
                   <Button type="submit" disabled={createUser.isPending}>
-                    {createUser.isPending ? 'Creating...' : 'Create User'}
+                    {createUser.isPending ? 'Menyimpan...' : 'Buat Pengguna'}
                   </Button>
                   <Button
                     type="button"
                     variant="outline"
                     onClick={() => router.push('/dashboard/users')}
                   >
-                    Cancel
+                    Batal
                   </Button>
                 </div>
               </form>
