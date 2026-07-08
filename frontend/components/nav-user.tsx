@@ -33,7 +33,7 @@ import {
 import { authStore, authActions } from "@/store/auth-store"
 import { useStore } from "@tanstack/react-store"
 
-export function NavUser() {
+export function NavUser({ compact = false }: { compact?: boolean }) {
   const { isMobile } = useSidebar()
   const router = useRouter()
   const authState = useStore(authStore, (state) => state)
@@ -66,16 +66,24 @@ export function NavUser() {
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton
               size="lg"
-              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground md:h-8 md:p-0"
+              className={
+                compact
+                  ? "size-10 justify-center rounded-xl p-0 hover:bg-white/15 data-[state=open]:bg-white/15"
+                  : "data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground md:h-8 md:p-0"
+              }
             >
               <Avatar className="h-8 w-8 rounded-lg">
                 <AvatarFallback className="rounded-lg">{getInitials(user.name)}</AvatarFallback>
               </Avatar>
-              <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">{user.name}</span>
-                <span className="truncate text-xs">{user.email}</span>
-              </div>
-              <HugeiconsIcon icon={ArrowUpDownIcon} size={24} className="ml-auto size-4" />
+              {!compact && (
+                <>
+                  <div className="grid flex-1 text-left text-sm leading-tight">
+                    <span className="truncate font-medium">{user.name}</span>
+                    <span className="truncate text-xs">{user.email}</span>
+                  </div>
+                  <HugeiconsIcon icon={ArrowUpDownIcon} size={24} className="ml-auto size-4" />
+                </>
+              )}
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
