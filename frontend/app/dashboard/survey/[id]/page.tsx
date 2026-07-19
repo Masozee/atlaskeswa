@@ -456,43 +456,58 @@ export default function SurveyDetailPage({
                             </div>
                           );
                         }
-                        // New format: array of user-defined intervention rows with sub-questions
+                        // New format: array of user-defined rows with sub-questions.
+                        // Render as a table: one row per entry, one column per sub-field.
                         if (Array.isArray(tableData) && tableData.length > 0) {
+                          const fmtCell = (val: any): string => {
+                            if (Array.isArray(val)) return val.join(', ') || '—';
+                            if (val === null || val === undefined || val === '') return '—';
+                            if (typeof val === 'object' && ('hari' in val || 'jam' in val)) {
+                              const days = (val as any).hari?.join(', ') || '—';
+                              const time = (val as any).jam || '—';
+                              return `${days} · ${time}`;
+                            }
+                            if (typeof val === 'boolean') return val ? 'Ya' : 'Tidak';
+                            return String(val);
+                          };
+                          // Union of sub-field keys across all rows, first-seen order.
+                          const colKeys: string[] = [];
+                          for (const row of tableData as any[]) {
+                            for (const k of Object.keys(row)) {
+                              if (k !== 'id' && k !== 'label' && !colKeys.includes(k)) colKeys.push(k);
+                            }
+                          }
+                          const hasLabel = (tableData as any[]).some((r) => r.label);
                           return (
-                            <div className="space-y-3 mt-1">
-                              {tableData.map((row: any, idx: number) => (
-                                <div key={row.id ?? idx} className="bg-muted/30 rounded-lg overflow-hidden text-sm">
-                                  <div className="bg-muted/40 px-3 py-1.5 font-semibold text-foreground">
-                                    {idx + 1}. {row.label || <span className="text-muted-foreground italic">Tidak ada nama</span>}
-                                  </div>
-                                  <div className="px-3 py-2 space-y-1">
-                                    {Object.entries(row)
-                                      .filter(([k]) => k !== 'id' && k !== 'label')
-                                      .map(([key, val]) => {
-                                        let display: React.ReactNode = '—';
-                                        if (Array.isArray(val)) {
-                                          display = val.join(', ') || '—';
-                                        } else if (val !== null && val !== undefined && val !== '') {
-                                          if (typeof val === 'object' && ('hari' in val || 'jam' in val)) {
-                                            const days = (val as any).hari?.join(', ') || '—';
-                                            const time = (val as any).jam || '—';
-                                            display = `${days} · ${time}`;
-                                          } else if (typeof val === 'boolean') {
-                                            display = val ? 'Ya' : 'Tidak';
-                                          } else {
-                                            display = String(val);
-                                          }
-                                        }
-                                        return (
-                                          <div key={key} className="flex gap-2 text-xs">
-                                            <span className="text-muted-foreground font-medium min-w-[120px] shrink-0">{key}</span>
-                                            <span className="text-foreground">{display}</span>
-                                          </div>
-                                        );
-                                      })}
-                                  </div>
-                                </div>
-                              ))}
+                            <div className="mt-1 overflow-x-auto rounded-sm border">
+                              <table className="w-full border-collapse text-sm">
+                                <thead>
+                                  <tr className="bg-muted/50">
+                                    <th className="border-r border-b px-3 py-1.5 text-left font-medium w-10">#</th>
+                                    {hasLabel && (
+                                      <th className="border-r border-b px-3 py-1.5 text-left font-medium">Nama</th>
+                                    )}
+                                    {colKeys.map((k) => (
+                                      <th key={k} className="border-r border-b px-3 py-1.5 text-left font-medium last:border-r-0">{k}</th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {(tableData as any[]).map((row, idx) => (
+                                    <tr key={row.id ?? idx} className="even:bg-muted/30">
+                                      <td className="border-r border-b px-3 py-1.5 text-muted-foreground">{idx + 1}</td>
+                                      {hasLabel && (
+                                        <td className="border-r border-b px-3 py-1.5 font-medium">
+                                          {row.label || <span className="text-muted-foreground italic">Tidak ada nama</span>}
+                                        </td>
+                                      )}
+                                      {colKeys.map((k) => (
+                                        <td key={k} className="border-r border-b px-3 py-1.5 last:border-r-0">{fmtCell(row[k])}</td>
+                                      ))}
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
                             </div>
                           );
                         }
@@ -663,6 +678,38 @@ export default function SurveyDetailPage({
                         ) : null;
                       })()}
                 </div>
+                {(survey as any).started_at && (
+                  <div>
+                    <div className="text-xs font-medium text-muted-foreground mb-1">Waktu Mulai</div>
+                    <div className="text-sm font-medium">
+                      {new Date((survey as any).started_at).toLocaleString('id-ID', {
+                        day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',
+                      })}
+                    </div>
+                  </div>
+                )}
+                {survey.submitted_at && (
+                  <div>
+                    <div className="text-xs font-medium text-muted-foreground mb-1">Waktu Selesai</div>
+                    <div className="text-sm font-medium">
+                      {new Date(survey.submitted_at).toLocaleString('id-ID', {
+                        day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',
+                      })}
+                    </div>
+                    {(survey as any).started_at && (() => {
+                      const ms = new Date(survey.submitted_at!).getTime() - new Date((survey as any).started_at).getTime();
+                      if (!Number.isFinite(ms) || ms < 0) return null;
+                      const mins = Math.round(ms / 60000);
+                      const h = Math.floor(mins / 60);
+                      const m = mins % 60;
+                      return (
+                        <div className="text-xs text-muted-foreground mt-0.5">
+                          Durasi: {h > 0 ? `${h} jam ${m} mnt` : `${m} mnt`}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
                 {survey.survey_period_start && (
                   <div>
                     <div className="text-xs font-medium text-muted-foreground mb-1">Awal Periode Survei</div>
