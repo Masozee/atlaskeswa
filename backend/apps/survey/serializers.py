@@ -496,6 +496,45 @@ class DynamicSurveyResponseCreateSerializer(serializers.ModelSerializer):
 
         return response
 
+    def update(self, instance, validated_data):
+        """
+        Update a survey response and (if provided) fully replace its answers.
+
+        Answers are re-created rather than patched: the incoming `answers` dict
+        is the complete, authoritative answer set for the response. Existing
+        QuestionAnswer rows (and their M2M choices, via cascade) are deleted and
+        rebuilt through the same _create_answers path used on create, so the
+        stored format stays identical between create and edit.
+        """
+        answers_provided = 'answers' in validated_data
+        answers_data = validated_data.pop('answers', {})
+
+        # Legacy-compat / mobile-only fields that don't map to the model directly
+        validated_data.pop('survey_period_start', None)
+        validated_data.pop('survey_period_end', None)
+
+        gps_lat = validated_data.pop('gps_latitude', None)
+        gps_lng = validated_data.pop('gps_longitude', None)
+        if gps_lat is not None:
+            validated_data['latitude'] = gps_lat
+        if gps_lng is not None:
+            validated_data['longitude'] = gps_lng
+
+        # verification_status is not editable through this path
+        validated_data.pop('verification_status', None)
+
+        # Apply scalar field updates
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+
+        # Replace answers only when the caller sent an answers payload
+        if answers_provided:
+            instance.answers.all().delete()
+            self._create_answers(instance, answers_data)
+
+        return instance
+
     def _create_answers(self, response, answers_data):
         """Create QuestionAnswer objects from answers dict using bulk operations"""
         # Separate __other_text keys from regular answers
