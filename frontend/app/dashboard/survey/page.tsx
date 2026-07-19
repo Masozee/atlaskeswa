@@ -118,6 +118,10 @@ function toISODate(d: Date): string {
 
 export default function AllSurveysPage() {
   const [search, setSearch] = useState('');
+  // Export download state: isExporting gates the button; exportProgress is a
+  // 0–100 percentage when Content-Length is known, or null for indeterminate.
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState<number | null>(null);
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [kategoriFilter, setKategoriFilter] = useState<string[]>([]);
   const [dateFilter, setDateFilter] = useState<Date | undefined>(undefined);
@@ -205,10 +209,39 @@ export default function AllSurveysPage() {
     if (surveyorParam) params.set('surveyor', surveyorParam);
     const ids = table.getSelectedRowModel().rows.map((r) => r.original.id);
     if (ids.length > 0) params.set('ids', ids.join(','));
+
+    setIsExporting(true);
+    setExportProgress(null);
     try {
       const res = await apiClient.fetchRaw(`/surveys/responses/export/?${params.toString()}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const blob = await res.blob();
+
+      // Stream the body so we can show download progress. Content-Length is
+      // present for buffered responses; if absent (chunked), stay indeterminate.
+      const total = Number(res.headers.get('Content-Length')) || 0;
+      let blob: Blob;
+      if (res.body && typeof res.body.getReader === 'function') {
+        const reader = res.body.getReader();
+        const chunks: Uint8Array[] = [];
+        let received = 0;
+        setExportProgress(total > 0 ? 0 : null);
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (value) {
+            chunks.push(value);
+            received += value.length;
+            if (total > 0) setExportProgress(Math.min(100, Math.round((received / total) * 100)));
+          }
+        }
+        blob = new Blob(chunks as BlobPart[], {
+          type: res.headers.get('Content-Type') || 'application/octet-stream',
+        });
+      } else {
+        blob = await res.blob();
+      }
+      setExportProgress(100);
+
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -220,6 +253,9 @@ export default function AllSurveysPage() {
       toast.success(`Laporan ${format.toUpperCase()} berhasil diunduh`);
     } catch (e) {
       toast.error(`Gagal mengunduh laporan: ${e instanceof Error ? e.message : 'unknown'}`);
+    } finally {
+      setIsExporting(false);
+      setExportProgress(null);
     }
   };
 
@@ -472,29 +508,57 @@ export default function AllSurveysPage() {
             <p className="text-sm text-muted-foreground">Pengumpulan dan pemantauan data survei</p>
           </div>
           <div className="flex items-center gap-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-9 border border-input bg-white shadow-none rounded-sm box-border">
-                  <HugeiconsIcon icon={HardDriveDownloadIcon} size={16} className="mr-2" />
-                  Ekspor
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => handleExport('xlsx', 'code')}>
-                  XLSX — Kode (mis. AKUT)
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleExport('xlsx', 'label')}>
-                  XLSX — Jawaban Lengkap
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => handleExport('csv', 'code')}>
-                  CSV — Kode
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleExport('csv', 'label')}>
-                  CSV — Jawaban Lengkap
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <div className="relative">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={isExporting}
+                    className="h-9 border border-input bg-white shadow-none rounded-sm box-border"
+                  >
+                    {isExporting ? (
+                      <>
+                        <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                        {exportProgress !== null ? `Mengekspor ${exportProgress}%` : 'Mengekspor…'}
+                      </>
+                    ) : (
+                      <>
+                        <HugeiconsIcon icon={HardDriveDownloadIcon} size={16} className="mr-2" />
+                        Ekspor
+                      </>
+                    )}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => handleExport('xlsx', 'code')}>
+                    XLSX — Kode (mis. AKUT)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExport('xlsx', 'label')}>
+                    XLSX — Jawaban Lengkap
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => handleExport('csv', 'code')}>
+                    CSV — Kode
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExport('csv', 'label')}>
+                    CSV — Jawaban Lengkap
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              {isExporting && (
+                <div className="absolute -bottom-1.5 left-0 h-1 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className={
+                      exportProgress !== null
+                        ? 'h-full bg-primary transition-all duration-200'
+                        : 'h-full w-full animate-pulse bg-primary'
+                    }
+                    style={exportProgress !== null ? { width: `${exportProgress}%` } : undefined}
+                  />
+                </div>
+              )}
+            </div>
             <Button asChild size="sm" className="h-9 border border-input rounded-sm shadow-none box-border">
               <Link href="/survey/new">
                 <PlusSignIcon className="w-4 h-4 mr-2" />
