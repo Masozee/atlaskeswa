@@ -23,6 +23,14 @@ interface DynamicSurveyFormProps {
   onSuccess?: () => void;
   onBack?: () => void;
   onSpeechTextChange?: (text: string) => void;
+  /**
+   * When provided, the form submits by calling this with the built answers
+   * payload instead of creating a new response (used for editing an existing
+   * response). Should throw on failure so the form can surface the error.
+   */
+  onSubmitAnswers?: (answers: SurveyAnswers) => Promise<void>;
+  /** Label/behaviour tweaks for edit mode. */
+  submitLabel?: string;
 }
 
 export function DynamicSurveyForm({
@@ -36,6 +44,8 @@ export function DynamicSurveyForm({
   onSuccess,
   onBack,
   onSpeechTextChange,
+  onSubmitAnswers,
+  submitLabel,
 }: DynamicSurveyFormProps) {
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
   const [answers, setAnswers] = useState<SurveyAnswers>(() => {
@@ -456,16 +466,20 @@ export function DynamicSurveyForm({
 
     setIsSaving(true);
     try {
-      await createSurvey.mutateAsync({
-        template: template.id,
-        service: serviceId,
-        survey_date: surveyDate,
-        survey_period_start: surveyPeriodStart,
-        survey_period_end: surveyPeriodEnd,
-        answers: buildAnswersPayload(),
-      });
+      if (onSubmitAnswers) {
+        await onSubmitAnswers(buildAnswersPayload());
+      } else {
+        await createSurvey.mutateAsync({
+          template: template.id,
+          service: serviceId,
+          survey_date: surveyDate,
+          survey_period_start: surveyPeriodStart,
+          survey_period_end: surveyPeriodEnd,
+          answers: buildAnswersPayload(),
+        });
+      }
 
-      toast.success('Survei berhasil direkam.');
+      toast.success(onSubmitAnswers ? 'Perubahan survei tersimpan.' : 'Survei berhasil direkam.');
       setIsSubmitted(true);
       onSuccess?.();
     } catch (error: unknown) {
@@ -619,7 +633,7 @@ export function DynamicSurveyForm({
           </Button>
         ) : (
           <Button onClick={handleSubmit} disabled={isSaving}>
-            {isSaving ? 'Menyimpan...' : 'Terima Kasih'}
+            {isSaving ? 'Menyimpan...' : (submitLabel ?? 'Terima Kasih')}
           </Button>
         )}
       </div>

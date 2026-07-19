@@ -266,6 +266,12 @@ export default function SurveyDetailPage({
               <p className="text-lg text-muted-foreground">
                 {(typeof survey.service === 'object' ? survey.service?.name : survey.service_name) || 'Layanan Tidak Diketahui'}
               </p>
+              {(() => {
+                const kota = (typeof survey.service === 'object' ? survey.service?.city : survey.service_city) || null;
+                return kota ? (
+                  <p className="text-sm text-muted-foreground">{kota}</p>
+                ) : null;
+              })()}
             </div>
 
             {/* Action Buttons */}
@@ -315,28 +321,8 @@ export default function SurveyDetailPage({
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
           {/* Main Content - 3/4 */}
           <div className="lg:col-span-3 space-y-4">
-            {/* Service Information */}
-            <Card className="border">
-              <CardHeader>
-                <CardTitle>Informasi Layanan</CardTitle>
-                <CardDescription>Fasilitas yang disurvei</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <div className="text-sm font-medium mb-1">Nama Layanan</div>
-                    <div className="text-sm text-muted-foreground">{(typeof survey.service === 'object' ? survey.service?.name : survey.service_name) || '-'}</div>
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium mb-1">Kota</div>
-                    <div className="text-sm text-muted-foreground">{(typeof survey.service === 'object' ? survey.service?.city : survey.service_city) || '-'}</div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
             {/* Photos Section */}
-            <Card className="border">
+            <Card className="border-0 bg-white shadow-none">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
@@ -399,7 +385,7 @@ export default function SurveyDetailPage({
             </Card>
 
             {/* Survey Answers */}
-            <Card className="border">
+            <Card className="border-0 bg-white shadow-none">
               <CardHeader>
                 <CardTitle>Jawaban Survei</CardTitle>
                 <CardDescription>Tanggapan terhadap pertanyaan survei</CardDescription>
@@ -430,12 +416,52 @@ export default function SurveyDetailPage({
                       });
 
                       const formatTableData = (tableData: any): React.ReactNode => {
+                        // Simple staff/count table: array of { row, value } (+ optional label).
+                        // Render as a clean 2-column table instead of raw key/value dump.
+                        if (
+                          Array.isArray(tableData) &&
+                          tableData.length > 0 &&
+                          tableData.every(
+                            (r: any) =>
+                              r && typeof r === 'object' && 'row' in r && 'value' in r &&
+                              Object.keys(r).every((k) => ['row', 'value', 'label'].includes(k)),
+                          )
+                        ) {
+                          return (
+                            <div className="mt-1 inline-block overflow-hidden rounded-md border border-border">
+                              <table className="text-sm border-collapse">
+                                <thead>
+                                  <tr className="bg-muted/50">
+                                    <th className="border border-border px-3 py-1.5 text-left font-semibold">Nama</th>
+                                    <th className="border border-border px-3 py-1.5 text-right font-semibold">Jumlah</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {tableData.map((r: any, idx: number) => (
+                                    <tr key={r.row ?? idx}>
+                                      <td className="border border-border px-3 py-1.5 font-medium text-foreground">
+                                        {r.label || r.row}
+                                      </td>
+                                      <td className="border border-border px-3 py-1.5 text-right tabular-nums text-foreground">
+                                        {r.value === null || r.value === undefined
+                                          ? '—'
+                                          : Number.isFinite(Number(r.value))
+                                            ? String(Number(r.value))
+                                            : String(r.value)}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          );
+                        }
                         // New format: array of user-defined intervention rows with sub-questions
                         if (Array.isArray(tableData) && tableData.length > 0) {
                           return (
                             <div className="space-y-3 mt-1">
                               {tableData.map((row: any, idx: number) => (
-                                <div key={row.id ?? idx} className="border rounded-lg overflow-hidden text-sm">
+                                <div key={row.id ?? idx} className="bg-muted/30 rounded-lg overflow-hidden text-sm">
                                   <div className="bg-muted/40 px-3 py-1.5 font-semibold text-foreground">
                                     {idx + 1}. {row.label || <span className="text-muted-foreground italic">Tidak ada nama</span>}
                                   </div>
@@ -496,14 +522,20 @@ export default function SurveyDetailPage({
                       };
 
                       const upper = (text: string) => text.toUpperCase();
+                      // Trim trailing zeros from decimals: "23.0000" -> "23", "1.50" -> "1.5"
+                      const fmtNumber = (n: any): string => {
+                        const num = Number(n);
+                        return Number.isFinite(num) ? String(num) : String(n);
+                      };
                       const formatValue = (answer: any): React.ReactNode =>
-                        answer.text_value ||
-                        (answer.number_value !== null && answer.number_value !== undefined ? String(answer.number_value) : null) ||
+                        // Choice answers: prefer human labels over the raw id list stored in text_value.
+                        (answer.selected_choice_labels?.length > 0 ? upper(answer.selected_choice_labels.join(', ')) : null) ||
+                        (answer.number_value !== null && answer.number_value !== undefined ? fmtNumber(answer.number_value) : null) ||
                         (answer.boolean_value !== null && answer.boolean_value !== undefined ? (answer.boolean_value ? 'YA' : 'TIDAK') : null) ||
                         (answer.geographic_unit_name ? upper(answer.geographic_unit_name) : null) ||
-                        (answer.selected_choice_labels?.length > 0 ? upper(answer.selected_choice_labels.join(', ')) : null) ||
                         (answer.gps_latitude && answer.gps_longitude ? `${answer.gps_latitude}, ${answer.gps_longitude}` : null) ||
                         (answer.table_data ? formatTableData(answer.table_data) : null) ||
+                        (answer.text_value ? answer.text_value : null) ||
                         'TIDAK ADA JAWABAN';
 
                       const nonDetail = answers.filter((a: any) => !/[A-Z]$/.test(a.question_code));
@@ -570,9 +602,9 @@ export default function SurveyDetailPage({
 
             {/* Notes */}
             {(survey.surveyor_notes || survey.verifier_notes || survey.rejection_reason) && (
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-4 grid-cols-1">
                 {survey.surveyor_notes && (
-                  <Card className="border">
+                  <Card className="border-0 bg-white shadow-none">
                     <CardHeader>
                       <CardTitle className="text-base">Catatan Surveyor</CardTitle>
                     </CardHeader>
@@ -582,7 +614,7 @@ export default function SurveyDetailPage({
                   </Card>
                 )}
                 {survey.rejection_reason && (
-                  <Card className="border border-destructive">
+                  <Card className="border-0 bg-destructive/5 shadow-none">
                     <CardHeader>
                       <CardTitle className="text-base text-destructive">Alasan Penolakan</CardTitle>
                     </CardHeader>
@@ -599,7 +631,7 @@ export default function SurveyDetailPage({
           <div className="lg:col-span-1">
             <div className="sticky top-4 space-y-4">
               {/* Survey Metadata */}
-              <div className="border rounded-lg p-4 space-y-3">
+              <div className="bg-white rounded-lg p-4 space-y-3">
                 <h3 className="text-sm font-semibold">Metadata Survei</h3>
                 <div>
                   <div className="text-xs font-medium text-muted-foreground mb-1">Status</div>
@@ -631,6 +663,22 @@ export default function SurveyDetailPage({
                         ) : null;
                       })()}
                 </div>
+                {survey.survey_period_start && (
+                  <div>
+                    <div className="text-xs font-medium text-muted-foreground mb-1">Awal Periode Survei</div>
+                    <div className="text-sm font-medium">
+                      {new Date(survey.survey_period_start).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}
+                    </div>
+                  </div>
+                )}
+                {survey.survey_period_end && (
+                  <div>
+                    <div className="text-xs font-medium text-muted-foreground mb-1">Akhir Periode Survei</div>
+                    <div className="text-sm font-medium">
+                      {new Date(survey.survey_period_end).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}
+                    </div>
+                  </div>
+                )}
                 {(survey.latitude || survey.longitude) ? (
                   <div>
                     <div className="text-xs font-medium text-muted-foreground mb-1">Lokasi GPS</div>
@@ -660,7 +708,7 @@ export default function SurveyDetailPage({
 
               {/* Verifier Notes */}
               {survey.verifier_notes && (
-                <div className="border rounded-lg p-4 space-y-2">
+                <div className="bg-white rounded-lg p-4 space-y-2">
                   <h3 className="text-sm font-semibold">Catatan Verifikator</h3>
                   <p className="text-sm text-muted-foreground whitespace-pre-wrap">{survey.verifier_notes}</p>
                 </div>
