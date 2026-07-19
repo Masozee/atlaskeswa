@@ -1746,7 +1746,7 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
                 code, ctx, value = payload
                 ans = answer_map.get((code, ctx))
                 if ans and value in self._mc_selected_values(ans):
-                    row.append(ans.other_text or '')
+                    row.append(self._parse_other_text(ans.other_text, choice_value=value))
                 else:
                     row.append('')
             else:
@@ -1763,6 +1763,37 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
             if labels:
                 return labels
         return cls._mc_selected_values(ans)
+
+    @staticmethod
+    def _parse_other_text(other_text, choice_value: str | None = None) -> str:
+        """Normalize an answer's other_text into a clean cell string.
+
+        other_text is stored as a JSON object keyed by choice value, e.g.
+        '{"1":"AHU-0013737-ah 01"}' or '{"IG":"...","FB":"..."}'. Export must
+        show the plain text, not the raw JSON.
+
+        - If choice_value is given, return that key's text (the "_other" column
+          for a specific choice).
+        - Otherwise return all values joined (used when appending to an MC cell).
+        - Non-JSON / plain strings are returned as-is.
+        """
+        if not other_text:
+            return ''
+        raw = other_text.strip()
+        if raw.startswith('{') or raw.startswith('['):
+            try:
+                import json as _json
+                parsed = _json.loads(raw)
+            except (ValueError, TypeError):
+                return other_text
+            if isinstance(parsed, dict):
+                if choice_value is not None:
+                    return str(parsed.get(choice_value, parsed.get(str(choice_value), '')))
+                return ', '.join(str(v) for v in parsed.values() if v not in (None, ''))
+            if isinstance(parsed, list):
+                return ', '.join(str(v) for v in parsed if v not in (None, ''))
+            return str(parsed)
+        return other_text
 
     @staticmethod
     def _mc_selected_values(ans) -> list[str]:
@@ -1813,8 +1844,9 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
         if t in ('SINGLE_CHOICE', 'MULTIPLE_CHOICE'):
             attr = 'label' if use_label else 'value'
             parts = [getattr(c, attr) for c in ans.selected_choices.all()]
-            if ans.other_text:
-                parts.append(ans.other_text)
+            other = DynamicSurveyResponseViewSet._parse_other_text(ans.other_text)
+            if other:
+                parts.append(other)
             return ', '.join(parts)
         if t.startswith('GEO_'):
             gu = ans.geographic_unit
