@@ -24,10 +24,24 @@ import {
   Pie,
   Cell,
   LabelList,
+  Legend,
 } from 'recharts';
 
 // Chart colors based on primary teal #07579E
 const COLORS = ['#07579E', '#4DB6AC', '#FFBF47', '#FF8A65', '#9575CD', '#81C784'];
+
+// Shared chart styling — Inter font + resolved (non-oklch) colors so recharts SVG renders them
+const CHART_FONT = 'var(--font-sans), Inter, system-ui, sans-serif';
+const AXIS_TICK = { fill: '#6B7280', fontSize: 11, fontFamily: CHART_FONT };
+const TOOLTIP_STYLE = {
+  backgroundColor: '#ffffff',
+  border: '1px solid #E5E7EB',
+  borderRadius: '10px',
+  boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+  fontFamily: CHART_FONT,
+  fontSize: 12,
+};
+const TOOLTIP_LABEL = { color: '#1A1A1A', fontWeight: 600, marginBottom: 4, fontFamily: CHART_FONT };
 
 
 const breadcrumbs = [
@@ -48,8 +62,8 @@ function StatCard({
   trend?: string;
 }) {
   return (
-    <Card>
-      <CardHeader className="space-y-0 pb-3">
+    <Card className="gap-0 border-0 bg-white py-4 shadow-none">
+      <CardHeader className="space-y-0 pb-1">
         <CardTitle className="text-sm font-medium">
           {title}
         </CardTitle>
@@ -59,15 +73,15 @@ function StatCard({
           </CardDescription>
         )}
       </CardHeader>
-      <CardContent className="pt-4">
+      <CardContent className="pt-2">
         <div className="text-2xl font-bold">{typeof value === 'number' ? value.toLocaleString() : value}</div>
         {subtitle && (
-          <p className="text-xs text-muted-foreground mt-1">
+          <p className="text-xs text-muted-foreground mt-0.5">
             {subtitle}
           </p>
         )}
         {trend && (
-          <p className="text-xs text-green-600 mt-1">
+          <p className="text-xs text-green-600 mt-0.5">
             {trend}
           </p>
         )}
@@ -165,7 +179,7 @@ export default function DashboardPage() {
 
         {/* Activity Overview + Calendar Row */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-          <Card className="col-span-4">
+          <Card className="col-span-4 border-0 bg-white shadow-none">
             <CardHeader>
               <CardTitle>Ikhtisar Aktivitas</CardTitle>
               <CardDescription>Aktivitas pengguna selama 14 hari terakhir</CardDescription>
@@ -182,28 +196,26 @@ export default function DashboardPage() {
                 </div>
               </div>
               <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={activityTrendData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }} barGap={2}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted/50" vertical={false} />
+                <BarChart data={activityTrendData} margin={{ top: 8, right: 12, left: 0, bottom: 5 }} barGap={2}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} />
                   <XAxis
                     dataKey="date"
-                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
+                    tick={AXIS_TICK}
                     axisLine={false}
                     tickLine={false}
+                    tickMargin={8}
                   />
                   <YAxis
-                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
+                    tick={AXIS_TICK}
                     axisLine={false}
                     tickLine={false}
                     allowDecimals={false}
+                    width={32}
                   />
                   <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'hsl(var(--background))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '10px',
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                    }}
-                    labelStyle={{ color: 'hsl(var(--foreground))', fontWeight: 600, marginBottom: 4 }}
+                    cursor={{ fill: '#07579E', fillOpacity: 0.06 }}
+                    contentStyle={TOOLTIP_STYLE}
+                    labelStyle={TOOLTIP_LABEL}
                     formatter={(value, name) => [
                       value,
                       name === 'logins' ? 'Login' : 'Pengajuan Survei',
@@ -216,7 +228,7 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          <Card className="col-span-3">
+          <Card className="col-span-3 border-0 bg-white shadow-none">
             <CardHeader>
               <CardTitle>Kalender</CardTitle>
               <CardDescription>Jadwal dan tanggal penting</CardDescription>
@@ -261,44 +273,53 @@ export default function DashboardPage() {
 
         {/* Distribusi Layanan + Geographic Distribution Row */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-12">
-          <Card className="lg:col-span-4">
+          <Card className="lg:col-span-4 border-0 bg-white shadow-none">
             <CardHeader>
               <CardTitle>Distribusi Layanan</CardTitle>
               <CardDescription>Berdasarkan jenis perawatan utama (MTC)</CardDescription>
             </CardHeader>
             <CardContent className="pb-2">
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
+              <ResponsiveContainer width="100%" height={320}>
+                <PieChart margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
                   <Pie
                     data={mtcChartData}
                     cx="50%"
-                    cy="50%"
+                    cy="45%"
                     labelLine={false}
-                    label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
-                    outerRadius={80}
+                    label={(props: { code?: string; percent?: number }) => `${props.code ?? ''} ${((props.percent ?? 0) * 100).toFixed(0)}%`}
+                    outerRadius={90}
                     fill="#8884d8"
                     dataKey="value"
+                    style={{ fontFamily: CHART_FONT, fontSize: 11, fontWeight: 600 }}
                   >
                     {mtcChartData?.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="#ffffff" strokeWidth={2} />
                     ))}
                   </Pie>
                   <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'hsl(var(--background))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px'
-                    }}
+                    contentStyle={TOOLTIP_STYLE}
+                    formatter={(value, _name, item) => [value, item?.payload?.name ?? 'Layanan']}
+                  />
+                  <Legend
+                    verticalAlign="bottom"
+                    height={36}
+                    iconType="circle"
+                    iconSize={9}
+                    formatter={(_value, entry) => (
+                      <span style={{ color: '#374151', fontFamily: CHART_FONT, fontSize: 11 }}>
+                        {(entry?.payload as { code?: string })?.code}
+                      </span>
+                    )}
                   />
                 </PieChart>
               </ResponsiveContainer>
-              <p className="text-xs text-muted-foreground mt-4 px-4">
-                Distribusi layanan kesehatan jiwa yang dikategorikan berdasarkan kode Jenis Perawatan Utama (MTC) sesuai klasifikasi DESDE-LTC
+              <p className="text-xs text-muted-foreground mt-3 px-4" style={{ fontFamily: CHART_FONT }}>
+                Distribusi layanan kesehatan jiwa dikategorikan berdasarkan kode Jenis Perawatan Utama (MTC) sesuai klasifikasi DESDE-LTC
               </p>
             </CardContent>
           </Card>
 
-          <Card className="lg:col-span-8">
+          <Card className="lg:col-span-8 border-0 bg-white shadow-none">
             <CardHeader>
               <CardTitle>Distribusi Geografis</CardTitle>
               <CardDescription>Sebaran layanan kesehatan jiwa per kecamatan</CardDescription>
@@ -315,10 +336,10 @@ export default function DashboardPage() {
                       <stop offset="100%" stopColor="#07579E" stopOpacity={0.7}/>
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted-foreground))" strokeOpacity={0.15} strokeWidth={0.5} vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} />
                   <XAxis
                     dataKey="name"
-                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
+                    tick={{ fill: '#6B7280', fontSize: 10, fontFamily: CHART_FONT }}
                     axisLine={false}
                     tickLine={false}
                     interval={0}
@@ -326,27 +347,27 @@ export default function DashboardPage() {
                     textAnchor="end"
                   />
                   <YAxis
-                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
+                    tick={AXIS_TICK}
                     axisLine={false}
                     tickLine={false}
                     allowDecimals={false}
                     tickMargin={8}
+                    width={32}
                   />
                   <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'hsl(var(--background))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px',
-                    }}
+                    cursor={{ fill: '#07579E', fillOpacity: 0.06 }}
+                    contentStyle={TOOLTIP_STYLE}
+                    labelStyle={TOOLTIP_LABEL}
                     formatter={(value) => [value, 'Layanan']}
                   />
                   <Bar dataKey="services" fill="url(#colorServices)" radius={[4, 4, 0, 0]} maxBarSize={32}>
                     <LabelList
                       dataKey="services"
                       position="top"
-                      fill="hsl(var(--foreground))"
+                      fill="#374151"
                       fontSize={10}
                       fontWeight={600}
+                      style={{ fontFamily: CHART_FONT }}
                     />
                   </Bar>
                 </BarChart>
@@ -357,7 +378,7 @@ export default function DashboardPage() {
 
         {/* Bottom Row */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-          <Card className="col-span-4">
+          <Card className="col-span-4 border-0 bg-white shadow-none">
             <CardHeader>
               <CardTitle>Survei Tertunda Terbaru</CardTitle>
               <CardDescription>Menunggu verifikasi</CardDescription>
@@ -388,7 +409,7 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          <Card className="col-span-3">
+          <Card className="col-span-3 border-0 bg-white shadow-none">
             <CardHeader>
               <CardTitle>Distribusi Staf</CardTitle>
               <CardDescription>Tenaga kesehatan profesional</CardDescription>
