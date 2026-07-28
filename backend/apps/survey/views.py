@@ -1844,9 +1844,9 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
         if t in ('SINGLE_CHOICE', 'MULTIPLE_CHOICE'):
             attr = 'label' if use_label else 'value'
             parts = [getattr(c, attr) for c in ans.selected_choices.all()]
-            other = DynamicSurveyResponseViewSet._parse_other_text(ans.other_text)
-            if other:
-                parts.append(other)
+            # Do NOT append other_text here: the "other" free-text has its own
+            # dedicated <code>/<choice>/_other column. Keeping it out of the main
+            # choice cell avoids duplicating it (e.g. Q14 = "1", not "1, AHU-...").
             return ', '.join(parts)
         if t.startswith('GEO_'):
             gu = ans.geographic_unit
