@@ -2,9 +2,15 @@
 
 import { useState, useMemo, useEffect, Fragment, type Dispatch, type SetStateAction } from 'react';
 import Link from 'next/link';
-import { useSurveyResponses, useDeleteSurveyResponse, useBulkDeleteSurveyResponses } from '@/hooks/use-survey-responses';
+import {
+  useSurveyResponses,
+  useDeleteSurveyResponse,
+  useBulkDeleteSurveyResponses,
+  useRequestDeletion,
+} from '@/hooks/use-survey-responses';
 import { useGeographicUnits } from '@/hooks/use-geographic-units';
 import { useUsers } from '@/hooks/use-users';
+import { useAuth } from '@/hooks/use-auth';
 import { apiClient } from '@/lib/api-client';
 import { PageHeader } from "@/components/page-header";
 import { Input } from "@/components/ui/input";
@@ -18,6 +24,17 @@ import {
 } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from '@/components/ui/separator';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Select,
   SelectContent,
@@ -183,13 +200,41 @@ export default function AllSurveysPage() {
 
   const deleteSurvey = useDeleteSurveyResponse();
   const bulkDelete = useBulkDeleteSurveyResponses();
+  const requestDeletion = useRequestDeletion();
 
-  const handleDelete = async (id: number) => {
+  // Deleting is soft: an ADMIN moves the survey to the trash bin, any other
+  // role can only file a deletion request for a verifier/admin to approve.
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'ADMIN';
+
+  // Pending confirmation targets (null = dialog closed)
+  const [deleteTarget, setDeleteTarget] = useState<SurveyResponseItem | null>(null);
+  const [requestTarget, setRequestTarget] = useState<SurveyResponseItem | null>(null);
+  const [requestReason, setRequestReason] = useState('');
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
     try {
-      await deleteSurvey.mutateAsync(id);
-      toast.success('Survei berhasil dihapus');
-    } catch {
-      toast.error('Gagal menghapus survei');
+      await deleteSurvey.mutateAsync(deleteTarget.id);
+      toast.success('Survei dipindahkan ke keranjang sampah');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Gagal memindahkan survei ke keranjang sampah');
+    } finally {
+      setDeleteTarget(null);
+    }
+  };
+
+  const handleRequestDeletion = async () => {
+    if (!requestTarget) return;
+    try {
+      await requestDeletion.mutateAsync({ id: requestTarget.id, reason: requestReason });
+      toast.success('Permintaan hapus berhasil diajukan');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Gagal mengajukan permintaan hapus');
+    } finally {
+      setRequestTarget(null);
+      setRequestReason('');
     }
   };
 
@@ -262,10 +307,12 @@ export default function AllSurveysPage() {
   const handleBulkDelete = async () => {
     try {
       const result = await bulkDelete.mutateAsync(selectedIds);
-      toast.success(`${result.deleted} survei berhasil dihapus`);
+      toast.success(`${result.deleted} survei dipindahkan ke keranjang sampah`);
       setRowSelection({});
-    } catch {
-      toast.error('Gagal menghapus survei');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Gagal memindahkan survei ke keranjang sampah');
+    } finally {
+      setBulkDeleteOpen(false);
     }
   };
 
@@ -442,19 +489,32 @@ export default function AllSurveysPage() {
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-destructive focus:text-destructive"
-              onClick={() => handleDelete(row.original.id)}
-            >
-              <Delete01Icon className="mr-2 h-4 w-4" />
-              Hapus
-            </DropdownMenuItem>
+            {isAdmin ? (
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onClick={() => setDeleteTarget(row.original)}
+              >
+                <Delete01Icon className="mr-2 h-4 w-4" />
+                Hapus
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onClick={() => {
+                  setRequestReason('');
+                  setRequestTarget(row.original);
+                }}
+              >
+                <Delete01Icon className="mr-2 h-4 w-4" />
+                Ajukan Hapus
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
         </div>
       ),
     },
-  ], []);
+  ], [isAdmin]);
 
   const tableData = useMemo(
     () => (data?.results ?? []) as unknown as SurveyResponseItem[],
@@ -572,7 +632,7 @@ export default function AllSurveysPage() {
 
         <div className="flex flex-col gap-3 px-6 pb-6">
 
-          {selectedCount > 0 && (
+          {selectedCount > 0 && isAdmin && (
             <div className="flex items-center gap-3 rounded-sm border bg-muted/50 px-4 py-2">
               <span className="text-sm font-medium">{selectedCount} dipilih</span>
               <Separator orientation="vertical" className="h-4" />
@@ -580,11 +640,11 @@ export default function AllSurveysPage() {
                 variant="destructive"
                 size="sm"
                 className="shadow-none rounded-sm"
-                onClick={handleBulkDelete}
+                onClick={() => setBulkDeleteOpen(true)}
                 disabled={bulkDelete.isPending}
               >
                 <Delete01Icon className="w-4 h-4 mr-2" />
-                {bulkDelete.isPending ? 'Menghapus...' : 'Hapus Terpilih'}
+                {bulkDelete.isPending ? 'Memindahkan...' : 'Hapus Terpilih'}
               </Button>
             </div>
           )}
@@ -963,6 +1023,90 @@ export default function AllSurveysPage() {
           )}
         </div>
       </div>
+
+      {/* ADMIN: move a single survey to the trash bin */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Pindahkan survei ke keranjang sampah?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Survei{deleteTarget?.service_name ? ` "${deleteTarget.service_name}"` : ''} akan
+              dipindahkan ke Keranjang Sampah dan tidak lagi muncul di daftar, antrean verifikasi,
+              maupun ekspor. Anda dapat memulihkannya kapan saja dari menu Keranjang Sampah.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleteSurvey.isPending}
+              className="bg-destructive text-white hover:bg-destructive/90"
+            >
+              {deleteSurvey.isPending ? 'Memindahkan...' : 'Pindahkan ke Sampah'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ADMIN: move the selected surveys to the trash bin */}
+      <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Pindahkan {selectedCount} survei ke keranjang sampah?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Survei yang dipilih akan dipindahkan ke Keranjang Sampah dan tidak lagi muncul di
+              daftar, antrean verifikasi, maupun ekspor. Anda dapat memulihkannya kapan saja.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBulkDelete}
+              disabled={bulkDelete.isPending}
+              className="bg-destructive text-white hover:bg-destructive/90"
+            >
+              {bulkDelete.isPending ? 'Memindahkan...' : 'Pindahkan ke Sampah'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Non-admin: file a deletion request for a verifier/admin to approve */}
+      <AlertDialog open={!!requestTarget} onOpenChange={(open) => !open && setRequestTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Ajukan permintaan hapus</AlertDialogTitle>
+            <AlertDialogDescription>
+              Survei{requestTarget?.service_name ? ` "${requestTarget.service_name}"` : ''} tidak
+              langsung dihapus. Permintaan Anda akan ditinjau oleh verifikator atau admin terlebih
+              dahulu.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="grid gap-2">
+            <label htmlFor="deletion-reason" className="text-sm font-medium">
+              Alasan penghapusan
+            </label>
+            <Textarea
+              id="deletion-reason"
+              value={requestReason}
+              onChange={(e) => setRequestReason(e.target.value)}
+              placeholder="Jelaskan alasan survei ini perlu dihapus"
+              rows={4}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleRequestDeletion}
+              disabled={requestDeletion.isPending || requestReason.trim().length === 0}
+            >
+              {requestDeletion.isPending ? 'Mengajukan...' : 'Ajukan Hapus'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

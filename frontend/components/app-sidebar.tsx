@@ -32,6 +32,7 @@ import {
   File01Icon,
   Audit01Icon,
   CheckListIcon,
+  Delete02Icon,
   // Manajemen Enumerator submenus
   UserAdd01Icon,
   Activity01Icon,
@@ -149,6 +150,7 @@ const data = {
         { title: "Model Kuisioner", url: "/dashboard/survey/model-kuisioner", icon: CheckListIcon },
         { title: "Template Survei", url: "/dashboard/survey/templates", icon: File01Icon },
         { title: "Log Audit Survei", url: "/dashboard/survey/audit", icon: Audit01Icon },
+        { title: "Keranjang Sampah", url: "/dashboard/survey/trash", icon: Delete02Icon },
       ],
     },
     {
@@ -246,6 +248,12 @@ function filterMenuByRole(menuItems: typeof data.navMain, userRole?: string) {
     // Filter submenus based on role
     if (item.submenus) {
       const filteredSubmenus = item.submenus.filter(submenu => {
+        // Trash bin - ADMIN only. Matched by URL rather than title, because the
+        // title rules below are substring matches and would not catch it.
+        if (submenu.url === '/dashboard/survey/trash') {
+          return userRole === 'ADMIN'
+        }
+
         // Add New Service/Survey - ADMIN and SURVEYOR only
         if (submenu.title.includes('Tambah') || submenu.title.includes('Baru')) {
           return ['ADMIN', 'SURVEYOR'].includes(userRole)

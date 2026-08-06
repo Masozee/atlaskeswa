@@ -96,7 +96,7 @@ export function useSubmitSurvey(id: number) {
   });
 }
 
-// Delete survey response
+// Delete survey response (soft delete — moves it to the trash bin)
 export function useDeleteSurveyResponse() {
   const queryClient = useQueryClient();
 
@@ -106,11 +106,12 @@ export function useDeleteSurveyResponse() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['survey-responses'] });
+      queryClient.invalidateQueries({ queryKey: ['trashed-survey-responses'] });
     },
   });
 }
 
-// Bulk delete survey responses
+// Bulk delete survey responses (soft delete — moves them to the trash bin)
 export function useBulkDeleteSurveyResponses() {
   const queryClient = useQueryClient();
 
@@ -119,6 +120,64 @@ export function useBulkDeleteSurveyResponses() {
       return apiClient.post<{ deleted: number }>('/surveys/responses/bulk-delete/', { ids });
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['survey-responses'] });
+      queryClient.invalidateQueries({ queryKey: ['trashed-survey-responses'] });
+    },
+  });
+}
+
+// Fetch trashed (soft-deleted) survey responses — ADMIN only
+export function useTrashedSurveyResponses(params?: Record<string, any>) {
+  return useQuery<PaginatedResponse<SurveyResponse>>({
+    queryKey: ['trashed-survey-responses', params],
+    queryFn: async () => {
+      return apiClient.get<PaginatedResponse<SurveyResponse>>('/surveys/responses/trash/', params);
+    },
+  });
+}
+
+// Restore a single survey response from the trash bin — ADMIN only
+export function useRestoreSurveyResponse() {
+  const queryClient = useQueryClient();
+
+  return useMutation<SurveyResponse, Error, number>({
+    mutationFn: async (id) => {
+      return apiClient.post<SurveyResponse>(`/surveys/responses/${id}/restore/`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['trashed-survey-responses'] });
+      queryClient.invalidateQueries({ queryKey: ['survey-responses'] });
+    },
+  });
+}
+
+// Restore multiple survey responses from the trash bin — ADMIN only
+export function useBulkRestoreSurveyResponses() {
+  const queryClient = useQueryClient();
+
+  return useMutation<{ restored: number }, Error, number[]>({
+    mutationFn: async (ids) => {
+      return apiClient.post<{ restored: number }>('/surveys/responses/bulk-restore/', { ids });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['trashed-survey-responses'] });
+      queryClient.invalidateQueries({ queryKey: ['survey-responses'] });
+    },
+  });
+}
+
+// Surveyor requests deletion — needs verifier/admin approval
+export function useRequestDeletion() {
+  const queryClient = useQueryClient();
+
+  return useMutation<SurveyResponse, Error, { id: number; reason?: string }>({
+    mutationFn: async ({ id, reason }) => {
+      return apiClient.post<SurveyResponse>(`/surveys/responses/${id}/request-deletion/`, {
+        reason: reason ?? '',
+      });
+    },
+    onSuccess: (_data, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ['survey-response', id] });
       queryClient.invalidateQueries({ queryKey: ['survey-responses'] });
     },
   });
@@ -157,6 +216,7 @@ export function useApproveDeletion() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['survey-responses'] });
+      queryClient.invalidateQueries({ queryKey: ['trashed-survey-responses'] });
     },
   });
 }

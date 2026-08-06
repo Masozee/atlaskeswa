@@ -75,8 +75,12 @@ export default function AuditLogPage() {
   const [selectedLog, setSelectedLog] = useState<ActivityLog | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
 
-  // Survey-related actions shown in this audit log
-  const surveyActions = ['CREATE', 'UPDATE', 'SURVEY_SUBMIT', 'SURVEY_VERIFY', 'SURVEY_REJECT'];
+  // Survey-related actions shown in this audit log. DELETE/BULK_DELETE are
+  // soft deletes (survey moved to the trash bin) and RESTORE brings it back.
+  const surveyActions = [
+    'CREATE', 'UPDATE', 'SURVEY_SUBMIT', 'SURVEY_VERIFY', 'SURVEY_REJECT',
+    'DELETE', 'BULK_DELETE', 'RESTORE',
+  ];
 
   const { data, isLoading } = useQuery({
     queryKey: ['survey-audit-logs', search, actionFilter],
@@ -162,6 +166,8 @@ export default function AuditLogPage() {
             action === 'SURVEY_VERIFY' ? 'outline-success' :
             action === 'SURVEY_SUBMIT' ? 'outline-info' :
             action === 'SURVEY_REJECT' ? 'outline-danger' :
+            action === 'DELETE' || action === 'BULK_DELETE' ? 'outline-danger' :
+            action === 'RESTORE' ? 'outline-success' :
             action === 'CREATE' ? 'outline-muted' :
             action === 'UPDATE' ? 'outline-warning' :
             'outline-muted';
@@ -251,6 +257,9 @@ export default function AuditLogPage() {
                   <SelectItem value="SURVEY_SUBMIT">Diajukan</SelectItem>
                   <SelectItem value="SURVEY_VERIFY">Diverifikasi</SelectItem>
                   <SelectItem value="SURVEY_REJECT">Ditolak</SelectItem>
+                  <SelectItem value="DELETE">Dipindahkan ke Sampah</SelectItem>
+                  <SelectItem value="BULK_DELETE">Dipindahkan ke Sampah (Massal)</SelectItem>
+                  <SelectItem value="RESTORE">Dipulihkan</SelectItem>
                 </SelectContent>
               </Select>
             </div>

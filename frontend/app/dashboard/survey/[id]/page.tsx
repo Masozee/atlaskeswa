@@ -3,7 +3,13 @@
 import { use, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { useSurveyResponse, useVerifySurvey, useSubmitSurvey } from '@/hooks/use-survey-responses';
+import {
+  useSurveyResponse,
+  useVerifySurvey,
+  useSubmitSurvey,
+  useDeleteSurveyResponse,
+  useRequestDeletion,
+} from '@/hooks/use-survey-responses';
 import { useSurveyTemplate } from '@/hooks/use-survey-templates';
 import { useSurveyPhotos, useUploadSurveyPhoto, useDeleteSurveyPhoto } from '@/hooks/use-survey-photos';
 import { useCurrentUser } from '@/hooks/use-auth';
@@ -22,6 +28,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { toast } from 'sonner';
 import {
   ArrowLeft01Icon,
   CheckmarkCircle02Icon,
@@ -62,11 +79,16 @@ export default function SurveyDetailPage({
   const { data: template, isLoading: isTemplateLoading } = useSurveyTemplate(templateId);
   const verifySurvey = useVerifySurvey(Number(id));
   const submitSurvey = useSubmitSurvey(Number(id));
+  const deleteSurvey = useDeleteSurveyResponse();
+  const requestDeletion = useRequestDeletion();
   const { data: currentUser } = useCurrentUser();
 
   const [verifyDialogOpen, setVerifyDialogOpen] = useState(false);
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [requestDeleteDialogOpen, setRequestDeleteDialogOpen] = useState(false);
+  const [deletionReason, setDeletionReason] = useState('');
   const [rejectionReason, setRejectionReason] = useState('');
   const [verifierNotes, setVerifierNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -134,6 +156,40 @@ export default function SurveyDetailPage({
     } catch (error) {
       console.error('Failed to submit survey:', error);
       alert('Gagal mengajukan survei. Silakan coba lagi.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // ADMIN: move this survey to the trash bin, then leave the page — a trashed
+  // survey is no longer reachable from the detail route.
+  const handleDelete = async () => {
+    setIsSubmitting(true);
+    try {
+      await deleteSurvey.mutateAsync(surveyId);
+      setDeleteDialogOpen(false);
+      toast.success('Survei dipindahkan ke keranjang sampah');
+      router.push('/dashboard/survey');
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : 'Gagal memindahkan survei ke keranjang sampah',
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Non-admin: file a deletion request for a verifier/admin to approve.
+  const handleRequestDeletion = async () => {
+    setIsSubmitting(true);
+    try {
+      await requestDeletion.mutateAsync({ id: surveyId, reason: deletionReason });
+      setRequestDeleteDialogOpen(false);
+      setDeletionReason('');
+      toast.success('Permintaan hapus berhasil diajukan');
+      await refetch();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Gagal mengajukan permintaan hapus');
     } finally {
       setIsSubmitting(false);
     }
@@ -232,6 +288,12 @@ export default function SurveyDetailPage({
     survey.surveyor === currentUser?.id ||
     currentUser?.role === 'ADMIN'
   );
+  // Deleting is soft: an ADMIN moves the survey to the trash bin directly,
+  // the owning surveyor can only file a request for approval.
+  const isAdmin = currentUser?.role === 'ADMIN';
+  const canRequestDeletion = !isAdmin &&
+    survey.surveyor === currentUser?.id &&
+    !survey.deletion_requested;
 
   const breadcrumbs = [
     { label: 'Dasbor', href: '/dashboard' },
@@ -275,42 +337,73 @@ export default function SurveyDetailPage({
             </div>
 
             {/* Action Buttons */}
-            {canSubmit && (
-              <Button
-                className="gap-2"
-                onClick={() => setSubmitDialogOpen(true)}
-              >
-                <SentIcon className="h-4 w-4" />
-                Ajukan Verifikasi
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {(isVerified || isRejected) && (
+                <div className="text-sm text-muted-foreground">
+                  {isVerified && '✓ Survei telah diverifikasi'}
+                  {isRejected && '✗ Survei telah ditolak'}
+                </div>
+              )}
 
-            {canVerify && (
-              <div className="flex gap-2">
+              {canSubmit && (
+                <Button
+                  className="gap-2"
+                  onClick={() => setSubmitDialogOpen(true)}
+                >
+                  <SentIcon className="h-4 w-4" />
+                  Ajukan Verifikasi
+                </Button>
+              )}
+
+              {canVerify && (
+                <>
+                  <Button
+                    variant="outline"
+                    className="gap-2"
+                    onClick={() => setRejectDialogOpen(true)}
+                  >
+                    <Cancel01Icon className="h-4 w-4" />
+                    Tolak
+                  </Button>
+                  <Button
+                    className="gap-2"
+                    onClick={() => setVerifyDialogOpen(true)}
+                  >
+                    <CheckmarkCircle02Icon className="h-4 w-4" />
+                    Verifikasi
+                  </Button>
+                </>
+              )}
+
+              {isAdmin && (
+                <Button
+                  variant="destructive"
+                  className="gap-2"
+                  onClick={() => setDeleteDialogOpen(true)}
+                >
+                  <Delete01Icon className="h-4 w-4" />
+                  Hapus
+                </Button>
+              )}
+
+              {canRequestDeletion && (
                 <Button
                   variant="outline"
-                  className="gap-2"
-                  onClick={() => setRejectDialogOpen(true)}
+                  className="gap-2 text-destructive hover:text-destructive"
+                  onClick={() => {
+                    setDeletionReason('');
+                    setRequestDeleteDialogOpen(true);
+                  }}
                 >
-                  <Cancel01Icon className="h-4 w-4" />
-                  Tolak
+                  <Delete01Icon className="h-4 w-4" />
+                  Ajukan Hapus
                 </Button>
-                <Button
-                  className="gap-2"
-                  onClick={() => setVerifyDialogOpen(true)}
-                >
-                  <CheckmarkCircle02Icon className="h-4 w-4" />
-                  Verifikasi
-                </Button>
-              </div>
-            )}
+              )}
 
-            {(isVerified || isRejected) && (
-              <div className="text-sm text-muted-foreground">
-                {isVerified && '✓ Survei telah diverifikasi'}
-                {isRejected && '✗ Survei telah ditolak'}
-              </div>
-            )}
+              {survey.deletion_requested && !isAdmin && (
+                <Badge variant="secondary">Permintaan hapus tertunda</Badge>
+              )}
+            </div>
           </div>
         </div>
 
@@ -970,6 +1063,62 @@ export default function SurveyDetailPage({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ADMIN: move this survey to the trash bin */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Pindahkan survei ke keranjang sampah?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Survei #{survey.id} akan dipindahkan ke Keranjang Sampah dan tidak lagi muncul di
+              daftar, antrean verifikasi, maupun ekspor. Anda dapat memulihkannya kapan saja dari
+              menu Keranjang Sampah.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isSubmitting}>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={isSubmitting}
+              className="bg-destructive text-white hover:bg-destructive/90"
+            >
+              {isSubmitting ? 'Memindahkan...' : 'Pindahkan ke Sampah'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Owning surveyor: file a deletion request for approval */}
+      <AlertDialog open={requestDeleteDialogOpen} onOpenChange={setRequestDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Ajukan permintaan hapus</AlertDialogTitle>
+            <AlertDialogDescription>
+              Survei #{survey.id} tidak langsung dihapus. Permintaan Anda akan ditinjau oleh
+              verifikator atau admin terlebih dahulu.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="grid gap-2">
+            <Label htmlFor="detail-deletion-reason">Alasan penghapusan</Label>
+            <Textarea
+              id="detail-deletion-reason"
+              value={deletionReason}
+              onChange={(e) => setDeletionReason(e.target.value)}
+              placeholder="Jelaskan alasan survei ini perlu dihapus"
+              rows={4}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isSubmitting}>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleRequestDeletion}
+              disabled={isSubmitting || deletionReason.trim().length === 0}
+            >
+              {isSubmitting ? 'Mengajukan...' : 'Ajukan Hapus'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

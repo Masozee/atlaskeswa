@@ -221,6 +221,13 @@ export interface SurveyResponse {
   verified_at?: string | null;
   verifier_notes?: string;
   rejection_reason?: string;
+  deletion_requested?: boolean;
+  deletion_requested_at?: string | null;
+  deletion_reason?: string;
+  // Soft delete (trash bin) — deleted_at is null while the survey is live
+  deleted_at?: string | null;
+  deleted_by?: number | null;
+  deleted_by_name?: string | null;
   legacy_data?: any;
   question_responses?: QuestionResponse[];
   answers?: QuestionResponse[];

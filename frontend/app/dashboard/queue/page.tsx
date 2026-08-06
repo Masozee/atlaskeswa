@@ -491,7 +491,7 @@ export default function VerificationQueuePage() {
             </DialogTitle>
             <DialogDescription>
               {deletionDialog?.action === 'approve'
-                ? `Survei "${deletionDialog?.surveyName}" akan dihapus secara permanen.`
+                ? `Survei "${deletionDialog?.surveyName}" akan dipindahkan ke Keranjang Sampah dan dapat dipulihkan oleh admin kapan saja.`
                 : `Tolak permintaan penghapusan untuk "${deletionDialog?.surveyName}".`}
             </DialogDescription>
           </DialogHeader>
@@ -507,7 +507,7 @@ export default function VerificationQueuePage() {
               {approveDeletion.isPending
                 ? 'Memproses...'
                 : deletionDialog?.action === 'approve'
-                ? 'Hapus Permanen'
+                ? 'Pindahkan ke Sampah'
                 : 'Tolak Permintaan'}
             </Button>
           </DialogFooter>
