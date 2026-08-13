@@ -19,6 +19,7 @@ class ActivityLog(models.Model):
         READ = 'READ', 'Read/View'
         UPDATE = 'UPDATE', 'Update'
         DELETE = 'DELETE', 'Delete'
+        RESTORE = 'RESTORE', 'Restore'
 
         # Survey Operations
         SURVEY_SUBMIT = 'SURVEY_SUBMIT', 'Survey Submitted'

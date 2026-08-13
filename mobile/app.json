@@ -2,7 +2,7 @@
   "expo": {
     "name": "OMMHA",
     "slug": "yakkum",
-    "version": "1.1.1",
+    "version": "1.2.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -14,11 +14,11 @@
         "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to upload facility photos."
       },
       "bundleIdentifier": "id.atlaskeswa.mobile",
-      "buildNumber": "3"
+      "buildNumber": "4"
     },
     "android": {
       "package": "id.atlaskeswa.mobile",
-      "versionCode": 3,
+      "versionCode": 4,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"

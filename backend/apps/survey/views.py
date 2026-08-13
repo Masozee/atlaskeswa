@@ -12,6 +12,7 @@ import django_filters
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Count, Q, Avg, Prefetch
 from django.http import HttpResponse, FileResponse
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
 from .models import (
@@ -40,6 +41,7 @@ from apps.accounts.permissions import (
 from apps.accounts.mixins import SurveyorFilterMixin
 from apps.logs.utils import (
     log_create, log_update, log_delete,
+    log_soft_delete, log_bulk_soft_delete, log_restore,
     log_survey_submit, log_survey_verify, log_survey_reject,
     log_file_upload
 )
@@ -52,6 +54,17 @@ def _darken(hex_color: str, factor: float = 0.85) -> str:
     b = int(hex_color[4:6], 16)
     r, g, b = int(r * factor), int(g * factor), int(b * factor)
     return f'{r:02X}{g:02X}{b:02X}'
+
+
+def _response_label(response):
+    """Human-readable label for a DynamicSurveyResponse in log messages.
+
+    `service` is nullable, so fall back to the template name.
+    """
+    service = getattr(response, 'service', None)
+    if service is not None:
+        return service.name
+    return f'template {response.template.name}'
 
 
 def _is_effectively_empty_answer(value):
@@ -990,7 +1003,7 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
     search_fields = ['service__name', 'surveyor__email', 'surveyor_notes']
     ordering_fields = [
         'survey_date', 'created_at', 'verification_status',
-        'service__name', 'surveyor__email',
+        'service__name', 'surveyor__email', 'deleted_at',
     ]
     ordering = ['-survey_date']
 
@@ -1269,20 +1282,109 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
 
     def get_permissions(self):
         from apps.accounts.permissions import IsAdmin, IsVerifierOrAdmin
-        if self.action in ['destroy', 'bulk_delete']:
+        if self.action in ['destroy', 'bulk_delete', 'trash', 'restore', 'bulk_restore']:
             return [IsAdmin()]
         if self.action == 'approve_deletion':
             return [IsVerifierOrAdmin()]
         return [IsAuthenticated()]
 
+    def perform_destroy(self, instance):
+        """Move the response to the trash bin instead of destroying it.
+
+        Answers and photos are left intact so a restore is lossless. Only the
+        Django admin can hard-delete (it reads `all_objects`).
+        """
+        instance.soft_delete(user=self.request.user)
+        log_soft_delete(
+            self.request, instance,
+            f'Memindahkan survei ke keranjang sampah: {_response_label(instance)}'
+        )
+
     @action(detail=False, methods=['post'], url_path='bulk-delete')
     def bulk_delete(self, request):
-        """Delete multiple survey responses by IDs."""
+        """Move multiple survey responses to the trash bin by IDs."""
         ids = request.data.get('ids', [])
         if not ids or not isinstance(ids, list):
             return Response({'detail': 'Provide a list of IDs'}, status=status.HTTP_400_BAD_REQUEST)
-        deleted_count, _ = DynamicSurveyResponse.objects.filter(id__in=ids).delete()
-        return Response({'deleted': deleted_count})
+        # Go through the RBAC-filtered queryset so this cannot reach rows the
+        # caller would not be allowed to delete one at a time.
+        responses = list(self.get_queryset().filter(id__in=ids))
+        if not responses:
+            return Response({'deleted': 0})
+        now = timezone.now()
+        DynamicSurveyResponse.objects.filter(
+            id__in=[r.id for r in responses]
+        ).update(deleted_at=now, deleted_by=request.user, updated_at=now)
+        log_bulk_soft_delete(
+            request, responses,
+            f'Memindahkan {len(responses)} survei ke keranjang sampah'
+        )
+        return Response({'deleted': len(responses)})
+
+    @action(detail=False, methods=['get'], url_path='trash')
+    def trash(self, request):
+        """List trashed survey responses (the trash bin). ADMIN only."""
+        queryset = self.filter_queryset(self.get_trashed_queryset())
+        # OrderingFilter falls back to the viewset's `ordering` (-survey_date);
+        # the trash bin should default to most-recently-deleted first.
+        if not request.query_params.get('ordering'):
+            queryset = queryset.order_by('-deleted_at')
+        page = self.paginate_queryset(queryset)
+        serializer_class = DynamicSurveyResponseListSerializer
+        context = self.get_serializer_context()
+        if page is not None:
+            return self.get_paginated_response(
+                serializer_class(page, many=True, context=context).data
+            )
+        return Response(serializer_class(queryset, many=True, context=context).data)
+
+    @action(detail=True, methods=['post'], url_path='restore')
+    def restore(self, request, pk=None):
+        """Bring a trashed survey response back to the active list. ADMIN only."""
+        response_obj = get_object_or_404(self.get_trashed_queryset(), pk=pk)
+        response_obj.restore()
+        log_restore(
+            request, response_obj,
+            f'Memulihkan survei dari keranjang sampah: {_response_label(response_obj)}'
+        )
+        return Response(
+            DynamicSurveyResponseDetailSerializer(
+                response_obj, context=self.get_serializer_context()
+            ).data
+        )
+
+    @action(detail=False, methods=['post'], url_path='bulk-restore')
+    def bulk_restore(self, request):
+        """Restore multiple trashed survey responses by IDs. ADMIN only."""
+        ids = request.data.get('ids', [])
+        if not ids or not isinstance(ids, list):
+            return Response({'detail': 'Provide a list of IDs'}, status=status.HTTP_400_BAD_REQUEST)
+        responses = list(self.get_trashed_queryset().filter(id__in=ids))
+        for response_obj in responses:
+            response_obj.restore()
+            log_restore(
+                request, response_obj,
+                f'Memulihkan survei dari keranjang sampah: {_response_label(response_obj)}'
+            )
+        return Response({'restored': len(responses)})
+
+    def get_trashed_queryset(self):
+        """Trashed rows only, with the same select/prefetch as the main queryset.
+
+        Reads `all_objects` because the default manager hides trashed rows.
+        """
+        return DynamicSurveyResponse.all_objects.filter(
+            deleted_at__isnull=False
+        ).select_related(
+            'template', 'service', 'surveyor', 'assigned_verifier',
+            'verified_by', 'deleted_by',
+            'service__mtc', 'service__bsic', 'service__service_type',
+        ).prefetch_related(
+            'answers__question',
+            'answers__selected_choices__mtc_code',
+            'answers__geographic_unit__parent__parent__parent',
+            'photos',
+        ).order_by('-deleted_at')
 
     @action(detail=False, methods=['get'], url_path='export', url_name='export')
     def export_data(self, request):
@@ -1900,8 +2002,13 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
         action_type = request.data.get('action')
 
         if action_type == 'approve':
-            response_obj.delete()
-            return Response({'detail': 'Survei berhasil dihapus'})
+            response_obj.soft_delete(user=request.user)
+            log_soft_delete(
+                request, response_obj,
+                f'Menyetujui permintaan hapus, survei dipindahkan ke keranjang '
+                f'sampah: {_response_label(response_obj)}'
+            )
+            return Response({'detail': 'Survei dipindahkan ke keranjang sampah'})
         elif action_type == 'reject':
             response_obj.deletion_requested = False
             response_obj.deletion_requested_at = None

@@ -19,6 +19,9 @@ const nextConfig: NextConfig = {
       { protocol: "http", hostname: "127.0.0.1", port: "8000", pathname: "/media/**" },
       { protocol: "http", hostname: "localhost", port: "8000", pathname: "/media/**" },
     ],
+    // Next 16 blocks the image optimizer from fetching loopback/private IPs.
+    // The Django dev server lives on localhost:8000, so allow it in dev only.
+    dangerouslyAllowLocalIP: process.env.NODE_ENV === "development",
   },
 };
 

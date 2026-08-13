@@ -1,0 +1,128 @@
+[
+  {
+    "file": "01-dashboard.png",
+    "route": "/dashboard",
+    "page_status": 200,
+    "final_url": "http://127.0.0.1:3100/dashboard",
+    "title": "OMMHA - One Map for Mental Health Atlas",
+    "api_failures": [],
+    "page_errors": []
+  },
+  {
+    "file": "02-indicators.png",
+    "route": "/dashboard/indicators",
+    "page_status": 200,
+    "final_url": "http://127.0.0.1:3100/dashboard/indicators",
+    "title": "OMMHA - One Map for Mental Health Atlas",
+    "api_failures": [],
+    "page_errors": []
+  },
+  {
+    "file": "03-surveys.png",
+    "route": "/dashboard/survey",
+    "page_status": 200,
+    "final_url": "http://127.0.0.1:3100/dashboard/survey",
+    "title": "OMMHA - One Map for Mental Health Atlas",
+    "api_failures": [],
+    "page_errors": []
+  },
+  {
+    "file": "04-new-survey.png",
+    "route": "/survey/new",
+    "page_status": 200,
+    "final_url": "http://127.0.0.1:3100/survey/new",
+    "title": "OMMHA - One Map for Mental Health Atlas",
+    "api_failures": [],
+    "page_errors": []
+  },
+  {
+    "file": "05-pending.png",
+    "route": "/dashboard/survey/pending",
+    "page_status": 200,
+    "final_url": "http://127.0.0.1:3100/dashboard/survey/pending",
+    "title": "OMMHA - One Map for Mental Health Atlas",
+    "api_failures": [],
+    "page_errors": []
+  },
+  {
+    "file": "06-bulk-upload.png",
+    "route": "/dashboard/survey/bulk-upload",
+    "page_status": 200,
+    "final_url": "http://127.0.0.1:3100/dashboard/survey/bulk-upload",
+    "title": "OMMHA - One Map for Mental Health Atlas",
+    "api_failures": [],
+    "page_errors": []
+  },
+  {
+    "file": "07-question-models.png",
+    "route": "/dashboard/survey/model-kuisioner",
+    "page_status": 200,
+    "final_url": "http://127.0.0.1:3100/dashboard/survey/model-kuisioner?page=1&size=10",
+    "title": "OMMHA - One Map for Mental Health Atlas",
+    "api_failures": [],
+    "page_errors": []
+  },
+  {
+    "file": "08-templates.png",
+    "route": "/dashboard/survey/templates",
+    "page_status": 200,
+    "final_url": "http://127.0.0.1:3100/dashboard/survey/templates/1",
+    "title": "OMMHA - One Map for Mental Health Atlas",
+    "api_failures": [],
+    "page_errors": []
+  },
+  {
+    "file": "09-audit.png",
+    "route": "/dashboard/survey/audit",
+    "page_status": 200,
+    "final_url": "http://127.0.0.1:3100/dashboard/survey/audit",
+    "title": "OMMHA - One Map for Mental Health Atlas",
+    "api_failures": [],
+    "page_errors": []
+  },
+  {
+    "file": "10-services.png",
+    "route": "/dashboard/services",
+    "page_status": 200,
+    "final_url": "http://127.0.0.1:3100/dashboard/services",
+    "title": "OMMHA - One Map for Mental Health Atlas",
+    "api_failures": [],
+    "page_errors": []
+  },
+  {
+    "file": "11-map.png",
+    "route": "/map",
+    "page_status": 200,
+    "final_url": "http://127.0.0.1:3100/map",
+    "title": "OMMHA - One Map for Mental Health Atlas",
+    "api_failures": [],
+    "page_errors": []
+  },
+  {
+    "file": "12-users.png",
+    "route": "/dashboard/users",
+    "page_status": 200,
+    "final_url": "http://127.0.0.1:3100/dashboard/users",
+    "title": "OMMHA - One Map for Mental Health Atlas",
+    "api_failures": [],
+    "page_errors": []
+  },
+  {
+    "file": "13-export.png",
+    "route": "/reports/export",
+    "page_status": 200,
+    "final_url": "http://127.0.0.1:3100/reports/export",
+    "title": "OMMHA - One Map for Mental Health Atlas",
+    "api_failures": [],
+    "page_errors": []
+  },
+  {
+    "file": "14-help.png",
+    "route": "/dashboard/help/user-guide",
+    "page_status": 200,
+    "final_url": "http://127.0.0.1:3100/dashboard/help/user-guide",
+    "title": "OMMHA - One Map for Mental Health Atlas",
+    "api_failures": [],
+    "page_errors": []
+  }
+]

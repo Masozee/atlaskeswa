@@ -1,0 +1,31 @@
+[
+  {
+    "check": "Authenticated redirect to dashboard",
+    "result": "PASS"
+  },
+  {
+    "check": "Sidebar navigation",
+    "result": "PASS"
+  },
+  {
+    "check": "Survey category filter opens",
+    "result": "PASS"
+  },
+  {
+    "check": "Survey sort control opens",
+    "result": "LIMITED",
+    "detail": "Locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for get_by_role(\"button\", name=\"Urutkan\")\n"
+  },
+  {
+    "check": "Question-model search accepts input",
+    "result": "PASS"
+  },
+  {
+    "check": "Map zoom control responds",
+    "result": "PASS"
+  },
+  {
+    "check": "Help content renders",
+    "result": "PASS"
+  }
+]

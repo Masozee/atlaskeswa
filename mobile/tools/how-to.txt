@@ -1,0 +1,173 @@
+==============================================================================
+ OMMHA Crash Log Collector — Panduan (dari instalasi sampai pemakaian)
+==============================================================================
+
+Alat ini menarik (mengambil) log crash dan error dari HP yang menjalankan
+aplikasi OMMHA (package: id.atlaskeswa.mobile) ke laptop, melalui kabel USB
+atau WiFi, menggunakan Android Debug Bridge (adb).
+
+Gunakan saat sebuah HP mengalami crash, keluar paksa (force close), gagal
+instal, atau logout otomatis, dan Anda butuh log-nya untuk mencari penyebabnya.
+
+Isi file di dalam zip ini:
+  collect_crash_logs.py   alatnya
+  requirements.txt        catatan dependensi (tidak butuh paket pip)
+  how-to.txt              file ini
+
+Kebutuhan:
+  - Laptop (macOS, Linux, atau Windows)
+  - Python versi 3.7 atau lebih baru
+  - adb (Android platform-tools) — diinstal di bawah ini
+  - HP berisi aplikasi OMMHA, beserta kabel USB-nya
+
+
+==============================================================================
+ LANGKAH 1 — Periksa Python
+==============================================================================
+
+Buka terminal (macOS/Linux: Terminal; Windows: PowerShell) lalu jalankan:
+
+    python3 --version        (macOS/Linux)
+    python --version         (Windows)
+
+Jika muncul "Python 3.7" atau lebih tinggi, berarti sudah siap. Jika belum,
+instal Python dari https://www.python.org/downloads/
+(di Windows, centang "Add Python to PATH" saat instal).
+
+
+==============================================================================
+ LANGKAH 2 — Instal adb (Android platform-tools)
+==============================================================================
+
+adb adalah jembatan antara laptop dan HP. Instal sesuai sistem operasi Anda:
+
+macOS:
+    brew install android-platform-tools
+  (Belum punya Homebrew? Instal dulu dari https://brew.sh)
+
+Linux (Debian/Ubuntu):
+    sudo apt update && sudo apt install android-tools-adb
+
+Windows:
+    Pilihan A (Chocolatey):  choco install adb
+    Pilihan B (manual):
+      1. Unduh "SDK Platform-Tools" dari
+         https://developer.android.com/tools/releases/platform-tools
+      2. Ekstrak (misalnya ke C:\platform-tools)
+      3. Tambahkan folder itu ke PATH, ATAU jalankan skrip dari dalam folder itu.
+
+Cek adb sudah berfungsi:
+    adb version
+Seharusnya muncul "Android Debug Bridge version ...".
+
+
+==============================================================================
+ LANGKAH 3 — Aktifkan USB debugging di HP (sekali saja)
+==============================================================================
+
+1. Setelan (Settings) > Tentang ponsel (About phone)
+2. Ketuk "Nomor bentukan" / "Build number" 7 kali sampai muncul
+   "Anda sekarang menjadi developer".
+3. Kembali ke Setelan > Sistem > Opsi pengembang (Developer options).
+4. Aktifkan "USB debugging".
+
+
+==============================================================================
+ LANGKAH 4 — Hubungkan HP
+==============================================================================
+
+USB (paling mudah):
+  1. Colok HP ke laptop dengan kabel USB.
+  2. Di HP muncul kotak "Izinkan USB debugging?" — ketuk "Izinkan" (Allow)
+     (centang "Selalu izinkan dari komputer ini").
+  3. Pastikan laptop mendeteksi HP:
+         adb devices
+     Seharusnya muncul satu baris yang berakhiran "device". Jika tertulis
+     "unauthorized", cek lagi kotak izin di HP. Jika kosong, coba kabel atau
+     port USB yang lain.
+
+WiFi (tanpa kabel, HP dan laptop di WiFi YANG SAMA):
+  1. Pertama kali saja, hubungkan via USB dulu lalu jalankan:
+         adb tcpip 5555
+  2. Cari IP HP: Setelan > Tentang ponsel > Status > Alamat IP
+     (contoh: 192.168.1.50).
+  3. Cabut kabel USB. Lalu di LANGKAH 5 pakai opsi --connect.
+
+
+==============================================================================
+ LANGKAH 5 — Ambil log-nya
+==============================================================================
+
+Buka terminal DI DALAM folder tempat Anda mengekstrak file ini. Contoh:
+    cd ~/Downloads/ommha-crash-tool                 (macOS/Linux)
+    cd %USERPROFILE%\Downloads\ommha-crash-tool     (Windows)
+
+Lalu pilih salah satu cara:
+
+A) SEKALI AMBIL — ambil crash yang sedang ada di buffer log HP saat ini:
+       python3 collect_crash_logs.py
+   Paling baik dipakai tepat setelah crash, sebelum melakukan hal lain di HP.
+
+B) PANTAU LANGSUNG (WATCH) — tangkap crash saat terjadi (disarankan):
+       python3 collect_crash_logs.py --watch
+   Alat membersihkan log, lalu menunggu. Sekarang ULANGI langkah yang membuat
+   crash di HP (buka aplikasi, lakukan langkah yang bermasalah). Baris crash
+   akan tampil langsung. Tekan Ctrl-C jika sudah selesai.
+
+C) Lewat WiFi (lanjutan dari LANGKAH 4 WiFi):
+       python3 collect_crash_logs.py --connect 192.168.1.50:5555 --watch
+   (ganti dengan IP HP Anda)
+
+D) Lebih dari satu HP tercolok? Lihat serial dengan `adb devices`, lalu:
+       python3 collect_crash_logs.py --serial <SERIAL> --watch
+
+Catatan Windows: jika `python3` tidak dikenal, pakai `python` saja.
+
+
+==============================================================================
+ LANGKAH 6 — Temukan dan kirim log
+==============================================================================
+
+Semua tersimpan di dalam folder:
+    crashlogs/<tanggal-waktu>_<perangkat>/
+
+Isinya:
+    crashes.log        <-- MULAI DARI SINI. Crash, error fatal, error aplikasi.
+    js-errors.log      error aplikasi (JavaScript).
+    logcat-app.log     log lengkap khusus proses aplikasi.
+    logcat-full.log    log lengkap perangkat (konteks tambahan).
+    device-info.txt    merk/model HP, versi Android, tipe CPU (ABI), versi app.
+    tombstones/        dump crash native (hanya pada HP yang sudah di-root).
+
+Untuk dikirim ke developer: ZIP seluruh folder crashlogs lalu kirim.
+device-info.txt penting — baris "abi" menunjukkan apakah HP 32-bit atau
+64-bit, salah satu penyebab umum crash saat instal/saat aplikasi dibuka.
+
+
+==============================================================================
+ PEMECAHAN MASALAH (TROUBLESHOOTING)
+==============================================================================
+
+"adb: command not found" / "is not recognized"
+    adb belum terinstal atau belum ada di PATH. Ulangi LANGKAH 2. Di Windows,
+    jalankan skrip dari dalam folder platform-tools.
+
+"no device connected" (tidak ada perangkat)
+    - Kabel hanya untuk mengisi daya (charge-only) — coba kabel lain.
+    - USB debugging belum aktif — ulangi LANGKAH 3.
+    - Kotak izin di HP belum diterima — cabut, colok ulang, ketuk Izinkan.
+    - WiFi: jalankan ulang `adb connect <ip>:5555`.
+
+"device unauthorized" (perangkat tidak diizinkan)
+    Terima kotak "Izinkan USB debugging?" di layar HP.
+
+"multiple devices" (banyak perangkat)
+    Cabut HP yang lain, atau pakai --serial <SERIAL> (lihat `adb devices`).
+
+crashes.log kosong
+    Crash sudah hilang dari buffer log. Pakai --watch lalu ulangi crash-nya
+    selagi alat berjalan. Crash native murni mungkin hanya muncul di folder
+    tombstones/ (hanya HP yang sudah di-root).
+
+Aplikasi harus sedang (atau pernah) berjalan di HP agar log aplikasinya
+terekam. Untuk crash saat pembukaan, pakai --watch lalu buka aplikasinya.

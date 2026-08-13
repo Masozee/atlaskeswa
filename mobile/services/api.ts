@@ -68,7 +68,7 @@ class ApiClient {
   private onSessionExpired: (() => void) | null = null;
   // Dedupe concurrent token refreshes: many parallel 401s must trigger ONE
   // refresh, not a race that overwrites this.accessToken with stale values.
-  private refreshPromise: Promise<boolean> | null = null;
+  private refreshPromise: Promise<'ok' | 'rejected' | 'transient'> | null = null;
   // Resolves once the initial token load from storage completes. request()
   // awaits this so an early request can't fire with accessToken still null.
   private ready: Promise<void>;
@@ -144,6 +144,10 @@ class ApiClient {
     const headers: Record<string, string> = {
       'Accept': 'application/json',
       'Content-Type': 'application/json',
+      // Ask any intermediate cache (CDN / proxy) to revalidate. Defends against
+      // a shared cache that keys on URL only and could serve one user's
+      // authenticated response (e.g. /accounts/users/me/) to another account.
+      'Cache-Control': 'no-cache',
       ...(options.headers as Record<string, string> | undefined),
     };
 
@@ -166,8 +170,8 @@ class ApiClient {
 
       // Handle 401 Unauthorized - try to refresh token
       if (response.status === 401 && this.refreshToken) {
-        const refreshed = await this.refreshAccessToken();
-        if (refreshed) {
+        const result = await this.refreshAccessToken();
+        if (result === 'ok') {
           // Retry the original request with new token
           headers['Authorization'] = `Bearer ${this.accessToken}`;
           const retryResponse = await fetch(url, {
@@ -175,17 +179,21 @@ class ApiClient {
             headers,
           });
           return this.handleResponse<T>(retryResponse);
-        } else {
-          // Token refresh failed - clear tokens and trigger callback
-          await this.clearTokensFromStorage();
-          if (this.onSessionExpired) {
-            this.onSessionExpired();
-          }
-          throw new Error('Session expired. Please login again.');
         }
+        if (result === 'transient') {
+          // Server/network hiccup during refresh — keep the session, surface a
+          // retryable error instead of logging the user out.
+          throw new Error('Network error occurred. Please try again.');
+        }
+        // result === 'rejected' → refresh token genuinely expired/invalid.
+        await this.clearTokensFromStorage();
+        if (this.onSessionExpired) {
+          this.onSessionExpired();
+        }
+        throw new Error('Session expired. Please login again.');
       }
 
-      // Handle 401 without refresh token
+      // Handle 401 without refresh token - no way to recover the session.
       if (response.status === 401) {
         await this.clearTokensFromStorage();
         if (this.onSessionExpired) {
@@ -256,13 +264,19 @@ class ApiClient {
     return text as unknown as T;
   }
 
-  private async refreshAccessToken(): Promise<boolean> {
-    if (!this.refreshToken) return false;
+  /**
+   * Refresh the access token.
+   * - 'ok'       → got a new token
+   * - 'rejected' → server explicitly rejected the refresh token (real expiry → log out)
+   * - 'transient'→ network error / server 5xx (do NOT log out; keep the session)
+   */
+  private async refreshAccessToken(): Promise<'ok' | 'rejected' | 'transient'> {
+    if (!this.refreshToken) return 'rejected';
     // If a refresh is already in flight, await that one instead of starting a
     // second concurrent refresh (which could overwrite tokens with a stale set).
     if (this.refreshPromise) return this.refreshPromise;
 
-    this.refreshPromise = (async () => {
+    this.refreshPromise = (async (): Promise<'ok' | 'rejected' | 'transient'> => {
       const refreshToken = this.refreshToken;
       try {
         const response = await fetch(`${this.baseURL}/accounts/auth/refresh/`, {
@@ -274,11 +288,15 @@ class ApiClient {
         if (response.ok) {
           const data = await response.json();
           await this.saveTokensToStorage(data.access, data.refresh || refreshToken);
-          return true;
+          return 'ok';
         }
-        return false;
+        // Only an explicit auth rejection (401/400) means the refresh token is
+        // truly invalid. A 5xx is a server hiccup — keep the session alive.
+        if (response.status === 401 || response.status === 400) return 'rejected';
+        return 'transient';
       } catch {
-        return false;
+        // Network error (offline, timeout, DNS) — transient, never log out.
+        return 'transient';
       }
     })();
 

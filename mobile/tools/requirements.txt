@@ -1,0 +1,9 @@
+# collect_crash_logs.py uses only the Python standard library — no pip packages needed.
+#
+# The ONLY external dependency is Android Debug Bridge (adb), which is NOT a
+# Python package. Install it via your OS package manager (see how-to.txt):
+#   macOS:   brew install android-platform-tools
+#   Linux:   sudo apt install android-tools-adb
+#   Windows: choco install adb   (or download Android platform-tools)
+#
+# Python 3.7+ required.

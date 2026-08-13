@@ -110,6 +110,52 @@ def log_delete(request, obj, description=None):
     )
 
 
+def log_soft_delete(request, obj, description=None):
+    """Log a DELETE action for a soft delete (row still exists).
+
+    Unlike `log_delete`, this passes `obj` so the log keeps a content_type /
+    object_id link back to the trashed row — the row is still there, so the
+    link stays resolvable and the trash bin can be joined to its audit trail.
+    """
+    model_name = obj.__class__.__name__
+    desc = description or f'Moved {model_name} to trash: {obj}'
+    return log_activity(
+        request=request,
+        action=ActivityLog.Action.DELETE,
+        description=desc,
+        model_name=model_name,
+        obj=obj,
+    )
+
+
+def log_restore(request, obj, description=None):
+    """Log a RESTORE action (row brought back out of the trash)."""
+    model_name = obj.__class__.__name__
+    desc = description or f'Restored {model_name} from trash: {obj}'
+    return log_activity(
+        request=request,
+        action=ActivityLog.Action.RESTORE,
+        description=desc,
+        model_name=model_name,
+        obj=obj,
+    )
+
+
+def log_bulk_soft_delete(request, objs, description=None):
+    """Log a BULK_DELETE action for a batch soft delete."""
+    objs = list(objs)
+    model_name = objs[0].__class__.__name__ if objs else 'DynamicSurveyResponse'
+    desc = description or f'Moved {len(objs)} {model_name} rows to trash'
+    return log_activity(
+        request=request,
+        action=ActivityLog.Action.BULK_DELETE,
+        description=desc,
+        model_name=model_name,
+        object_repr=', '.join(str(o) for o in objs)[:200],
+        metadata={'ids': [o.pk for o in objs]},
+    )
+
+
 def _survey_label(survey):
     """Human-readable label for either Survey or DynamicSurveyResponse.
 

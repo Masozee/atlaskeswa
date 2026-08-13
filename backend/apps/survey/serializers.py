@@ -262,6 +262,7 @@ class DynamicSurveyResponseListSerializer(serializers.ModelSerializer):
     jenis_fasilitas = serializers.SerializerMethodField()
     jenis_layanan = serializers.SerializerMethodField()
     kode_desde_ltc = serializers.SerializerMethodField()
+    deleted_by_name = serializers.SerializerMethodField()
 
     class Meta:
         model = DynamicSurveyResponse
@@ -271,12 +272,19 @@ class DynamicSurveyResponseListSerializer(serializers.ModelSerializer):
             'survey_date', 'surveyor', 'surveyor_name',
             'verification_status', 'status_display',
             'deletion_requested',
+            'deleted_at', 'deleted_by', 'deleted_by_name',
             'kategori', 'jenis_fasilitas', 'jenis_layanan', 'kode_desde_ltc',
             'latitude', 'longitude', 'created_at', 'started_at', 'submitted_at'
         ]
 
     def get_surveyor_name(self, obj):
         return obj.surveyor.get_full_name() or obj.surveyor.email
+
+    def get_deleted_by_name(self, obj):
+        user = obj.deleted_by
+        if not user:
+            return None
+        return user.get_full_name() or user.email
 
     def _choice_labels(self, obj, codes):
         """Selected choice labels for the given question codes (uses prefetched answers)."""

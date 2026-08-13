@@ -336,11 +336,27 @@ class QuestionChoice(models.Model):
         return f"{self.question.code} - {self.label[:30]}"
 
 
+class NotDeletedManager(models.Manager):
+    """Default manager for soft-deletable models: hides trashed rows.
+
+    Any queryset that forgets to filter on ``deleted_at`` fails safe by
+    excluding trashed rows. Use ``all_objects`` to reach them (trash bin
+    endpoints, Django admin, restore).
+    """
+
+    def get_queryset(self):
+        return super().get_queryset().filter(deleted_at__isnull=True)
+
+
 class DynamicSurveyResponse(models.Model):
     """
     Dynamic survey response - extends the concept of existing Survey model.
     Can be linked to an existing Survey for additional dynamic questions,
     or used standalone for pure dynamic questionnaires.
+
+    Soft delete: ``delete()`` on this model is a real delete. Deleting through
+    the API stamps ``deleted_at``/``deleted_by`` instead, which moves the row to
+    the trash bin (see ``soft_delete``/``restore``).
     """
 
     class Status(models.TextChoices):
@@ -422,6 +438,16 @@ class DynamicSurveyResponse(models.Model):
     )
     deletion_reason = models.TextField(blank=True)
 
+    # Soft delete (trash bin) - null means the response is live
+    deleted_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    deleted_by = models.ForeignKey(
+        'accounts.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='dynamic_surveys_deleted'
+    )
+
     # GPS - same pattern as existing Survey model
     latitude = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
     longitude = models.DecimalField(max_digits=11, decimal_places=7, null=True, blank=True)
@@ -441,6 +467,12 @@ class DynamicSurveyResponse(models.Model):
     started_at = models.DateTimeField(null=True, blank=True, help_text='When the surveyor actually started filling out questions')
     submitted_at = models.DateTimeField(null=True, blank=True)
 
+    # Declared first, so it is the default manager: every normal queryset,
+    # reverse relation and filter excludes trashed rows.
+    objects = NotDeletedManager()
+    # Escape hatch for the trash bin, restore and Django admin.
+    all_objects = models.Manager()
+
     class Meta:
         db_table = 'dynamic_survey_responses'
         ordering = ['-survey_date']
@@ -452,6 +484,34 @@ class DynamicSurveyResponse(models.Model):
 
     def __str__(self):
         return f"Response to {self.template.code} on {self.survey_date}"
+
+    @property
+    def is_deleted(self):
+        return self.deleted_at is not None
+
+    def soft_delete(self, user=None):
+        """Move this response to the trash bin. Answers and photos are kept."""
+        self.deleted_at = timezone.now()
+        self.deleted_by = user if user and user.is_authenticated else None
+        self.save(update_fields=['deleted_at', 'deleted_by', 'updated_at'])
+
+    def restore(self):
+        """Bring this response back out of the trash bin.
+
+        Clears the deletion-request flags too, otherwise a restored response
+        immediately reappears in the verifier's deletion queue.
+        """
+        self.deleted_at = None
+        self.deleted_by = None
+        self.deletion_requested = False
+        self.deletion_requested_at = None
+        self.deletion_requested_by = None
+        self.deletion_reason = ''
+        self.save(update_fields=[
+            'deleted_at', 'deleted_by', 'deletion_requested',
+            'deletion_requested_at', 'deletion_requested_by',
+            'deletion_reason', 'updated_at',
+        ])
 
 
 class QuestionAnswer(models.Model):

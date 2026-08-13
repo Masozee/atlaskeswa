@@ -125,14 +125,19 @@ class QuestionChoiceAdmin(ImportExportModelAdmin):
 
 @admin.register(DynamicSurveyResponse)
 class DynamicSurveyResponseAdmin(admin.ModelAdmin):
-    list_display = ('template', 'service', 'survey_date', 'surveyor', 'verification_status', 'created_at')
+    list_display = ('template', 'service', 'survey_date', 'surveyor', 'verification_status', 'deleted_at', 'created_at')
     list_filter = ('verification_status', 'template', 'survey_date')
     search_fields = ('service__name', 'surveyor__username', 'surveyor_notes')
     ordering = ('-survey_date',)
     readonly_fields = ('created_at', 'updated_at', 'submitted_at', 'verified_at')
-    raw_id_fields = ('template', 'linked_survey', 'service', 'surveyor', 'assigned_verifier', 'verified_by')
+    raw_id_fields = ('template', 'linked_survey', 'service', 'surveyor', 'assigned_verifier', 'verified_by', 'deleted_by')
     inlines = [QuestionAnswerInline]
     filter_horizontal = ('derived_mtc_codes',)
+
+    def get_queryset(self, request):
+        """Show trashed responses too — the admin is the only place a response
+        can be hard-deleted, since the API only ever soft-deletes."""
+        return DynamicSurveyResponse.all_objects.all()
 
     fieldsets = (
         ('Response Information', {
@@ -151,6 +156,11 @@ class DynamicSurveyResponseAdmin(admin.ModelAdmin):
         ('Derived MTC Codes', {
             'fields': ('derived_mtc_codes',),
             'classes': ('collapse',)
+        }),
+        ('Trash Bin', {
+            'fields': ('deleted_at', 'deleted_by'),
+            'classes': ('collapse',),
+            'description': 'Set deleted_at to move this response to the trash bin; clear it to restore.'
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at', 'submitted_at'),

@@ -444,11 +444,22 @@ class Database {
    */
   async clearAll(): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
+    // Wipe only server-backed, re-fetchable data. NEVER delete unsynced
+    // surveys (synced = 0) or their photos — those are irreplaceable field
+    // work that has not reached the server. A forced logout (e.g. a 401 after
+    // token expiry) must not destroy a surveyor's offline drafts.
     await this.db.execAsync('DELETE FROM services');
-    await this.db.execAsync('DELETE FROM surveys');
-    await this.db.execAsync('DELETE FROM survey_photos');
     await this.db.execAsync('DELETE FROM dashboard_cache');
-    await this.db.execAsync('DELETE FROM sync_metadata');
+    await this.db.execAsync('DELETE FROM surveys WHERE synced = 1');
+    await this.db.execAsync(`
+      DELETE FROM survey_photos
+      WHERE synced = 1
+        AND (
+          survey_local_id IS NULL
+          OR survey_local_id NOT IN (SELECT id FROM surveys WHERE synced = 0)
+        )
+    `);
+    // sync_metadata intentionally kept so pending-sync state survives logout.
   }
 
   // ── Sync metadata ─────────────────────────────────────────────────────────

@@ -321,10 +321,7 @@ export default function SurveyDetailPage({
           </Button>
           <div className="flex items-start justify-between">
             <div className="space-y-2">
-              <div className="flex items-center gap-3">
-                <h1 className="text-3xl font-bold">Survei #{survey.id}</h1>
-                {getStatusBadge(survey.verification_status || 'DRAFT', survey.status_display)}
-              </div>
+              <h1 className="text-3xl font-bold">Survei #{survey.id}</h1>
               <p className="text-lg text-muted-foreground">
                 {(typeof survey.service === 'object' ? survey.service?.name : survey.service_name) || 'Layanan Tidak Diketahui'}
               </p>
@@ -437,13 +434,14 @@ export default function SurveyDetailPage({
                 {photos.length > 0 ? (
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     {photos.map((photo) => (
-                      <div key={photo.id} className="relative group">
-                        <div className="relative h-40 w-full rounded-lg overflow-hidden bg-gray-100">
+                      <div key={photo.id} className="flex flex-col rounded-lg border overflow-hidden">
+                        <div className="relative aspect-[4/3] w-full bg-gray-100">
                           {photo.image_url ? (
                             <Image
                               src={photo.image_url}
                               alt={photo.caption || 'Foto fasilitas'}
                               fill
+                              sizes="(min-width: 768px) 33vw, 50vw"
                               className="object-cover"
                             />
                           ) : (
@@ -452,18 +450,25 @@ export default function SurveyDetailPage({
                             </div>
                           )}
                         </div>
-                        {photo.caption && (
-                          <p className="text-xs text-muted-foreground mt-1 truncate">{photo.caption}</p>
-                        )}
-                        <p className="text-xs text-muted-foreground">
-                          {photo.uploaded_by_name || 'Unknown'} - {new Date(photo.uploaded_at).toLocaleDateString('id-ID')}
-                        </p>
-                        <button
-                          onClick={() => handleDeletePhoto(photo.id)}
-                          className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <Delete01Icon className="h-4 w-4" />
-                        </button>
+                        <div className="flex flex-1 flex-col gap-1 p-2">
+                          {photo.caption && (
+                            <p className="text-xs text-muted-foreground truncate">{photo.caption}</p>
+                          )}
+                          <p className="text-xs text-muted-foreground">
+                            {photo.uploaded_by_name || 'Unknown'} - {new Date(photo.uploaded_at).toLocaleDateString('id-ID')}
+                          </p>
+                          <div className="mt-auto flex justify-end pt-1">
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => handleDeletePhoto(photo.id)}
+                              className="gap-1.5"
+                            >
+                              <Delete01Icon className="h-4 w-4" />
+                              Hapus
+                            </Button>
+                          </div>
+                        </div>
                       </div>
                     ))}
                   </div>
