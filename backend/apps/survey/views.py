@@ -1562,12 +1562,15 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
                                  if q.section_id in detail_section_ids}
 
         # Per-DETAIL-question contexts. A DETAIL question's "family" is the
-        # leading uppercase letters before "Q" in its code (RQA→R, SDQB1→SD).
+        # leading uppercase letters before the FIRST "Q" in its code
+        # (RQA→R, SDQB1→SD). Non-greedy so codes ending in Q (RQQ, DQQ, OQQ)
+        # split at the first Q, not the last — greedy gave RQQ→"RQ" and
+        # silently dropped those questions from the export.
         # A choice value's family is its leading uppercase letters
         # (R12→R, SD3.1.1→SD). Contexts for a DETAIL question = pool values
         # whose family matches.
         import re as _re
-        _CODE_FAMILY_RE = _re.compile(r'^([A-Z]+)Q')
+        _CODE_FAMILY_RE = _re.compile(r'^([A-Z]+?)Q')
         _VALUE_FAMILY_RE = _re.compile(r'^([A-Z]+)')
 
         def _code_family(code: str) -> str:
