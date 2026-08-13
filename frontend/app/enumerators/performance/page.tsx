@@ -195,9 +195,12 @@ export default function PerformanceReportPage() {
       draft: surveys.filter((s) => s.verification_status === 'DRAFT').length,
       rejected: surveys.filter((s) => s.verification_status === 'REJECTED').length,
       totalPatients: surveys.reduce((sum, s) => sum + (s.total_patients_served || 0), 0),
-      avgPatients: Math.round(
-        surveys.reduce((sum, s) => sum + (s.total_patients_served || 0), 0) / surveys.length
-      ),
+      // Guard against divide-by-zero (0/0 = NaN) when there are no surveys.
+      avgPatients: surveys.length
+        ? Math.round(
+            surveys.reduce((sum, s) => sum + (s.total_patients_served || 0), 0) / surveys.length
+          )
+        : 0,
       successRate: surveys.length
         ? Math.round(
             (surveys.filter((s) => s.verification_status === 'VERIFIED').length /
