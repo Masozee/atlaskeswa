@@ -220,3 +220,65 @@ export function useApproveDeletion() {
     },
   });
 }
+
+/**
+ * A survey reduced to a map point — GET /surveys/responses/map/.
+ * Public endpoint: works without a token, so the landing-page map can use it.
+ */
+export interface SurveyMapPoint {
+  id: number;
+  /** DecimalField, so DRF serializes these as strings. */
+  latitude: string;
+  longitude: string;
+  name: string | null;
+  kecamatan: string | null;
+  desa: string | null;
+  kategori: 'FASKES' | 'NON FASKES' | null;
+  jenis_fasilitas: string | null;
+  jenis_layanan: string | null;
+  kode_desde_ltc: string[] | null;
+  thumbnail: string | null;
+  survey_date: string;
+  verification_status: 'DRAFT' | 'SUBMITTED' | 'VERIFIED' | 'REJECTED';
+  status_display: string;
+  service: number | null;
+  service_name: string | null;
+}
+
+// Fetch every surveyed location for map display
+export function useSurveyMapPoints() {
+  return useQuery<SurveyMapPoint[]>({
+    queryKey: ['survey-map-points'],
+    queryFn: async () => apiClient.get<SurveyMapPoint[]>('/surveys/responses/map/'),
+    staleTime: 5 * 60 * 1000, // locations move rarely; keep the landing page snappy
+  });
+}
+
+/** A photo attached to a surveyed location, uploader withheld. */
+export interface SurveyLocationPhoto {
+  id: number;
+  image_url: string | null;
+  caption: string;
+}
+
+/**
+ * The public profile of one surveyed location —
+ * GET /surveys/responses/:id/public/. Drafts 404.
+ */
+export interface SurveyLocationDetail extends SurveyMapPoint {
+  status_badan_hukum: string | null;
+  service_city: string | null;
+  photos: SurveyLocationPhoto[];
+}
+
+export function useSurveyLocation(id?: number) {
+  return useQuery<SurveyLocationDetail>({
+    queryKey: ['survey-location', id],
+    queryFn: async () => {
+      if (!id) throw new Error('Survey location ID is required');
+      return apiClient.get<SurveyLocationDetail>(`/surveys/responses/${id}/public/`);
+    },
+    enabled: !!id,
+    retry: false, // a 404 means the location is not public; do not hammer it
+  });
+}

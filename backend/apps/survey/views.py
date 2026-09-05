@@ -1,5 +1,6 @@
 import csv
 import io
+import json
 import tablib
 from decimal import Decimal, InvalidOperation
 from rest_framework import viewsets, filters, status
@@ -7,13 +8,16 @@ from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 import django_filters
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Count, Q, Avg, Prefetch
 from django.http import HttpResponse, FileResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django.utils.dateparse import parse_date
+from django.db import transaction
+from datetime import datetime, date, time as dtime
 
 from .models import (
     Survey, SurveyAttachment, SurveyAuditLog,
@@ -31,7 +35,8 @@ from .serializers import (
     QuestionSerializer, QuestionCreateUpdateSerializer,
     QuestionChoiceSerializer, QuestionChoiceCreateUpdateSerializer,
     DynamicSurveyResponseListSerializer, DynamicSurveyResponseDetailSerializer,
-    DynamicSurveyResponseCreateSerializer
+    DynamicSurveyResponseCreateSerializer,
+    SurveyMapPointSerializer, SurveyLocationDetailSerializer,
 )
 from apps.accounts.permissions import (
     IsAdmin,
@@ -1286,6 +1291,13 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
             return [IsAdmin()]
         if self.action == 'approve_deletion':
             return [IsVerifierOrAdmin()]
+        if self.action == 'import_data':
+            return [IsAdmin()]
+        if self.action in ['map', 'public_detail']:
+            # Survey locations for the public landing-page map and the location
+            # profile pages it links to. Both actions below hold back drafts
+            # and serialize no surveyor identity.
+            return [AllowAny()]
         return [IsAuthenticated()]
 
     def perform_destroy(self, instance):
@@ -1299,6 +1311,44 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
             self.request, instance,
             f'Memindahkan survei ke keranjang sampah: {_response_label(instance)}'
         )
+
+    @action(detail=False, methods=['get'], url_path='map')
+    def map(self, request):
+        """Every survey that recorded a GPS fix, as points for a map.
+
+        Not paginated and not RBAC-filtered: this is the atlas view, so an
+        anonymous caller (the landing page) and a signed-in one see the same
+        set of facilities. Drafts stay hidden until they are submitted, and
+        the serializer omits surveyor identity.
+        """
+        responses = self.queryset.filter(
+            latitude__isnull=False,
+            longitude__isnull=False,
+        ).exclude(verification_status=DynamicSurveyResponse.Status.DRAFT)
+
+        serializer = SurveyMapPointSerializer(
+            responses, many=True, context=self.get_serializer_context()
+        )
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['get'], url_path='public')
+    def public_detail(self, request, pk=None):
+        """One surveyed location as a public profile.
+
+        Reads the same unfiltered set as `map` so a marker always resolves to a
+        page. A draft 404s rather than 403s: it is not public yet, and telling
+        anonymous callers which ids exist would leak the drafts.
+        """
+        response = get_object_or_404(
+            self.queryset.exclude(
+                verification_status=DynamicSurveyResponse.Status.DRAFT
+            ),
+            pk=pk,
+        )
+        serializer = SurveyLocationDetailSerializer(
+            response, context=self.get_serializer_context()
+        )
+        return Response(serializer.data)
 
     @action(detail=False, methods=['post'], url_path='bulk-delete')
     def bulk_delete(self, request):
@@ -1440,6 +1490,363 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
         )
         response['Content-Disposition'] = 'attachment; filename="surveys.xlsx"'
         return response
+
+    @staticmethod
+    def _cell_text(value) -> str:
+        """Normalise one spreadsheet cell to the string the export would write.
+
+        XLSX round-trips through real Python types, so a date arrives as a
+        datetime and must be rendered back to the export's ISO form.
+        """
+        if value is None:
+            return ''
+        if isinstance(value, datetime):
+            return value.date().isoformat()
+        if isinstance(value, date):
+            return value.isoformat()
+        return str(value).strip()
+
+    @staticmethod
+    def _cells_equal(stored: str, incoming: str) -> bool:
+        """Compare a stored cell with an incoming one, numerically when both
+        are numbers.
+
+        The XLSX writer stores a Decimal like 16.0 as the integer 16, so a
+        plain string comparison reports every such cell as edited on re-import.
+        """
+        # Incoming cells arrive stripped, so the stored side is stripped too:
+        # otherwise a value that merely carries trailing whitespace looks edited
+        # and the first import silently rewrites it.
+        if stored.strip() == incoming:
+            return True
+        try:
+            return Decimal(stored) == Decimal(incoming)
+        except (InvalidOperation, ValueError, TypeError):
+            return False
+
+    @staticmethod
+    def _read_tabular_upload(upload):
+        """Return (header, rows) from an uploaded .csv or .xlsx.
+
+        XLSX reads the "Surveys" sheet when present, so the workbook the export
+        produces (which also carries per-table sheets) round-trips unchanged.
+        """
+        name = (getattr(upload, 'name', '') or '').lower()
+        if name.endswith('.csv'):
+            raw = upload.read()
+            if isinstance(raw, bytes):
+                raw = raw.decode('utf-8-sig', errors='replace')
+            reader = csv.reader(io.StringIO(raw))
+            table = [row for row in reader]
+        else:
+            from openpyxl import load_workbook
+            wb = load_workbook(upload, read_only=True, data_only=True)
+            ws = wb['Surveys'] if 'Surveys' in wb.sheetnames else wb[wb.sheetnames[0]]
+            table = [
+                ['' if c is None else c for c in row]
+                for row in ws.iter_rows(values_only=True)
+            ]
+        if not table:
+            return [], []
+        header = [str(h).strip() if h is not None else '' for h in table[0]]
+        return header, table[1:]
+
+    @action(
+        detail=False, methods=['post'], url_path='import',
+        parser_classes=[MultiPartParser, FormParser],
+    )
+    def import_data(self, request):
+        """Patch existing survey responses from an exported CSV/XLSX.
+
+        Update-only by design. Rows are matched on the ``ID SURVEY`` column that
+        the export emits first; an id that does not resolve is reported and
+        skipped rather than created, so a mangled file cannot inject records.
+
+        A blank cell means "leave this as it is". Clearing an answer is
+        deliberately not expressible through import, so a sheet someone filled
+        in partially cannot wipe the columns it does not carry.
+
+        Column meanings are recovered from ``_build_export_schema`` rather than
+        by parsing header text: ``Q/R2`` is ambiguous on its own (context R2, or
+        choice R2?), and reusing the export's own plan keeps the round trip
+        exact.
+
+        Multiple-choice questions are written twice by the export — the readable
+        ``Q`` column and one ``Q/<value>`` indicator per choice. Either may be
+        edited. Whichever differs from what is stored wins; if both were edited
+        and disagree, the cell is reported as a conflict and left alone rather
+        than guessed at.
+
+        Admin-only, and unlike ``update()`` it is not restricted to DRAFT and
+        REJECTED: this is the bulk data-correction path, so it can also patch
+        SUBMITTED and VERIFIED rows. Every change is written to the audit log.
+
+        Form fields:
+        - file:     the .csv or .xlsx to apply (required)
+        - dry_run:  "true" to report what would change without writing
+        """
+        upload = request.FILES.get('file')
+        if not upload:
+            return Response({'detail': 'Unggah berkas pada field "file".'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        dry_run = str(request.data.get('dry_run', '')).lower() in ('1', 'true', 'yes')
+
+        try:
+            header, rows = self._read_tabular_upload(upload)
+        except Exception as exc:
+            return Response({'detail': f'Berkas tidak dapat dibaca: {exc}'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        if not header:
+            return Response({'detail': 'Berkas kosong.'}, status=status.HTTP_400_BAD_REQUEST)
+        if 'ID SURVEY' not in header:
+            return Response({'detail': 'Kolom "ID SURVEY" wajib ada pada berkas.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        id_idx = header.index('ID SURVEY')
+
+        # Pair each row with its id up front so the responses can be fetched in
+        # one query and the schema built from exactly the rows being touched.
+        parsed: list[tuple[int, int, list]] = []   # (line_no, response_id, cells)
+        errors: list[dict] = []
+        for offset, cells in enumerate(rows):
+            line_no = offset + 2  # 1-based, header is line 1
+            raw_id = cells[id_idx] if id_idx < len(cells) else ''
+            raw_id = str(raw_id).strip()
+            if not raw_id:
+                continue  # trailing blank row
+            try:
+                parsed.append((line_no, int(float(raw_id)), list(cells)))
+            except (TypeError, ValueError):
+                errors.append({'line': line_no, 'error': f'ID SURVEY tidak valid: "{raw_id}"'})
+
+        if not parsed:
+            return Response(
+                {'detail': 'Tidak ada baris dengan ID SURVEY yang valid.', 'errors': errors},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        wanted_ids = {rid for _, rid, _ in parsed}
+        responses = {
+            r.id: r
+            for r in self.queryset.filter(id__in=wanted_ids).prefetch_related(
+                'answers__question', 'answers__selected_choices'
+            )
+        }
+
+        # Reverse the export plan: label -> (kind, payload).
+        _headers, plan = self._build_export_schema(
+            self.queryset.filter(id__in=responses.keys())
+        )
+        col_meaning = {label: (kind, payload) for label, kind, payload in plan}
+
+        # value/label -> canonical choice value, per question code, so a sheet
+        # exported with value_format=label can still be imported.
+        choice_lookup: dict[str, dict[str, str]] = {}
+        for choice in QuestionChoice.objects.filter(
+            question__section__template__in=[r.template_id for r in responses.values()]
+        ).select_related('question'):
+            table = choice_lookup.setdefault(choice.question.code, {})
+            table[str(choice.value).strip().casefold()] = choice.value
+            if choice.label:
+                table[str(choice.label).strip().casefold()] = choice.value
+
+        updated, unchanged, conflicts = [], [], []
+
+        with transaction.atomic():
+            for line_no, rid, cells in parsed:
+                response = responses.get(rid)
+                if response is None:
+                    errors.append({'line': line_no, 'id': rid,
+                                   'error': 'ID SURVEY tidak ditemukan'})
+                    continue
+
+                def cell(idx):
+                    return self._cell_text(cells[idx]) if idx < len(cells) else ''
+
+                changed_fields: list[str] = []
+
+                # --- metadata -------------------------------------------------
+                meta_updates: dict[str, object] = {}
+                for col, label in enumerate(header):
+                    text = cell(col)
+                    if text == '':
+                        continue
+                    if label == 'TGL SURVEY':
+                        parsed_date = parse_date(text[:10])
+                        if parsed_date is None:
+                            errors.append({'line': line_no, 'id': rid,
+                                           'error': f'TGL SURVEY tidak valid: "{text}"'})
+                        elif response.survey_date is None or \
+                                timezone.localtime(response.survey_date).date() != parsed_date:
+                            meta_updates['survey_date'] = datetime.combine(
+                                parsed_date, dtime.min, tzinfo=timezone.get_current_timezone()
+                            )
+                    elif label in ('LATITUDE', 'LONGITUDE'):
+                        field = label.lower()
+                        try:
+                            new_val = Decimal(text)
+                        except (InvalidOperation, ValueError):
+                            errors.append({'line': line_no, 'id': rid,
+                                           'error': f'{label} tidak valid: "{text}"'})
+                            continue
+                        current = getattr(response, field)
+                        if current is None or Decimal(current) != new_val:
+                            meta_updates[field] = new_val
+
+                # --- answers --------------------------------------------------
+                # What is stored right now, rendered exactly as the export
+                # renders it, so a cell is only written when the sheet actually
+                # differs. Without this every non-empty cell counts as an edit
+                # and the summary overstates what changed.
+                current_choices: dict[tuple[str, str], set] = {}
+                current_values: dict[tuple[str, str], str] = {}
+                current_other: dict[tuple[str, str], dict] = {}
+                for ans in response.answers.all():
+                    key = (ans.question.code, ans.context_key or '')
+                    current_choices[key] = {c.value for c in ans.selected_choices.all()}
+                    current_values[key] = str(self._format_answer(ans, use_label=False))
+                    try:
+                        parsed_other = json.loads(ans.other_text) if ans.other_text else {}
+                    except (TypeError, ValueError):
+                        parsed_other = {}
+                    current_other[key] = parsed_other if isinstance(parsed_other, dict) else {}
+
+                answers_data: dict[str, object] = {}
+                other_cells: dict[tuple[str, str], dict] = {}
+                mc_main: dict[tuple[str, str], set] = {}
+                mc_ind: dict[tuple[str, str], set] = {}
+                mc_ind_seen: set[tuple[str, str]] = set()
+
+                for col, label in enumerate(header):
+                    meaning = col_meaning.get(label)
+                    if not meaning:
+                        continue
+                    kind, payload = meaning
+                    text = cell(col)
+
+                    if kind == 'value':
+                        if text == '':
+                            continue
+                        code, ctx = payload
+                        if self._cells_equal(current_values.get((code, ctx), ''), text):
+                            continue  # identical to what is stored
+                        answers_data[f'{ctx}|{code}' if ctx else code] = text
+
+                    elif kind == 'mc_main':
+                        if text == '':
+                            continue
+                        code, ctx = payload
+                        table = choice_lookup.get(code, {})
+                        values = set()
+                        for part in text.split(','):
+                            part = part.strip()
+                            if not part:
+                                continue
+                            values.add(table.get(part.casefold(), part))
+                        mc_main[(code, ctx)] = values
+
+                    elif kind == 'mc_indicator':
+                        code, ctx, value = payload
+                        key = (code, ctx)
+                        mc_ind_seen.add(key)
+                        if text not in ('', '0', '0.0'):
+                            mc_ind.setdefault(key, set()).add(value)
+                        else:
+                            mc_ind.setdefault(key, set())
+
+                    elif kind == 'mc_other':
+                        if text == '':
+                            continue
+                        code, ctx, value = payload
+                        other_cells.setdefault((code, ctx), {})[str(value)] = text
+
+                for key in set(mc_main) | mc_ind_seen:
+                    code, ctx = key
+                    current = current_choices.get(key, set())
+                    from_main = mc_main.get(key)
+                    from_ind = mc_ind.get(key) if key in mc_ind_seen else None
+
+                    main_changed = from_main is not None and from_main != current
+                    ind_changed = from_ind is not None and from_ind != current
+
+                    if main_changed and ind_changed and from_main != from_ind:
+                        conflicts.append({
+                            'line': line_no, 'id': rid, 'question': code, 'context': ctx,
+                            'error': 'Kolom ringkas dan kolom indikator sama-sama diubah '
+                                     'dengan nilai berbeda — sel dilewati.',
+                        })
+                        continue
+                    chosen = from_main if main_changed else (from_ind if ind_changed else None)
+                    if chosen is None:
+                        continue
+                    answers_data[f'{ctx}|{code}' if ctx else code] = sorted(chosen)
+
+                # An edited "_other" cell has to bring its own answer along, since
+                # other_text only reaches the database through that answer.
+                for key, edits in other_cells.items():
+                    code, ctx = key
+                    merged = {**current_other.get(key, {}), **edits}
+                    if merged == current_other.get(key, {}):
+                        continue
+                    data_key = f'{ctx}|{code}' if ctx else code
+                    if data_key not in answers_data:
+                        stored = current_choices.get(key)
+                        if stored:
+                            answers_data[data_key] = sorted(stored)
+                        elif current_values.get(key):
+                            answers_data[data_key] = current_values[key]
+                        else:
+                            continue  # nothing to hang the text on
+                    answers_data[f'{data_key}__other_text'] = json.dumps(merged)
+
+                # _update_answers rewrites other_text for every answer it saves,
+                # defaulting to ''. Any answer touched here that already had
+                # other_text would lose it, so carry the existing value through.
+                for data_key in [k for k in answers_data if not k.endswith('__other_text')]:
+                    if f'{data_key}__other_text' in answers_data:
+                        continue
+                    code, ctx = (data_key.split('|', 1)[::-1] if '|' in data_key
+                                 else (data_key, ''))
+                    existing = current_other.get((code, ctx))
+                    if existing:
+                        answers_data[f'{data_key}__other_text'] = json.dumps(existing)
+
+                if not meta_updates and not answers_data:
+                    unchanged.append(rid)
+                    continue
+
+                if not dry_run:
+                    for field, value in meta_updates.items():
+                        setattr(response, field, value)
+                    if meta_updates:
+                        response.save(update_fields=list(meta_updates))
+                    if answers_data:
+                        self._update_answers(response, answers_data)
+                    log_update(
+                        request, response,
+                        f'Impor memperbarui survei #{rid} '
+                        f'({len(meta_updates)} metadata, {len(answers_data)} jawaban)'
+                    )
+
+                changed_fields = list(meta_updates) + sorted(answers_data)
+                updated.append({'line': line_no, 'id': rid, 'fields': changed_fields})
+
+            if dry_run:
+                transaction.set_rollback(True)
+
+        return Response({
+            'dry_run': dry_run,
+            'rows_read': len(parsed),
+            'updated': len(updated),
+            'unchanged': len(unchanged),
+            'conflicts': len(conflicts),
+            'failed': len(errors),
+            'details': updated[:200],
+            'conflict_details': conflicts[:200],
+            'errors': errors[:200],
+        })
 
     @classmethod
     def _build_xlsx_with_colors(cls, headers, plan, rows, responses_qs):

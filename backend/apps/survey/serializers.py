@@ -367,6 +367,77 @@ class DynamicSurveyResponseListSerializer(serializers.ModelSerializer):
         return request.build_absolute_uri(url) if request else url
 
 
+class SurveyMapPointSerializer(DynamicSurveyResponseListSerializer):
+    """A survey reduced to a plottable point for the map.
+
+    Inherits the answer-derived fields (facility name, category, DESDE-LTC
+    codes, ...) from the list serializer, but drops surveyor identity and the
+    verification-workflow internals: this feeds the public landing-page map.
+    """
+
+    name = serializers.SerializerMethodField()
+    kecamatan = serializers.SerializerMethodField()
+    desa = serializers.SerializerMethodField()
+
+    class Meta(DynamicSurveyResponseListSerializer.Meta):
+        fields = [
+            'id', 'latitude', 'longitude',
+            'name', 'kecamatan', 'desa',
+            'kategori', 'jenis_fasilitas', 'jenis_layanan', 'kode_desde_ltc',
+            'thumbnail', 'survey_date',
+            'verification_status', 'status_display',
+            'service', 'service_name',
+        ]
+
+    def get_name(self, obj):
+        """Facility name as the surveyor typed it, falling back to the service."""
+        return self.get_q1_nama_fasilitas(obj) or (obj.service.name if obj.service else None)
+
+    def get_kecamatan(self, obj):
+        # Reads the prefetched answers instead of re-querying per row, so
+        # plotting every survey does not turn into one query per marker.
+        for answer in obj.answers.all():
+            if answer.question.code == 'Q7' and answer.geographic_unit:
+                return answer.geographic_unit.name
+        return obj.service.kecamatan if obj.service else None
+
+    def get_desa(self, obj):
+        return self.get_service_desa(obj)
+
+
+class SurveyLocationPhotoSerializer(serializers.ModelSerializer):
+    """A facility photo without the uploader's identity, for public pages."""
+
+    image_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SurveyPhoto
+        fields = ['id', 'image_url', 'caption']
+
+    def get_image_url(self, obj):
+        if not obj.image:
+            return None
+        request = self.context.get('request')
+        return request.build_absolute_uri(obj.image.url) if request else obj.image.url
+
+
+class SurveyLocationDetailSerializer(SurveyMapPointSerializer):
+    """One surveyed location as a public profile page.
+
+    Extends the map-point payload with the fields the survey table shows
+    (Q13 legal status, city) plus the full photo set for the page header. Still
+    carries no surveyor identity or interview timings — those stay in the
+    dashboard's verification view.
+    """
+
+    photos = SurveyLocationPhotoSerializer(many=True, read_only=True)
+
+    class Meta(SurveyMapPointSerializer.Meta):
+        fields = SurveyMapPointSerializer.Meta.fields + [
+            'status_badan_hukum', 'service_city', 'photos',
+        ]
+
+
 class DynamicSurveyResponseDetailSerializer(serializers.ModelSerializer):
     """Detailed serializer with all answers"""
 

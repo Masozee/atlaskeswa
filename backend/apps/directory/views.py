@@ -4,7 +4,7 @@ import tablib
 from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.pagination import PageNumberPagination
 from django.http import HttpResponse, FileResponse
 from django.db.models.deletion import ProtectedError
@@ -273,6 +273,10 @@ class ServiceViewSet(StatusBasedFilterMixin, viewsets.ModelViewSet):
             return [IsSurveyorOrAdmin(), CanAccessServiceData()]
         elif self.action == 'import_csv':
             return [IsAdmin()]
+        elif self.action in ['stats', 'map']:
+            # Public aggregate/map data for the landing page (anonymous
+            # requests are limited to active services in the actions below)
+            return [AllowAny()]
         return [IsAuthenticated()]
 
     # get_queryset is now handled by StatusBasedFilterMixin
@@ -365,6 +369,8 @@ class ServiceViewSet(StatusBasedFilterMixin, viewsets.ModelViewSet):
     def stats(self, request):
         """Get service statistics"""
         queryset = self.get_queryset()
+        if not request.user.is_authenticated:
+            queryset = queryset.filter(is_active=True)
 
         total_services = queryset.count()
         verified_services = queryset.filter(is_verified=True).count()
@@ -436,6 +442,8 @@ class ServiceViewSet(StatusBasedFilterMixin, viewsets.ModelViewSet):
             latitude__isnull=False,
             longitude__isnull=False
         )
+        if not request.user.is_authenticated:
+            services = services.filter(is_active=True)
 
         serializer = ServiceListSerializer(services, many=True)
         return Response(serializer.data)

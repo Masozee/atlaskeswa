@@ -6,6 +6,7 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  --animate-marquee: marquee 40s linear infinite;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
@@ -162,20 +163,31 @@
   }
 }
 
-/* Partner Logo Slider Animation */
-@keyframes scroll {
-  0% {
+/* Partner-logo marquee: track holds two copies of the list, so shifting by
+   half its width loops seamlessly. */
+@keyframes marquee {
+  from {
     transform: translateX(0);
   }
-  100% {
+  to {
     transform: translateX(-50%);
   }
 }
 
-.animate-scroll {
-  animation: scroll 20s linear infinite;
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee {
+    animation: none;
+  }
 }
 
-.animate-scroll:hover {
-  animation-play-state: paused;
+/* Public (non-dashboard) surfaces are set in Geist; the dashboard keeps Inter.
+   `html` applies font-sans globally, so this class overrides it by inheritance
+   on the page root. Form controls do not inherit font-family from an ancestor,
+   so they are named explicitly. */
+@utility font-geist {
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+.font-geist :is(button, input, select, textarea, optgroup) {
+  font-family: inherit;
 }

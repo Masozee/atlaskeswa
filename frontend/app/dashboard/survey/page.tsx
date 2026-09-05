@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, Fragment, type Dispatch, type SetStateAction } from 'react';
+import { useState, useMemo, useEffect, Fragment, type Dispatch, type SetStateAction, useRef } from 'react';
 import Link from 'next/link';
 import {
   useSurveyResponses,
@@ -10,10 +10,18 @@ import {
 } from '@/hooks/use-survey-responses';
 import { useGeographicUnits } from '@/hooks/use-geographic-units';
 import { useUsers } from '@/hooks/use-users';
-import { useAuth } from '@/hooks/use-auth';
+import { useCurrentUser } from '@/hooks/use-auth';
 import { apiClient } from '@/lib/api-client';
 import { PageHeader } from "@/components/page-header";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
 import { Calendar } from "@/components/ui/calendar";
@@ -71,9 +79,21 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { SortingZA01Icon, HardDriveDownloadIcon } from "@hugeicons/core-free-icons";
-import { MoreHorizontalIcon, ViewIcon, Delete01Icon, PlusSignIcon, InformationCircleIcon, Edit02Icon } from 'hugeicons-react';
+import { SortingZA01Icon } from "@hugeicons/core-free-icons";
+import { MoreHorizontalIcon, ViewIcon, Delete01Icon, PlusSignIcon, InformationCircleIcon, Edit02Icon, Upload01Icon, Download01Icon } from 'hugeicons-react';
 import { toast } from 'sonner';
+
+/** Shape of POST /surveys/responses/import/ */
+interface ImportSummary {
+  dry_run: boolean;
+  rows_read: number;
+  updated: number;
+  unchanged: number;
+  conflicts: number;
+  failed: number;
+  conflict_details: { line: number; id: number; question: string; error: string }[];
+  errors: { line: number; id?: number; error: string }[];
+}
 
 interface SurveyResponseItem {
   id: number;
@@ -139,6 +159,12 @@ export default function AllSurveysPage() {
   // 0–100 percentage when Content-Length is known, or null for indeterminate.
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState<number | null>(null);
+  // Import: update-only, matched on the "ID SURVEY" column the export emits.
+  const [importOpen, setImportOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importResult, setImportResult] = useState<ImportSummary | null>(null);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [kategoriFilter, setKategoriFilter] = useState<string[]>([]);
   const [dateFilter, setDateFilter] = useState<Date | undefined>(undefined);
@@ -183,7 +209,7 @@ export default function AllSurveysPage() {
     setPage(1);
   }, [search, statusParam, kategoriParam, selectedDateIso, kecamatanParam, desaParam, surveyorParam, ordering]);
 
-  const { data, isLoading } = useSurveyResponses({
+  const { data, isLoading, refetch } = useSurveyResponses({
     search,
     verification_status: statusParam,
     kategori: kategoriParam,
@@ -204,7 +230,7 @@ export default function AllSurveysPage() {
 
   // Deleting is soft: an ADMIN moves the survey to the trash bin, any other
   // role can only file a deletion request for a verifier/admin to approve.
-  const { user } = useAuth();
+  const { data: user } = useCurrentUser();
   const isAdmin = user?.role === 'ADMIN';
 
   // Pending confirmation targets (null = dialog closed)
@@ -302,6 +328,41 @@ export default function AllSurveysPage() {
       setIsExporting(false);
       setExportProgress(null);
     }
+  };
+
+  const runImport = async (dryRun: boolean) => {
+    if (!importFile) return;
+    setIsImporting(true);
+    setImportResult(null);
+    try {
+      const body = new FormData();
+      body.append('file', importFile);
+      if (dryRun) body.append('dry_run', 'true');
+      const res = await apiClient.fetchRaw('/surveys/responses/import/', { method: 'POST', body });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data?.detail || `Impor gagal (HTTP ${res.status})`);
+        return;
+      }
+      setImportResult(data as ImportSummary);
+      if (dryRun) {
+        toast.success(`Pratinjau: ${data.updated} baris akan diperbarui`);
+      } else {
+        toast.success(`${data.updated} survei diperbarui`);
+        refetch();
+      }
+    } catch (e) {
+      toast.error(`Impor gagal: ${e instanceof Error ? e.message : 'unknown'}`);
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const closeImport = () => {
+    setImportOpen(false);
+    setImportFile(null);
+    setImportResult(null);
+    if (importInputRef.current) importInputRef.current.value = '';
   };
 
   const handleBulkDelete = async () => {
@@ -568,27 +629,28 @@ export default function AllSurveysPage() {
             <p className="text-sm text-muted-foreground">Pengumpulan dan pemantauan data survei</p>
           </div>
           <div className="flex items-center gap-2">
-            <div className="relative">
+            {/* Ekspor + Impor read as one segmented control, matching the
+                toolbar on Model Kuisioner. */}
+            <div className="relative flex h-9 rounded-md border overflow-hidden">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
+                  <button
+                    type="button"
                     disabled={isExporting}
-                    className="h-9 border border-input bg-white shadow-none rounded-sm box-border"
+                    className="flex h-full items-center justify-center gap-2 w-36 text-sm font-medium transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {isExporting ? (
                       <>
-                        <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                        {exportProgress !== null ? `Mengekspor ${exportProgress}%` : 'Mengekspor…'}
+                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                        {exportProgress !== null ? `${exportProgress}%` : 'Mengekspor…'}
                       </>
                     ) : (
                       <>
-                        <HugeiconsIcon icon={HardDriveDownloadIcon} size={16} className="mr-2" />
+                        <Download01Icon className="w-4 h-4" />
                         Ekspor
                       </>
                     )}
-                  </Button>
+                  </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem onClick={() => handleExport('xlsx', 'code')}>
@@ -606,8 +668,23 @@ export default function AllSurveysPage() {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+
+              {isAdmin && (
+                <>
+                  <div className="w-px bg-border" />
+                  <button
+                    type="button"
+                    onClick={() => setImportOpen(true)}
+                    className="flex h-full items-center justify-center gap-2 w-28 text-sm font-medium transition-colors hover:bg-accent"
+                  >
+                    <Upload01Icon className="w-4 h-4" />
+                    Impor
+                  </button>
+                </>
+              )}
+
               {isExporting && (
-                <div className="absolute -bottom-1.5 left-0 h-1 w-full overflow-hidden rounded-full bg-muted">
+                <div className="absolute bottom-0 left-0 h-0.5 w-full overflow-hidden bg-muted">
                   <div
                     className={
                       exportProgress !== null
@@ -1023,6 +1100,80 @@ export default function AllSurveysPage() {
           )}
         </div>
       </div>
+
+      {/* ADMIN: patch existing surveys from an exported sheet */}
+      <Dialog open={importOpen} onOpenChange={(open: boolean) => (open ? setImportOpen(true) : closeImport())}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Impor pembaruan survei</DialogTitle>
+            <DialogDescription>
+              Unggah berkas hasil Ekspor (.xlsx atau .csv). Baris dicocokkan lewat kolom
+              <span className="font-medium"> ID SURVEY</span>, jadi impor hanya memperbarui
+              survei yang sudah ada — tidak pernah membuat yang baru. Sel yang dikosongkan
+              dibiarkan apa adanya.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <Input
+              ref={importInputRef}
+              type="file"
+              accept=".csv,.xlsx"
+              onChange={(e) => {
+                setImportFile(e.target.files?.[0] ?? null);
+                setImportResult(null);
+              }}
+              className="h-9 rounded-sm shadow-none"
+            />
+
+            {importResult && (
+              <div className="rounded-sm border p-3 text-sm space-y-2">
+                <p className="font-medium">
+                  {importResult.dry_run ? 'Pratinjau (belum disimpan)' : 'Selesai'}
+                </p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-muted-foreground">
+                  <span>Baris dibaca</span><span className="tabular-nums">{importResult.rows_read}</span>
+                  <span>Diperbarui</span><span className="tabular-nums">{importResult.updated}</span>
+                  <span>Tidak berubah</span><span className="tabular-nums">{importResult.unchanged}</span>
+                  <span>Konflik</span><span className="tabular-nums">{importResult.conflicts}</span>
+                  <span>Gagal</span><span className="tabular-nums">{importResult.failed}</span>
+                </div>
+                {(importResult.errors.length > 0 || importResult.conflict_details.length > 0) && (
+                  <ul className="max-h-40 overflow-y-auto space-y-1 border-t pt-2 text-xs text-muted-foreground">
+                    {importResult.errors.map((e, i) => (
+                      <li key={`e${i}`}>Baris {e.line}: {e.error}</li>
+                    ))}
+                    {importResult.conflict_details.map((e, i) => (
+                      <li key={`c${i}`}>Baris {e.line} ({e.question}): {e.error}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={closeImport} className="rounded-sm shadow-none">
+              Tutup
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => runImport(true)}
+              disabled={!importFile || isImporting}
+              className="rounded-sm shadow-none"
+            >
+              Periksa dulu
+            </Button>
+            <Button
+              onClick={() => runImport(false)}
+              disabled={!importFile || isImporting}
+              className="rounded-sm shadow-none"
+            >
+              {isImporting ? 'Memproses…' : 'Terapkan'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ADMIN: move a single survey to the trash bin */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
