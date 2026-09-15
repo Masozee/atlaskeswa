@@ -426,6 +426,24 @@ class DynamicSurveyResponse(models.Model):
     verifier_notes = models.TextField(blank=True)
     rejection_reason = models.TextField(blank=True)
 
+    # Publication workflow: verification is the QA pass, publication is the
+    # separate decision to put the location on the public map. A survey can be
+    # verified and deliberately kept off the map, and unpublishing never
+    # un-verifies it.
+    is_published = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text='Visible on the public map and location pages'
+    )
+    published_at = models.DateTimeField(null=True, blank=True)
+    published_by = models.ForeignKey(
+        'accounts.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='dynamic_surveys_published'
+    )
+
     # Deletion request workflow
     deletion_requested = models.BooleanField(default=False, db_index=True)
     deletion_requested_at = models.DateTimeField(null=True, blank=True)

@@ -202,6 +202,27 @@ export function useVerifySurvey(id: number) {
   });
 }
 
+/**
+ * Publish a verified survey to the public map, or take it back off.
+ * Verifiers and admins only; the backend refuses to publish anything that has
+ * not passed verification.
+ */
+export function usePublishSurvey() {
+  const queryClient = useQueryClient();
+
+  return useMutation<SurveyResponse, Error, { id: number; publish: boolean }>({
+    mutationFn: async ({ id, publish }) =>
+      apiClient.post<SurveyResponse>(`/surveys/responses/${id}/publish/`, { publish }),
+    onSuccess: (_data, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ['survey-responses'] });
+      queryClient.invalidateQueries({ queryKey: ['survey-response', id] });
+      // The landing-page map and the public profile read the published set.
+      queryClient.invalidateQueries({ queryKey: ['survey-map-points'] });
+      queryClient.invalidateQueries({ queryKey: ['survey-location', id] });
+    },
+  });
+}
+
 // Approve or reject deletion request
 export function useApproveDeletion() {
   const queryClient = useQueryClient();
@@ -261,6 +282,34 @@ export interface SurveyLocationPhoto {
   caption: string;
 }
 
+/** One answer inside a service detail block, identity withheld. */
+export interface SurveyLocationAnswer {
+  id: number;
+  question_code: string;
+  question_text: string;
+  text_value: string | null;
+  /** DecimalField, so DRF serializes it as a string. */
+  number_value: string | null;
+  date_value: string | null;
+  time_value: string | null;
+  boolean_value: boolean | null;
+  selected_choice_labels: string[];
+  other_text: string | null;
+  geographic_unit_display: string | null;
+  table_data: unknown;
+  context_key: string;
+}
+
+/**
+ * The detail questions the survey asked for one service branch — the block the
+ * mobile app asks once per selected service, keyed by its DESDE-LTC code.
+ */
+export interface SurveyLocationServiceDetail {
+  code: string;
+  name: string | null;
+  answers: SurveyLocationAnswer[];
+}
+
 /**
  * The public profile of one surveyed location —
  * GET /surveys/responses/:id/public/. Drafts 404.
@@ -269,6 +318,7 @@ export interface SurveyLocationDetail extends SurveyMapPoint {
   status_badan_hukum: string | null;
   service_city: string | null;
   photos: SurveyLocationPhoto[];
+  service_details: SurveyLocationServiceDetail[];
 }
 
 export function useSurveyLocation(id?: number) {

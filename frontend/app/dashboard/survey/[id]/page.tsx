@@ -9,6 +9,7 @@ import {
   useSubmitSurvey,
   useDeleteSurveyResponse,
   useRequestDeletion,
+  usePublishSurvey,
 } from '@/hooks/use-survey-responses';
 import { useSurveyTemplate } from '@/hooks/use-survey-templates';
 import { useSurveyPhotos, useUploadSurveyPhoto, useDeleteSurveyPhoto } from '@/hooks/use-survey-photos';
@@ -16,6 +17,7 @@ import { useCurrentUser } from '@/hooks/use-auth';
 import { PageHeader } from '@/components/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -82,6 +84,8 @@ export default function SurveyDetailPage({
   const deleteSurvey = useDeleteSurveyResponse();
   const requestDeletion = useRequestDeletion();
   const { data: currentUser } = useCurrentUser();
+
+  const publishSurvey = usePublishSurvey();
 
   const [verifyDialogOpen, setVerifyDialogOpen] = useState(false);
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
@@ -291,6 +295,10 @@ export default function SurveyDetailPage({
   // Deleting is soft: an ADMIN moves the survey to the trash bin directly,
   // the owning surveyor can only file a request for approval.
   const isAdmin = currentUser?.role === 'ADMIN';
+  // Publication is the second gate: QA passes (VERIFIED), then a verifier or
+  // admin decides whether the location goes on the public map.
+  const canPublish = currentUser?.role === 'VERIFIER' || isAdmin;
+  const isPublished = survey.is_published === true;
   const canRequestDeletion = !isAdmin &&
     survey.surveyor === currentUser?.id &&
     !survey.deletion_requested;
@@ -335,6 +343,28 @@ export default function SurveyDetailPage({
 
             {/* Action Buttons */}
             <div className="flex items-center gap-2">
+              {canPublish && (
+                <div className="flex items-center gap-2 rounded-md border px-3 py-2">
+                  <Switch
+                    id="publish-survey"
+                    checked={isPublished}
+                    // Only a verified survey can go public; unpublishing stays
+                    // available whatever the status, so a mistake is reversible.
+                    disabled={(!isVerified && !isPublished) || publishSurvey.isPending}
+                    onCheckedChange={(checked) =>
+                      publishSurvey.mutate({ id: Number(id), publish: checked })
+                    }
+                  />
+                  <Label htmlFor="publish-survey" className="text-sm font-medium">
+                    Terbitkan ke peta
+                  </Label>
+                </div>
+              )}
+
+              {!canPublish && isPublished && (
+                <Badge variant="default">Terbit di peta</Badge>
+              )}
+
               {(isVerified || isRejected) && (
                 <div className="text-sm text-muted-foreground">
                   {isVerified && '✓ Survei telah diverifikasi'}
@@ -749,6 +779,22 @@ export default function SurveyDetailPage({
                 <div>
                   <div className="text-xs font-medium text-muted-foreground mb-1">Status</div>
                   {getStatusBadge(survey.verification_status || 'DRAFT', survey.status_display)}
+                </div>
+                <div>
+                  <div className="text-xs font-medium text-muted-foreground mb-1">Publikasi</div>
+                  <Badge variant={isPublished ? 'default' : 'outline'}>
+                    {isPublished ? 'Terbit di peta publik' : 'Belum terbit'}
+                  </Badge>
+                  {isPublished && survey.published_by_name && (
+                    <div className="text-xs text-muted-foreground mt-1">
+                      oleh {survey.published_by_name}
+                    </div>
+                  )}
+                  {!isPublished && !isVerified && (
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Perlu diverifikasi sebelum bisa diterbitkan
+                    </div>
+                  )}
                 </div>
                 <div>
                   <div className="text-xs font-medium text-muted-foreground mb-1">Template</div>

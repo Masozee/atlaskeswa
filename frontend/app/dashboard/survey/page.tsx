@@ -7,6 +7,7 @@ import {
   useDeleteSurveyResponse,
   useBulkDeleteSurveyResponses,
   useRequestDeletion,
+  usePublishSurvey,
 } from '@/hooks/use-survey-responses';
 import { useGeographicUnits } from '@/hooks/use-geographic-units';
 import { useUsers } from '@/hooks/use-users';
@@ -80,7 +81,7 @@ import {
 } from "@tanstack/react-table";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { SortingZA01Icon } from "@hugeicons/core-free-icons";
-import { MoreHorizontalIcon, ViewIcon, Delete01Icon, PlusSignIcon, InformationCircleIcon, Edit02Icon, Upload01Icon, Download01Icon } from 'hugeicons-react';
+import { MoreHorizontalIcon, ViewIcon, Delete01Icon, PlusSignIcon, InformationCircleIcon, Edit02Icon, Upload01Icon, Download01Icon, GlobalIcon } from 'hugeicons-react';
 import { toast } from 'sonner';
 
 /** Shape of POST /surveys/responses/import/ */
@@ -108,6 +109,8 @@ interface SurveyResponseItem {
   surveyor_name: string;
   verification_status: string;
   status_display: string;
+  is_published: boolean;
+  published_by_name: string | null;
   kategori: string | null;
   jenis_fasilitas: string | null;
   jenis_layanan: string | null;
@@ -171,6 +174,8 @@ export default function AllSurveysPage() {
   const [kecamatanFilter, setKecamatanFilter] = useState<number[]>([]);
   const [desaFilter, setDesaFilter] = useState<number[]>([]);
   const [enumeratorFilter, setEnumeratorFilter] = useState<number[]>([]);
+  // Publication is a separate axis from verification: 'ALL' does not narrow.
+  const [publishFilter, setPublishFilter] = useState<'ALL' | 'PUBLISHED' | 'UNPUBLISHED'>('ALL');
 
   // Toggle a value in a multi-select filter array
   const toggleIn = <T,>(setter: Dispatch<SetStateAction<T[]>>, value: T) =>
@@ -203,11 +208,12 @@ export default function AllSurveysPage() {
   const kecamatanParam = kecamatanFilter.length > 0 ? kecamatanFilter.join(',') : undefined;
   const desaParam = desaFilter.length > 0 ? desaFilter.join(',') : undefined;
   const surveyorParam = enumeratorFilter.length > 0 ? enumeratorFilter.join(',') : undefined;
+  const publishedParam = publishFilter === 'ALL' ? undefined : publishFilter === 'PUBLISHED';
 
   // Reset to first page whenever any filter or sort changes
   useEffect(() => {
     setPage(1);
-  }, [search, statusParam, kategoriParam, selectedDateIso, kecamatanParam, desaParam, surveyorParam, ordering]);
+  }, [search, statusParam, kategoriParam, selectedDateIso, kecamatanParam, desaParam, surveyorParam, publishedParam, ordering]);
 
   const { data, isLoading, refetch } = useSurveyResponses({
     search,
@@ -217,6 +223,7 @@ export default function AllSurveysPage() {
     kecamatan: kecamatanParam,
     desa: desaParam,
     surveyor: surveyorParam,
+    is_published: publishedParam,
     ordering,
     page,
     page_size: PAGE_SIZE,
@@ -232,6 +239,10 @@ export default function AllSurveysPage() {
   // role can only file a deletion request for a verifier/admin to approve.
   const { data: user } = useCurrentUser();
   const isAdmin = user?.role === 'ADMIN';
+  // Publishing is the gate on the public map, so it follows the verification
+  // roles rather than ownership.
+  const canPublish = isAdmin || user?.role === 'VERIFIER';
+  const publishSurvey = usePublishSurvey();
 
   // Pending confirmation targets (null = dialog closed)
   const [deleteTarget, setDeleteTarget] = useState<SurveyResponseItem | null>(null);
@@ -278,6 +289,7 @@ export default function AllSurveysPage() {
     if (kecamatanParam) params.set('kecamatan', kecamatanParam);
     if (desaParam) params.set('desa', desaParam);
     if (surveyorParam) params.set('surveyor', surveyorParam);
+    if (publishedParam !== undefined) params.set('is_published', String(publishedParam));
     const ids = table.getSelectedRowModel().rows.map((r) => r.original.id);
     if (ids.length > 0) params.set('ids', ids.join(','));
 
@@ -516,6 +528,16 @@ export default function AllSurveysPage() {
       ),
     },
     {
+      accessorKey: 'is_published',
+      header: 'Publikasi',
+      enableSorting: false,
+      cell: ({ row }) => (
+        <Badge variant={row.original.is_published ? 'default' : 'outline'}>
+          {row.original.is_published ? 'Terbit' : 'Belum terbit'}
+        </Badge>
+      ),
+    },
+    {
       id: 'actions',
       header: '',
       cell: ({ row }) => (
@@ -549,6 +571,29 @@ export default function AllSurveysPage() {
                 Edit
               </Link>
             </DropdownMenuItem>
+            {canPublish && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  // Only a verified survey can go public; taking one back off
+                  // stays available whatever its status.
+                  disabled={
+                    (!row.original.is_published &&
+                      row.original.verification_status !== 'VERIFIED') ||
+                    publishSurvey.isPending
+                  }
+                  onClick={() =>
+                    publishSurvey.mutate({
+                      id: row.original.id,
+                      publish: !row.original.is_published,
+                    })
+                  }
+                >
+                  <GlobalIcon className="mr-2 h-4 w-4" />
+                  {row.original.is_published ? 'Tarik dari peta' : 'Terbitkan ke peta'}
+                </DropdownMenuItem>
+              </>
+            )}
             <DropdownMenuSeparator />
             {isAdmin ? (
               <DropdownMenuItem
@@ -575,7 +620,7 @@ export default function AllSurveysPage() {
         </div>
       ),
     },
-  ], [isAdmin]);
+  ], [isAdmin, canPublish, publishSurvey]);
 
   const tableData = useMemo(
     () => (data?.results ?? []) as unknown as SurveyResponseItem[],
@@ -755,6 +800,48 @@ export default function AllSurveysPage() {
                     <>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem onSelect={() => setStatusFilter([])}>
+                        Hapus filter
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Publikasi */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="min-h-9 bg-white shadow-none">
+                    {publishFilter === 'ALL'
+                      ? 'Publikasi'
+                      : publishFilter === 'PUBLISHED'
+                        ? 'Terbit'
+                        : 'Belum terbit'}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-44">
+                  <DropdownMenuLabel>Publikasi</DropdownMenuLabel>
+                  <DropdownMenuCheckboxItem
+                    checked={publishFilter === 'PUBLISHED'}
+                    onCheckedChange={() =>
+                      setPublishFilter((prev) => (prev === 'PUBLISHED' ? 'ALL' : 'PUBLISHED'))
+                    }
+                    onSelect={(e) => e.preventDefault()}
+                  >
+                    Terbit di peta
+                  </DropdownMenuCheckboxItem>
+                  <DropdownMenuCheckboxItem
+                    checked={publishFilter === 'UNPUBLISHED'}
+                    onCheckedChange={() =>
+                      setPublishFilter((prev) => (prev === 'UNPUBLISHED' ? 'ALL' : 'UNPUBLISHED'))
+                    }
+                    onSelect={(e) => e.preventDefault()}
+                  >
+                    Belum terbit
+                  </DropdownMenuCheckboxItem>
+                  {publishFilter !== 'ALL' && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onSelect={() => setPublishFilter('ALL')}>
                         Hapus filter
                       </DropdownMenuItem>
                     </>

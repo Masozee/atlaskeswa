@@ -16,6 +16,7 @@ import {
   type SurveyLocationDetail,
   type SurveyLocationPhoto,
 } from '@/hooks/use-survey-responses';
+import { ServiceDetailMatrix } from '@/components/service-detail-matrix';
 import { kategoriLabel, toSentenceCase } from '@/lib/utils/text';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { ArrowLeft01Icon, ArrowRight01Icon } from '@hugeicons/core-free-icons';
@@ -67,7 +68,7 @@ function Chapter({
 }) {
   return (
     <section className={className}>
-      <h2 className="text-sm font-medium mb-6">{title}</h2>
+      <h2 className="text-base font-medium mb-4">{title}</h2>
       {children}
     </section>
   );
@@ -88,11 +89,11 @@ function Field({
 }) {
   return (
     <div>
-      <dt className="text-xs text-muted-foreground">
+      <dt className="text-[13px] text-muted-foreground">
         {label}
         {code && <span> ({code})</span>}
       </dt>
-      <dd className="text-[15px] mt-1 break-words">{value || EMPTY}</dd>
+      <dd className="text-base mt-1 break-words">{value || EMPTY}</dd>
     </div>
   );
 }
@@ -136,10 +137,10 @@ function Masthead({ location }: { location: SurveyLocationDetail }) {
   const surveyName = location.name && location.name !== title ? location.name : null;
 
   return (
-    <div className="pt-10 pb-12">
+    <div className="pt-8 pb-8">
       <Breadcrumb location={location} />
 
-      <div className="flex flex-wrap items-center gap-2 mt-6">
+      <div className="flex flex-wrap items-center gap-2 mt-5">
         {location.kategori && (
           <Badge
             className="text-white border-0"
@@ -153,12 +154,12 @@ function Masthead({ location }: { location: SurveyLocationDetail }) {
         </Badge>
       </div>
 
-      <h1 className="mt-4 text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-tight leading-[1.08]">
+      <h1 className="mt-3 text-[34px] sm:text-[42px] font-semibold tracking-tight leading-[1.08]">
         {title}
       </h1>
 
       {surveyName && (
-        <p className="mt-4 text-[15px]">
+        <p className="mt-3 text-base">
           <span className="text-muted-foreground">Nama menurut survei </span>
           {surveyName}
         </p>
@@ -188,7 +189,7 @@ function PhotoChapter({ photos }: { photos: SurveyLocationPhoto[] }) {
           />
         </div>
         {cover.caption && (
-          <figcaption className="mt-2 text-xs text-muted-foreground">{cover.caption}</figcaption>
+          <figcaption className="mt-2 text-[13px] text-muted-foreground">{cover.caption}</figcaption>
         )}
       </figure>
 
@@ -206,7 +207,7 @@ function PhotoChapter({ photos }: { photos: SurveyLocationPhoto[] }) {
                 />
               </div>
               {photo.caption && (
-                <figcaption className="mt-2 text-xs text-muted-foreground leading-snug">
+                <figcaption className="mt-2 text-[13px] text-muted-foreground leading-snug">
                   {photo.caption}
                 </figcaption>
               )}
@@ -225,11 +226,11 @@ function LocationChapter({ location }: { location: SurveyLocationDetail }) {
 
   return (
     <Chapter title="Lokasi">
-      <div className="grid gap-x-10 gap-y-8 lg:grid-cols-[2fr_1fr] lg:items-start">
+      <div className="grid gap-x-10 gap-y-6 lg:grid-cols-[2fr_1fr] lg:items-start">
         {hasPoint && (
           // The map keeps a boundary: it is media with its own edge, and
           // without one the basemap bleeds into the canvas.
-          <div className="h-72 lg:h-80 w-full overflow-hidden rounded-lg border">
+          <div className="h-60 lg:h-64 w-full overflow-hidden rounded-lg border">
             <Map center={[lng, lat]} zoom={13} minZoom={8} maxZoom={17} cooperativeGestures>
               <MapGeoJSON
                 data="/data/33.05_kecamatan.geojson"
@@ -251,7 +252,7 @@ function LocationChapter({ location }: { location: SurveyLocationDetail }) {
             </Map>
           </div>
         )}
-        <dl className="grid gap-x-10 gap-y-6 sm:grid-cols-2 lg:grid-cols-1">
+        <dl className="grid gap-x-10 gap-y-5 sm:grid-cols-2 lg:grid-cols-1">
           <Field label="Kecamatan" value={location.kecamatan} />
           <Field label="Desa/Kelurahan" value={location.desa} />
           <Field label="Kabupaten/Kota" value={location.service_city} />
@@ -271,7 +272,7 @@ function ServiceChapter({ location }: { location: SurveyLocationDetail }) {
   return (
     <Chapter title="Layanan">
       {codes.length > 0 && (
-        <dl className="space-y-2.5">
+        <dl className="space-y-1.5">
           {codes.map((entry) => {
             const { code, name } = splitDesdeCode(entry);
             return (
@@ -285,14 +286,14 @@ function ServiceChapter({ location }: { location: SurveyLocationDetail }) {
       )}
 
       {location.jenis_layanan && (
-        <div className={codes.length > 0 ? 'mt-10' : undefined}>
-          <h3 className="text-xs text-muted-foreground mb-2">Uraian layanan</h3>
+        <div className={codes.length > 0 ? 'mt-6' : undefined}>
+          <h3 className="text-[13px] text-muted-foreground mb-2">Uraian layanan</h3>
           {/*
             The questionnaire authored these descriptions in caps. Only the
             all-caps runs are lowered, so ODGJ survives and the parenthetical
             clarifications stay in the mixed case they were written in.
           */}
-          <p className="text-[15px] text-foreground/80 leading-relaxed max-w-[68ch]">
+          <p className="text-base text-foreground/80 leading-relaxed max-w-[68ch]">
             {toSentenceCase(location.jenis_layanan)}
           </p>
         </div>
@@ -321,7 +322,7 @@ function NotFoundState() {
     <div className={cn(PUBLIC_CONTAINER, 'py-24')}>
       <div className="max-w-[60ch]">
       <h1 className="text-3xl font-semibold tracking-tight">Lokasi tidak ditemukan</h1>
-      <p className="text-[15px] text-foreground/80 mt-3">
+      <p className="text-base text-foreground/80 mt-3">
         Survei ini tidak tersedia untuk publik, atau sudah dihapus.
       </p>
       <Button asChild variant="outline" className="mt-8 gap-2">
@@ -360,13 +361,21 @@ export default function LocationDetailPage({ params }: { params: Promise<{ id: s
           {/* The one rule on the page: it divides the masthead from the record. */}
           <div className="border-t" />
 
-          <div className="space-y-16 lg:space-y-20 pt-12 lg:pt-16">
+          <div className="space-y-10 lg:space-y-12 pt-8 lg:pt-10">
             <PhotoChapter photos={location.photos} />
 
             <Chapter title="Profil">
-              <dl className="grid gap-x-10 gap-y-6 sm:grid-cols-2 lg:grid-cols-3">
-                <Field label="Jenis fasilitas" code="Q4" value={location.jenis_fasilitas} />
-                <Field label="Status badan hukum" code="Q13" value={location.status_badan_hukum} />
+              <dl className="grid gap-x-10 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
+                <Field
+                  label="Jenis fasilitas"
+                  code="Q4"
+                  value={location.jenis_fasilitas && toSentenceCase(location.jenis_fasilitas)}
+                />
+                <Field
+                  label="Status badan hukum"
+                  code="Q13"
+                  value={location.status_badan_hukum && toSentenceCase(location.status_badan_hukum)}
+                />
                 <Field label="Tanggal survei" value={formatSurveyDate(location.survey_date)} />
               </dl>
             </Chapter>
@@ -374,12 +383,18 @@ export default function LocationDetailPage({ params }: { params: Promise<{ id: s
             <LocationChapter location={location} />
 
             <ServiceChapter location={location} />
+
+            {location.service_details?.length > 0 && (
+              <Chapter title="Rincian layanan">
+                <ServiceDetailMatrix details={location.service_details} />
+              </Chapter>
+            )}
           </div>
 
-          <div className="border-t mt-20 pt-8">
+          <div className="border-t mt-12 pt-6">
             <Link
               href="/"
-              className="inline-flex items-center gap-2 py-1 -my-1 text-sm font-medium hover:underline underline-offset-4"
+              className="inline-flex items-center gap-2 py-1 -my-1 text-base font-medium hover:underline underline-offset-4"
             >
               Jelajahi lokasi lain di peta
               <HugeiconsIcon icon={ArrowRight01Icon} size={16} />

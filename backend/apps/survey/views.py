@@ -945,6 +945,7 @@ class DynamicSurveyResponseFilter(django_filters.FilterSet):
             'service': ['exact'],
             'assigned_verifier': ['exact'],
             'deletion_requested': ['exact'],
+            'is_published': ['exact'],
             'survey_date': ['exact', 'gte', 'lte'],
             'created_at': ['gte', 'lte'],
         }
@@ -1285,11 +1286,63 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
         response.save()
         return Response(DynamicSurveyResponseDetailSerializer(response).data)
 
+    @action(detail=True, methods=['post'], url_path='publish')
+    def publish(self, request, pk=None):
+        """Put a verified survey on the public map, or take it back off.
+
+        Publication is a second gate after verification: passing QA makes a
+        survey publishable, a verifier or admin decides whether it is actually
+        published. Unpublishing is always allowed and never touches the
+        verification status.
+        """
+        response = self.get_object()
+
+        if request.user.role not in ['VERIFIER', 'ADMIN']:
+            return Response(
+                {'detail': 'Only verifiers and admins can publish surveys'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        raw = request.data.get('publish', True)
+        if isinstance(raw, str):
+            publish = raw.strip().lower() in ('true', '1', 'yes')
+        else:
+            publish = bool(raw)
+
+        if publish:
+            if response.verification_status != DynamicSurveyResponse.Status.VERIFIED:
+                return Response(
+                    {'detail': 'Only verified surveys can be published'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            response.is_published = True
+            response.published_at = timezone.now()
+            response.published_by = request.user
+            log_update(
+                request, response,
+                f'Menerbitkan survei ke peta publik: {_response_label(response)}'
+            )
+        else:
+            response.is_published = False
+            response.published_at = None
+            response.published_by = None
+            log_update(
+                request, response,
+                f'Menarik survei dari peta publik: {_response_label(response)}'
+            )
+
+        response.save(update_fields=['is_published', 'published_at', 'published_by', 'updated_at'])
+        return Response(
+            DynamicSurveyResponseDetailSerializer(
+                response, context=self.get_serializer_context()
+            ).data
+        )
+
     def get_permissions(self):
         from apps.accounts.permissions import IsAdmin, IsVerifierOrAdmin
         if self.action in ['destroy', 'bulk_delete', 'trash', 'restore', 'bulk_restore']:
             return [IsAdmin()]
-        if self.action == 'approve_deletion':
+        if self.action in ['approve_deletion', 'publish']:
             return [IsVerifierOrAdmin()]
         if self.action == 'import_data':
             return [IsAdmin()]
@@ -1318,13 +1371,15 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
 
         Not paginated and not RBAC-filtered: this is the atlas view, so an
         anonymous caller (the landing page) and a signed-in one see the same
-        set of facilities. Drafts stay hidden until they are submitted, and
-        the serializer omits surveyor identity.
+        set of facilities. Only published surveys appear — verification is the
+        QA pass, publication is the separate decision to show the location —
+        and the serializer omits surveyor identity.
         """
         responses = self.queryset.filter(
+            is_published=True,
             latitude__isnull=False,
             longitude__isnull=False,
-        ).exclude(verification_status=DynamicSurveyResponse.Status.DRAFT)
+        )
 
         serializer = SurveyMapPointSerializer(
             responses, many=True, context=self.get_serializer_context()
@@ -1335,16 +1390,11 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
     def public_detail(self, request, pk=None):
         """One surveyed location as a public profile.
 
-        Reads the same unfiltered set as `map` so a marker always resolves to a
-        page. A draft 404s rather than 403s: it is not public yet, and telling
-        anonymous callers which ids exist would leak the drafts.
+        Reads the same published set as `map` so a marker always resolves to a
+        page. An unpublished survey 404s rather than 403s: it is not public
+        yet, and telling anonymous callers which ids exist would leak them.
         """
-        response = get_object_or_404(
-            self.queryset.exclude(
-                verification_status=DynamicSurveyResponse.Status.DRAFT
-            ),
-            pk=pk,
-        )
+        response = get_object_or_404(self.queryset.filter(is_published=True), pk=pk)
         serializer = SurveyLocationDetailSerializer(
             response, context=self.get_serializer_context()
         )

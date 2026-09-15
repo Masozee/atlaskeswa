@@ -221,6 +221,11 @@ export interface SurveyResponse {
   verified_at?: string | null;
   verifier_notes?: string;
   rejection_reason?: string;
+  /** Publication is the gate on the public map, separate from verification. */
+  is_published?: boolean;
+  published_at?: string | null;
+  published_by?: number | null;
+  published_by_name?: string | null;
   deletion_requested?: boolean;
   deletion_requested_at?: string | null;
   deletion_reason?: string;

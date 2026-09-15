@@ -1,3 +1,5 @@
+import re
+
 from rest_framework import serializers
 from .models import (
     Survey, SurveyAttachment, SurveyAuditLog,
@@ -263,6 +265,7 @@ class DynamicSurveyResponseListSerializer(serializers.ModelSerializer):
     jenis_layanan = serializers.SerializerMethodField()
     kode_desde_ltc = serializers.SerializerMethodField()
     deleted_by_name = serializers.SerializerMethodField()
+    published_by_name = serializers.SerializerMethodField()
 
     class Meta:
         model = DynamicSurveyResponse
@@ -271,6 +274,7 @@ class DynamicSurveyResponseListSerializer(serializers.ModelSerializer):
             'service_kecamatan', 'service_desa', 'q1_nama_fasilitas', 'status_badan_hukum', 'thumbnail',
             'survey_date', 'surveyor', 'surveyor_name',
             'verification_status', 'status_display',
+            'is_published', 'published_at', 'published_by_name',
             'deletion_requested',
             'deleted_at', 'deleted_by', 'deleted_by_name',
             'kategori', 'jenis_fasilitas', 'jenis_layanan', 'kode_desde_ltc',
@@ -282,6 +286,12 @@ class DynamicSurveyResponseListSerializer(serializers.ModelSerializer):
 
     def get_deleted_by_name(self, obj):
         user = obj.deleted_by
+        if not user:
+            return None
+        return user.get_full_name() or user.email
+
+    def get_published_by_name(self, obj):
+        user = obj.published_by
         if not user:
             return None
         return user.get_full_name() or user.email
@@ -421,6 +431,43 @@ class SurveyLocationPhotoSerializer(serializers.ModelSerializer):
         return request.build_absolute_uri(obj.image.url) if request else obj.image.url
 
 
+class SurveyLocationAnswerSerializer(serializers.ModelSerializer):
+    """One answer as the public location page needs it.
+
+    The dashboard payload minus identity and audit fields: the public page
+    renders the question and its value, never who recorded it or when.
+    """
+
+    question_code = serializers.CharField(source='question.code', read_only=True)
+    question_text = serializers.CharField(source='question.question_text', read_only=True)
+    selected_choice_labels = serializers.SerializerMethodField()
+    geographic_unit_display = serializers.SerializerMethodField()
+
+    class Meta:
+        model = QuestionAnswer
+        fields = [
+            'id', 'question_code', 'question_text',
+            'text_value', 'number_value', 'date_value', 'time_value', 'boolean_value',
+            'selected_choice_labels', 'other_text', 'geographic_unit_display',
+            'table_data', 'context_key',
+        ]
+
+    def get_selected_choice_labels(self, obj):
+        # Reads the prefetched choices instead of re-querying per answer.
+        return [c.label for c in obj.selected_choices.all() if c.label]
+
+    def get_geographic_unit_display(self, obj):
+        if obj.geographic_unit:
+            return obj.geographic_unit.get_full_path()
+        return obj.text_value or None
+
+
+def _desde_sort_key(code):
+    """Sorts DESDE-LTC codes the way they read: SA2 < SA4 < SI1.3 < SI2.1.1."""
+    parts = re.findall(r'\d+|[A-Za-z]+', code or '')
+    return [(1, int(p), '') if p.isdigit() else (0, 0, p) for p in parts]
+
+
 class SurveyLocationDetailSerializer(SurveyMapPointSerializer):
     """One surveyed location as a public profile page.
 
@@ -431,10 +478,47 @@ class SurveyLocationDetailSerializer(SurveyMapPointSerializer):
     """
 
     photos = SurveyLocationPhotoSerializer(many=True, read_only=True)
+    service_details = serializers.SerializerMethodField()
 
     class Meta(SurveyMapPointSerializer.Meta):
         fields = SurveyMapPointSerializer.Meta.fields + [
-            'status_badan_hukum', 'service_city', 'photos',
+            'status_badan_hukum', 'service_city', 'photos', 'service_details',
+        ]
+
+    def get_service_details(self, obj):
+        """The per-service detail blocks, one per branch the survey answered.
+
+        Detail questions (codes ending in a capital, e.g. SAQA) are stored once
+        per branch, with `context_key` holding the DESDE-LTC code of that branch
+        — SA2, SI2.1.1. Grouping by that key rebuilds the blocks the mobile app
+        asked one at a time; the MTC name comes from the choice that opened the
+        branch, which is already prefetched with the answers.
+        """
+        names = {}
+        for answer in obj.answers.all():
+            for choice in answer.selected_choices.all():
+                if choice.mtc_code:
+                    names[choice.mtc_code.code] = choice.mtc_code.name
+
+        blocks = {}
+        for answer in obj.answers.all():
+            code = answer.question.code or ''
+            ctx = answer.context_key or ''
+            # A trailing capital is what marks a detail question in this
+            # questionnaire (SAQA/SAQB vs the trigger SAQ1).
+            if not ctx or not re.search(r'[A-Z]$', code):
+                continue
+            blocks.setdefault(ctx, []).append(answer)
+
+        return [
+            {
+                'code': ctx,
+                'name': names.get(ctx),
+                'answers': SurveyLocationAnswerSerializer(
+                    blocks[ctx], many=True, context=self.context
+                ).data,
+            }
+            for ctx in sorted(blocks, key=_desde_sort_key)
         ]
 
 
@@ -448,6 +532,7 @@ class DynamicSurveyResponseDetailSerializer(serializers.ModelSerializer):
     verifier_name = serializers.SerializerMethodField()
     verified_by_name = serializers.SerializerMethodField()
     deletion_requested_by_name = serializers.SerializerMethodField()
+    published_by_name = serializers.SerializerMethodField()
     status_display = serializers.CharField(source='get_verification_status_display', read_only=True)
 
     class Meta:
@@ -459,6 +544,7 @@ class DynamicSurveyResponseDetailSerializer(serializers.ModelSerializer):
             'assigned_verifier', 'verifier_name',
             'verified_by', 'verified_by_name', 'verified_at',
             'verifier_notes', 'rejection_reason',
+            'is_published', 'published_at', 'published_by', 'published_by_name',
             'deletion_requested', 'deletion_requested_at',
             'deletion_requested_by', 'deletion_requested_by_name',
             'deletion_reason',
@@ -467,6 +553,7 @@ class DynamicSurveyResponseDetailSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at', 'started_at', 'submitted_at'
         ]
         read_only_fields = ['id', 'surveyor', 'verified_by', 'verified_at',
+                            'is_published', 'published_at', 'published_by',
                             'deletion_requested', 'deletion_requested_at', 'deletion_requested_by',
                             'created_at', 'updated_at', 'submitted_at']
 
@@ -486,6 +573,11 @@ class DynamicSurveyResponseDetailSerializer(serializers.ModelSerializer):
     def get_deletion_requested_by_name(self, obj):
         if obj.deletion_requested_by:
             return obj.deletion_requested_by.get_full_name() or obj.deletion_requested_by.email
+        return None
+
+    def get_published_by_name(self, obj):
+        if obj.published_by:
+            return obj.published_by.get_full_name() or obj.published_by.email
         return None
 
 
