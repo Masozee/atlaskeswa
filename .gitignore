@@ -23,7 +23,7 @@ data_dump.json
 dump.json
 
 # Build artifacts / archives
-backend/apps.zip
+*.zip
 *.log
 
 # Python
