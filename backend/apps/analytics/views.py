@@ -5,7 +5,7 @@ from django.db.models import Count, Sum, Avg, Q
 from django.db.models.functions import TruncDate, TruncMonth
 from django.utils import timezone
 from django.http import HttpResponse
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 import csv
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
@@ -115,6 +115,63 @@ def mobile_home(request):
     })
 
 
+def _activity_trends(days=14):
+    """One row per day for the last `days` days, quiet days included.
+
+    Two fixes over counting ActivityLog alone:
+
+    * Days with no activity were missing from the payload entirely, so a
+      14-day chart drew 3 uneven bars instead of 14 slots. Every day in the
+      window is emitted, zero-filled.
+    * Submissions counted only SURVEY_SUBMIT log rows, which the mobile app and
+      the bulk import never write. They are counted off `submitted_at` on the
+      responses themselves, which is the record of a survey actually arriving.
+
+    Dates are local (Asia/Jakarta), so a survey submitted at 8am local does not
+    land on the previous UTC day.
+    """
+    today = timezone.localdate()
+    start = today - timedelta(days=days - 1)
+    start_dt = timezone.make_aware(datetime.combine(start, time.min))
+
+    logins = dict(
+        ActivityLog.objects.filter(
+            timestamp__gte=start_dt, action=ActivityLog.Action.LOGIN
+        ).annotate(day=TruncDate('timestamp')).values('day').annotate(
+            n=Count('id')
+        ).values_list('day', 'n')
+    )
+    submissions = dict(
+        DynamicSurveyResponse.objects.filter(
+            submitted_at__gte=start_dt
+        ).annotate(day=TruncDate('submitted_at')).values('day').annotate(
+            n=Count('id')
+        ).values_list('day', 'n')
+    )
+    verifications = dict(
+        DynamicSurveyResponse.objects.filter(
+            verified_at__gte=start_dt
+        ).annotate(day=TruncDate('verified_at')).values('day').annotate(
+            n=Count('id')
+        ).values_list('day', 'n')
+    )
+
+    series = []
+    for offset in range(days):
+        day = start + timedelta(days=offset)
+        login_count = logins.get(day, 0)
+        submission_count = submissions.get(day, 0)
+        verification_count = verifications.get(day, 0)
+        series.append({
+            'day': day.isoformat(),
+            'logins': login_count,
+            'submissions': submission_count,
+            'verifications': verification_count,
+            'count': login_count + submission_count + verification_count,
+        })
+    return series
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def dashboard_stats(request):
@@ -182,17 +239,15 @@ def dashboard_stats(request):
         critical=Count('id', filter=Q(severity='CRITICAL', is_resolved=False)),
     )
 
-    # Activity trends (last 14 days) broken down by login and survey submissions
-    fourteen_days_ago = timezone.now() - timedelta(days=14)
-    daily_activities = ActivityLog.objects.filter(
-        timestamp__gte=fourteen_days_ago
-    ).annotate(
-        day=TruncDate('timestamp')
-    ).values('day').annotate(
-        count=Count('id'),
-        logins=Count('id', filter=Q(action=ActivityLog.Action.LOGIN)),
-        submissions=Count('id', filter=Q(action=ActivityLog.Action.SURVEY_SUBMIT)),
-    ).order_by('day')
+    # Activity trends. ?days= lets the dashboard widen the window when the
+    # recent fortnight is quiet; clamped so a caller cannot ask for a year of
+    # daily rows.
+    try:
+        trend_days = int(request.query_params.get('days', 14))
+    except (TypeError, ValueError):
+        trend_days = 14
+    trend_days = max(7, min(trend_days, 180))
+    daily_activities = _activity_trends(trend_days)
 
     # Latest 5 surveys with details (combine old + dynamic, sorted by created_at)
     old_surveys = [
@@ -256,7 +311,8 @@ def dashboard_stats(request):
             'unresolved_errors': error_stats['unresolved'],
             'critical_errors': error_stats['critical']
         },
-        'activity_trends': list(daily_activities),
+        'activity_trends': daily_activities,
+        'activity_trend_days': trend_days,
         'recent_surveys': recent_surveys_data
     })
 

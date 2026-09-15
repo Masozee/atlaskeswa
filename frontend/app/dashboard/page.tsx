@@ -8,6 +8,7 @@ import { authStore } from '@/store/auth-store';
 import { PageHeader } from "@/components/page-header"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { Separator } from "@/components/ui/separator"
 import { useState, useMemo } from 'react'
@@ -90,8 +91,13 @@ function StatCard({
   );
 }
 
+const TREND_WINDOWS = [14, 30, 90] as const;
+
 export default function DashboardPage() {
-  const { data: stats, isLoading } = useDashboardStats();
+  // Field work comes in bursts, so a fixed fortnight can be entirely empty
+  // while the season it belongs to is busy. The window is the reader's choice.
+  const [trendDays, setTrendDays] = useState<number>(14);
+  const { data: stats, isLoading } = useDashboardStats(trendDays);
   const { data: pendingSurveys } = useSurveys({ verification_status: 'SUBMITTED', page_size: 5 });
   const user = useStore(authStore, (state) => state.user);
   const [date, setDate] = useState<Date | undefined>(new Date());
@@ -130,11 +136,17 @@ export default function DashboardPage() {
     code: item.mtc__code,
   }));
 
-  const activityTrendData = stats?.activity_trends.slice(-14).map((item) => ({
+  const activityTrendData = (stats?.activity_trends ?? []).map((item) => ({
     date: new Date(item.day).toLocaleDateString('id-ID', { month: 'short', day: 'numeric' }),
     logins: item.logins,
     submissions: item.submissions,
+    verifications: item.verifications,
   }));
+  // A 90-day window cannot label every bar; thin the ticks instead of stacking them.
+  const trendTickInterval = Math.max(0, Math.ceil(activityTrendData.length / 12) - 1);
+  const trendIsEmpty = activityTrendData.every(
+    (d) => d.logins === 0 && d.submissions === 0 && d.verifications === 0
+  );
 
   return (
     <>
@@ -181,8 +193,27 @@ export default function DashboardPage() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
           <Card className="col-span-4 border-0 bg-white shadow-none">
             <CardHeader>
-              <CardTitle>Ikhtisar Aktivitas</CardTitle>
-              <CardDescription>Aktivitas pengguna selama 14 hari terakhir</CardDescription>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <CardTitle>Ikhtisar Aktivitas</CardTitle>
+                  <CardDescription>
+                    Aktivitas selama {trendDays} hari terakhir
+                  </CardDescription>
+                </div>
+                <div className="flex gap-1">
+                  {TREND_WINDOWS.map((days) => (
+                    <Button
+                      key={days}
+                      variant={trendDays === days ? 'default' : 'outline'}
+                      size="sm"
+                      className="h-7 px-2.5 text-xs shadow-none"
+                      onClick={() => setTrendDays(days)}
+                    >
+                      {days} hari
+                    </Button>
+                  ))}
+                </div>
+              </div>
             </CardHeader>
             <CardContent className="pl-2 pb-2">
               <div className="flex items-center gap-4 px-4 mb-3">
@@ -194,7 +225,16 @@ export default function DashboardPage() {
                   <div className="h-3 w-3 rounded-sm" style={{ backgroundColor: '#FFBF47' }} />
                   <span className="text-xs text-muted-foreground">Pengajuan Survei</span>
                 </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="h-3 w-3 rounded-sm" style={{ backgroundColor: '#4DB6AC' }} />
+                  <span className="text-xs text-muted-foreground">Verifikasi</span>
+                </div>
               </div>
+              {trendIsEmpty && (
+                <p className="px-4 pb-2 text-xs text-muted-foreground">
+                  Tidak ada aktivitas pada rentang ini. Coba rentang yang lebih panjang.
+                </p>
+              )}
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={activityTrendData} margin={{ top: 8, right: 12, left: 0, bottom: 5 }} barGap={2}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} />
@@ -204,6 +244,7 @@ export default function DashboardPage() {
                     axisLine={false}
                     tickLine={false}
                     tickMargin={8}
+                    interval={trendTickInterval}
                   />
                   <YAxis
                     tick={AXIS_TICK}
@@ -218,11 +259,16 @@ export default function DashboardPage() {
                     labelStyle={TOOLTIP_LABEL}
                     formatter={(value, name) => [
                       value,
-                      name === 'logins' ? 'Login' : 'Pengajuan Survei',
+                      name === 'logins'
+                        ? 'Login'
+                        : name === 'submissions'
+                          ? 'Pengajuan Survei'
+                          : 'Verifikasi',
                     ]}
                   />
                   <Bar dataKey="logins" fill="#07579E" radius={[4, 4, 0, 0]} maxBarSize={24} />
                   <Bar dataKey="submissions" fill="#FFBF47" radius={[4, 4, 0, 0]} maxBarSize={24} />
+                  <Bar dataKey="verifications" fill="#4DB6AC" radius={[4, 4, 0, 0]} maxBarSize={24} />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>

@@ -11,10 +11,12 @@ import { queryKeys } from '@/lib/query-keys';
 /**
  * Query options for dashboard stats
  */
-export const dashboardStatsQueryOptions = () =>
+export const dashboardStatsQueryOptions = (days: number = 14) =>
   queryOptions({
-    queryKey: queryKeys.analytics.dashboard(),
-    queryFn: () => apiClient.get<DashboardStats>('/analytics/dashboard/'),
+    queryKey: queryKeys.analytics.dashboard(days),
+    // `days` sizes the activity-trend window only; the rest of the payload is
+    // unaffected.
+    queryFn: () => apiClient.get<DashboardStats>('/analytics/dashboard/', { days }),
     refetchInterval: 60000, // Refetch every minute for real-time dashboard
   });
 
@@ -41,8 +43,8 @@ export const surveyAnalyticsQueryOptions = () =>
 /**
  * Dashboard statistics hook
  */
-export function useDashboardStats() {
-  return useQuery(dashboardStatsQueryOptions());
+export function useDashboardStats(days?: number) {
+  return useQuery(dashboardStatsQueryOptions(days));
 }
 
 /**

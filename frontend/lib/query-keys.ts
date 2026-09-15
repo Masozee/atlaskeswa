@@ -134,7 +134,7 @@ export const queryKeys = {
   // Analytics
   analytics: {
     all: ['analytics'] as const,
-    dashboard: () => [...queryKeys.analytics.all, 'dashboard'] as const,
+    dashboard: (days?: number) => [...queryKeys.analytics.all, 'dashboard', days ?? 14] as const,
     services: () => [...queryKeys.analytics.all, 'services'] as const,
     surveys: () => [...queryKeys.analytics.all, 'surveys'] as const,
   },

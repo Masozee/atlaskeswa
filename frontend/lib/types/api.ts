@@ -369,7 +369,15 @@ export interface DashboardStats {
     unresolved_errors: number;
     critical_errors: number;
   };
-  activity_trends: Array<{ day: string; count: number; logins: number; submissions: number }>;
+  /** One row per day across the whole window — quiet days included, zero-filled. */
+  activity_trends: Array<{
+    day: string;
+    count: number;
+    logins: number;
+    submissions: number;
+    verifications: number;
+  }>;
+  activity_trend_days: number;
 }
 
 // Logs
