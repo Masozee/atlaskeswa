@@ -210,7 +210,6 @@ function StatsPanel({ stats, className }: { stats?: ServiceStats; className?: st
 }
 
 export default function HomePage() {
-  const [hoveredKecamatan, setHoveredKecamatan] = useState<string | null>(null);
   const isDesktop = useIsDesktop();
   const { data: serviceStats } = useServiceStats();
   const stats = serviceStats as ServiceStats | undefined;
@@ -232,18 +231,16 @@ export default function HomePage() {
             maxBounds={isDesktop ? HERO_MAP_BOUNDS : undefined}
             cooperativeGestures
             showLegend
-            onHoverKecamatan={setHoveredKecamatan}
+            choropleth
           />
 
           {/* Location indicator */}
           <div className="absolute top-4 left-4 lg:top-6 lg:left-1/2 lg:-translate-x-1/2">
             <div className="flex items-center gap-2 rounded-md border bg-background/85 backdrop-blur px-3 py-1.5">
               <HugeiconsIcon icon={Location01Icon} size={14} className="text-muted-foreground" />
-              <span className="text-xs">
-                {hoveredKecamatan
-                  ? `Kecamatan ${hoveredKecamatan}, Kebumen`
-                  : "Kabupaten Kebumen, Jawa Tengah"}
-              </span>
+              {/* The hovered kecamatan now rides above the pointer on the map
+                  itself, so this chip stays put as the map's title. */}
+              <span className="text-xs">Kabupaten Kebumen, Jawa Tengah</span>
             </div>
           </div>
 
@@ -303,6 +300,7 @@ export default function HomePage() {
               src="/priscilla-du-preez-aPa843frIzI-unsplash.jpg"
               alt="Kolaborasi Tim Kesehatan"
               fill
+              sizes="(min-width: 1024px) 600px, 100vw"
               className="object-cover"
             />
           </div>

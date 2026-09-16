@@ -76,7 +76,7 @@ export default function KecamatanPage() {
           </h1>
           <p className="mt-4 text-[15px] text-foreground/80 max-w-[62ch]">
             Sebaran layanan kesehatan jiwa yang sudah disurvei di setiap kecamatan di Kabupaten
-            Kebumen. Pilih satu kecamatan untuk melihat daftar layanannya.
+            Kebumen. Pilih satu kecamatan untuk melihat data sekunder dan layanannya.
           </p>
         </div>
 
@@ -134,7 +134,7 @@ export default function KecamatanPage() {
                     {filtered.map((row) => (
                       <li key={row.name} className="odd:bg-black/[0.03]">
                         <Link
-                          href={`/layanan-kesehatan?kecamatan=${encodeURIComponent(row.name)}`}
+                          href={`/kecamatan/${encodeURIComponent(row.name)}`}
                           className="grid gap-1 px-4 py-3 sm:grid-cols-[1fr_8rem_8rem_8rem] sm:items-baseline sm:gap-6 hover:bg-black/[0.05] transition-colors"
                         >
                           <span className="font-medium">{row.name}</span>

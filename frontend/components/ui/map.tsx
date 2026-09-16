@@ -822,11 +822,17 @@ type MapRouteProps = {
 
 type MapGeoJSONProps = {
   data: GeoJSON.FeatureCollection | GeoJSON.Feature | string;
-  fillColor?: string;
-  fillOpacity?: number;
-  strokeColor?: string;
-  strokeWidth?: number;
-  strokeOpacity?: number;
+  /**
+   * A CSS colour, or a MapLibre paint expression for a choropleth — e.g.
+   * `["step", ["get", "value"], "#eee", 20, "#bbb"]`. Expressions read the
+   * feature properties, so the values have to be on the GeoJSON already.
+   */
+  fillColor?: string | unknown[];
+  /** A number, or an expression — e.g. to dim every feature but one. */
+  fillOpacity?: number | unknown[];
+  strokeColor?: string | unknown[];
+  strokeWidth?: number | unknown[];
+  strokeOpacity?: number | unknown[];
   onFeatureClick?: (feature: GeoJSON.Feature, e: MapLibreGL.MapMouseEvent) => void;
   onFeatureHover?: (feature: GeoJSON.Feature | null, e: MapLibreGL.MapMouseEvent) => void;
 };
@@ -862,15 +868,33 @@ function MapGeoJSON({
 
   // Load GeoJSON data if URL is provided
   useEffect(() => {
+    // A component that starts with a URL and later passes an object — a
+    // choropleth waiting on its values — would otherwise have the in-flight
+    // fetch land last and overwrite the object with the plain file.
+    let cancelled = false;
     if (typeof data === "string") {
       fetch(data)
         .then((res) => res.json())
-        .then((json) => setGeoJsonData(json))
-        .catch((err) => console.error("Failed to load GeoJSON:", err));
+        .then((json) => {
+          if (!cancelled) setGeoJsonData(json);
+        })
+        .catch((err) => {
+          if (!cancelled) console.error("Failed to load GeoJSON:", err);
+        });
     } else {
       setGeoJsonData(data);
     }
+    return () => {
+      cancelled = true;
+    };
   }, [data]);
+
+  // Feed new data into the existing source rather than rebuilding the layer.
+  useEffect(() => {
+    if (!isLoaded || !map || !geoJsonData) return;
+    const source = map.getSource(sourceId) as MapLibreGL.GeoJSONSource | undefined;
+    if (source && "setData" in source) source.setData(geoJsonData as never);
+  }, [map, isLoaded, sourceId, geoJsonData]);
 
   // Add source and layers on mount
   useEffect(() => {
@@ -891,8 +915,8 @@ function MapGeoJSON({
         type: "fill",
         source: sourceId,
         paint: {
-          "fill-color": fillColor,
-          "fill-opacity": fillOpacity,
+          "fill-color": fillColor as never,
+          "fill-opacity": fillOpacity as never,
         },
       });
     }
@@ -904,9 +928,9 @@ function MapGeoJSON({
         type: "line",
         source: sourceId,
         paint: {
-          "line-color": strokeColor,
-          "line-width": strokeWidth,
-          "line-opacity": strokeOpacity,
+          "line-color": strokeColor as never,
+          "line-width": strokeWidth as never,
+          "line-opacity": strokeOpacity as never,
         },
       });
     }
@@ -959,13 +983,13 @@ function MapGeoJSON({
     if (!isLoaded || !map) return;
 
     if (map.getLayer(fillLayerId)) {
-      map.setPaintProperty(fillLayerId, "fill-color", fillColor);
-      map.setPaintProperty(fillLayerId, "fill-opacity", fillOpacity);
+      map.setPaintProperty(fillLayerId, "fill-color", fillColor as never);
+      map.setPaintProperty(fillLayerId, "fill-opacity", fillOpacity as never);
     }
     if (map.getLayer(strokeLayerId)) {
-      map.setPaintProperty(strokeLayerId, "line-color", strokeColor);
-      map.setPaintProperty(strokeLayerId, "line-width", strokeWidth);
-      map.setPaintProperty(strokeLayerId, "line-opacity", strokeOpacity);
+      map.setPaintProperty(strokeLayerId, "line-color", strokeColor as never);
+      map.setPaintProperty(strokeLayerId, "line-width", strokeWidth as never);
+      map.setPaintProperty(strokeLayerId, "line-opacity", strokeOpacity as never);
     }
   }, [isLoaded, map, fillLayerId, strokeLayerId, fillColor, fillOpacity, strokeColor, strokeWidth, strokeOpacity]);
 

@@ -29,6 +29,7 @@ urlpatterns = [
     path('v1/logs/', include('apps.logs.urls')),
     path('v1/analytics/', include('apps.analytics.urls')),
     path('v1/help/', include('apps.help.urls')),
+    path('v1/secondary/', include('apps.secondary.urls')),
     path('v1/settings/', include('apps.settings.urls')),
 ]
 

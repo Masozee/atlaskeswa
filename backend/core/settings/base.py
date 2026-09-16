@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'apps.analytics',
     'apps.logs',
     'apps.help',
+    'apps.secondary',
     'apps.settings',
 ]
 
