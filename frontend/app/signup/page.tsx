@@ -19,6 +19,7 @@ export default function SignupPage() {
             src="/a-c-ZzFIFbD7DE0-unsplash.jpg"
             alt="Background"
             fill
+            sizes="50vw"
             className="object-cover"
             priority
           />

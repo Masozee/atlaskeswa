@@ -100,6 +100,7 @@ export function LoginForm({
               src={logoSrc}
               alt="Logo OMMHA"
               fill
+              sizes="64px"
               className="object-contain"
             />
           </div>

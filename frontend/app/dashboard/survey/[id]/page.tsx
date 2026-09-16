@@ -1079,6 +1079,7 @@ export default function SurveyDetailPage({
                     src={URL.createObjectURL(selectedPhoto)}
                     alt="Preview"
                     fill
+                    sizes="(min-width: 640px) 512px, 100vw"
                     className="object-cover"
                   />
                 </div>

@@ -299,6 +299,7 @@ function MobileSidebar({ filteredNavMain, pathname }: { filteredNavMain: typeof 
               src={logoSrc}
               alt="Logo OMMHA"
               fill
+              sizes="40px"
               className="object-contain"
             />
           </div>
@@ -434,6 +435,7 @@ function DesktopSidebar({
                       src={logoSrc}
                       alt="Logo OMMHA"
                       fill
+                      sizes="40px"
                       className="object-contain"
                     />
                   </div>
