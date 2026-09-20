@@ -16,6 +16,7 @@ import { PublicFooter } from '@/components/public-footer';
 import { DevNotice } from '@/components/dev-notice';
 import { PARTNER_LOGOS } from '@/lib/partners';
 import { useServiceStats } from '@/hooks/use-services';
+import { toSentenceCase } from '@/lib/utils/text';
 import { useSurveyMapPoints } from '@/hooks/use-survey-responses';
 import { useSecondaryChoropleth } from '@/hooks/use-secondary';
 import { HugeiconsIcon } from "@hugeicons/react"
@@ -266,7 +267,7 @@ function KecamatanPanel({
   onClear: () => void;
 }) {
   return (
-    <div className="rounded-md border bg-background/85 backdrop-blur px-3 py-2 text-xs w-60">
+    <div className="rounded-md border bg-background/85 backdrop-blur px-3 py-2 text-xs h-full">
       <div className="flex items-center gap-2">
         <HugeiconsIcon icon={Location01Icon} size={14} className="text-muted-foreground" />
         <span className="font-medium flex-1">
@@ -292,23 +293,22 @@ function KecamatanPanel({
       <div className="mt-2 pt-2 border-t space-y-1">
         <p className="leading-snug">{indicator ?? 'Gangguan jiwa (gabungan)'}</p>
         {reading ? (
-          <dl className="space-y-0.5">
-            <div className="flex items-baseline justify-between gap-2">
-              <dt className="text-muted-foreground">Per 10.000</dt>
-              <dd className="tabular-nums font-medium">{formatNumber(reading.rate, 1)}</dd>
-            </div>
-            <div className="flex items-baseline justify-between gap-2">
-              <dt className="text-muted-foreground">Jumlah kasus</dt>
-              <dd className="tabular-nums">{formatNumber(reading.value)}</dd>
-            </div>
-            <div className="flex items-baseline justify-between gap-2">
-              <dt className="text-muted-foreground">Penduduk</dt>
-              <dd className="tabular-nums">{formatNumber(reading.population)}</dd>
-            </div>
-            <div className="flex items-baseline justify-between gap-2">
-              <dt className="text-muted-foreground">Layanan tersurvei</dt>
-              <dd className="tabular-nums">{formatNumber(reading.services)}</dd>
-            </div>
+          // The wide cell of the bento, so the four readings sit side by side
+          // as figures rather than stacking into a list.
+          <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 lg:grid-cols-4">
+            {[
+              { label: 'Per 10.000', value: formatNumber(reading.rate, 1) },
+              { label: 'Jumlah kasus', value: formatNumber(reading.value) },
+              { label: 'Penduduk', value: formatNumber(reading.population) },
+              { label: 'Layanan', value: formatNumber(reading.services) },
+            ].map((figure) => (
+              <div key={figure.label}>
+                <dt className="text-[10px] text-muted-foreground leading-tight">{figure.label}</dt>
+                <dd className="text-sm font-semibold tabular-nums leading-tight mt-0.5">
+                  {figure.value}
+                </dd>
+              </div>
+            ))}
           </dl>
         ) : (
           <p className="text-muted-foreground tabular-nums">
@@ -325,6 +325,168 @@ function KecamatanPanel({
         {reading ? `Detail Kec. ${reading.name}` : 'Data selengkapnya'}
         <HugeiconsIcon icon={ArrowRight01Icon} size={12} />
       </Link>
+    </div>
+  );
+}
+
+/**
+ * QL1 and QL2 as the five DESDE-LTC branches they classify into. The main
+ * branch (R) and its social counterpart (SR) are one line: a reader asking
+ * "how many places take people overnight" does not care which of the two.
+ */
+const SERVICE_GROUPS: { label: string; branches: string[]; color: string }[] = [
+  { label: 'Rawat inap', branches: ['R', 'SR'], color: '#07579E' },
+  { label: 'Perawatan harian', branches: ['D', 'SD'], color: '#4DB6AC' },
+  { label: 'Rawat jalan', branches: ['O', 'SO'], color: '#FFBF47' },
+  { label: 'Aksesibilitas', branches: ['A', 'SA'], color: '#9575CD' },
+  { label: 'Informasi', branches: ['I', 'SI'], color: '#00979D' },
+];
+
+/** "SA2 — Layanan …" classifies under branch SA. */
+function desdeBranch(entry: string) {
+  const code = entry.split(' — ')[0];
+  return (code.match(/^[A-Za-z]+/)?.[0] ?? code).toUpperCase();
+}
+
+/**
+ * Q4's own option order, so the facility breakdown reads down the
+ * questionnaire — Rumah Sakit Umum first — rather than by whichever type
+ * happens to be commonest today. Each type keeps its colour across kecamatan
+ * for the same reason.
+ */
+const FACILITY_TYPES: { label: string; color: string }[] = [
+  { label: 'Rumah Sakit Umum', color: '#07579E' },
+  { label: 'Rumah Sakit Jiwa (RSJ)', color: '#5C6BC0' },
+  { label: 'Puskesmas', color: '#00979D' },
+  { label: 'Klinik atau biro psikologi', color: '#4DB6AC' },
+  { label: 'Praktek Dokter Mandiri', color: '#66BB6A' },
+  { label: 'Balai atau Unit Rehabilitasi', color: '#9CCC65' },
+  { label: 'Panti Sosial/Lembaga Rehabilitasi Sosial/Pondok Pesantren', color: '#FFBF47' },
+  { label: 'Organisasi Berbasis Komunitas', color: '#FFA726' },
+  { label: 'Lembaga Swadaya Masyarakat (LSM)', color: '#EF6C60' },
+  { label: 'Lembaga Kesejahteraan Sosial (LKS)', color: '#EC407A' },
+  { label: 'Kader Kesehatan', color: '#9575CD' },
+  { label: 'TKSK (Tenaga kesejahteraan sosial kecamatan)', color: '#8D6E63' },
+];
+
+/** The API returns the authored label; matching ignores case and spacing. */
+const facilityKey = (label: string) => label.trim().toLowerCase().replace(/\s+/g, ' ');
+const FACILITY_INDEX: Record<string, number> = Object.fromEntries(
+  FACILITY_TYPES.map((type, index) => [facilityKey(type.label), index])
+);
+
+type CountRow = { label: string; count: number; color?: string };
+
+/**
+ * The same breakdown as a ring. A facility is classified under several
+ * branches at once, so the slices are shares of the counted classifications,
+ * not of the facilities — the centre carries the count they add up to.
+ */
+function breakdownSegments(rows: CountRow[], total: number) {
+  let acc = 0;
+  return rows.map((row) => {
+    const dash = (row.count / total) * DONUT_CIRCUMFERENCE;
+    const segment = { ...row, dash, offset: -acc };
+    acc += dash;
+    return segment;
+  });
+}
+
+function BreakdownDonut({ rows }: { rows: CountRow[] }) {
+  const total = rows.reduce((sum, row) => sum + row.count, 0);
+  if (total === 0) return null;
+  const segments = breakdownSegments(rows, total);
+
+  return (
+    <div className="relative mx-auto my-2 w-28">
+      <svg viewBox="0 0 100 100" className="w-28 h-28 -rotate-90">
+        {segments.map((segment) => (
+          <circle
+            key={segment.label}
+            cx="50" cy="50" r="40"
+            fill="none"
+            stroke={segment.color ?? '#00979D'}
+            strokeWidth="16"
+            strokeDasharray={`${segment.dash} ${DONUT_CIRCUMFERENCE}`}
+            strokeDashoffset={segment.offset}
+          />
+        ))}
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-lg font-semibold leading-none tabular-nums">{total}</span>
+        <span className="text-[10px] text-muted-foreground mt-0.5">Layanan</span>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A counted breakdown under the kecamatan reading: same scope, same filter, so
+ * the three panels always describe one selection.
+ */
+function BreakdownPanel({
+  title,
+  kecamatan,
+  rows,
+  empty,
+  chart = false,
+}: {
+  title: string;
+  kecamatan: string | null;
+  rows: CountRow[];
+  empty: string;
+  chart?: boolean;
+}) {
+  const max = rows.reduce((highest, row) => Math.max(highest, row.count), 0);
+
+  return (
+    <div className="rounded-md border bg-background/85 backdrop-blur px-3 py-2 text-xs h-full overflow-y-auto">
+      <h3 className="font-medium">{title}</h3>
+      <p className="text-muted-foreground mt-0.5">
+        Kab. Kebumen
+        {kecamatan && <span className="text-primary">, Kec. {kecamatan}</span>}
+      </p>
+
+      {rows.length === 0 ? (
+        <p className="text-muted-foreground mt-2 pt-2 border-t leading-snug">{empty}</p>
+      ) : (
+        <div className="mt-2 pt-2 border-t">
+          {chart && <BreakdownDonut rows={rows} />}
+          <dl className="space-y-0.5">
+            {rows.map((row) => (
+              <div
+                key={row.label}
+                className="relative flex items-baseline justify-between gap-2 px-1 py-1"
+              >
+                {/* The bar is the row's background, scaled against the largest
+                    count in this panel, so the shape reads without a second
+                    column of chrome. */}
+                <span
+                  aria-hidden
+                  className="absolute inset-y-0 left-0 rounded-sm opacity-20"
+                  style={{
+                    width: `${max > 0 ? Math.max((row.count / max) * 100, 2) : 0}%`,
+                    backgroundColor: row.color ?? '#00979D',
+                  }}
+                />
+                <dt className="relative flex items-center gap-1.5 leading-snug">
+                  {row.color && (
+                    <span
+                      aria-hidden
+                      className="h-2 w-2 flex-shrink-0 rounded-full"
+                      style={{ backgroundColor: row.color }}
+                    />
+                  )}
+                  {row.label}
+                </dt>
+                <dd className="relative tabular-nums font-medium">
+                  {row.count.toLocaleString('id-ID')}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      )}
     </div>
   );
 }
@@ -388,6 +550,50 @@ export default function HomePage() {
   }, []);
   const clearKecamatan = useCallback(() => setSelectedKecamatan(null), []);
 
+  // Both breakdowns describe exactly what the map is showing: the same
+  // kategori filter, narrowed to the clicked kecamatan when there is one.
+  const scopedPoints = useMemo(() => {
+    const key = selectedKecamatan?.trim().toLowerCase();
+    return (mapPoints ?? []).filter(
+      (point) =>
+        (kategori === 'Semua' || point.kategori === kategori) &&
+        (!key || (point.kecamatan ?? '').trim().toLowerCase() === key)
+    );
+  }, [mapPoints, kategori, selectedKecamatan]);
+
+  const serviceRows = useMemo<CountRow[]>(
+    () =>
+      SERVICE_GROUPS.map((group) => ({
+        label: group.label,
+        color: group.color,
+        count: scopedPoints.filter((point) =>
+          (point.kode_desde_ltc ?? []).some((entry) => group.branches.includes(desdeBranch(entry)))
+        ).length,
+      })).filter((row) => row.count > 0),
+    [scopedPoints]
+  );
+
+  const facilityRows = useMemo<CountRow[]>(() => {
+    // Q4 is multi-select and the API joins the chosen labels with a comma, so a
+    // facility can land on more than one row.
+    const counts: Record<string, number> = {};
+    for (const point of scopedPoints) {
+      for (const label of (point.jenis_fasilitas ?? '').split(',')) {
+        const cleaned = label.trim();
+        if (cleaned) counts[cleaned] = (counts[cleaned] ?? 0) + 1;
+      }
+    }
+    return Object.entries(counts)
+      .map(([label, count]) => {
+        const display = toSentenceCase(label);
+        // A type the questionnaire has since renamed still gets a row, it just
+        // sorts after the ones Q4 knows about.
+        const index = FACILITY_INDEX[facilityKey(display)] ?? FACILITY_TYPES.length;
+        return { label: display, count, color: FACILITY_TYPES[index]?.color ?? '#6B7280', index };
+      })
+      .sort((a, b) => a.index - b.index || a.label.localeCompare(b.label, 'id'));
+  }, [scopedPoints]);
+
   const { data: choropleth } = useSecondaryChoropleth();
   const highlight = useMemo(() => {
     const series = choropleth?.series ?? [];
@@ -449,8 +655,8 @@ export default function HomePage() {
           />
 
           {/* Map header: title and marker filter left, highlighted area right */}
-          <div className="absolute inset-x-0 top-0 z-10 pointer-events-none">
-            <div className="flex items-start justify-between gap-3 p-4 lg:p-6">
+          <div className="absolute inset-0 z-10 pointer-events-none">
+            <div className="flex h-full items-start justify-between gap-3 p-4 lg:p-6">
               <div className="flex flex-col gap-2 pointer-events-auto">
                 <div className="flex items-center gap-2 self-start rounded-md border bg-background/85 backdrop-blur px-3 py-1.5">
                   <HugeiconsIcon icon={Location01Icon} size={14} className="text-muted-foreground" />
@@ -461,14 +667,31 @@ export default function HomePage() {
                 <KategoriFilterBar value={kategori} onChange={setKategori} counts={counts} />
               </div>
 
-              <div className="pointer-events-auto hidden sm:block">
-                <KecamatanPanel
-                  reading={reading}
-                  indicator={highlight.indicator}
-                  source={highlight.source}
-                  kecamatanWithData={highlight.kecamatanWithData}
-                  averageRate={highlight.averageRate}
-                  onClear={clearKecamatan}
+              {/* Bento: the reading spans the top, the two breakdowns share
+                  the row under it. One column until there is room for two. */}
+              <div className="pointer-events-auto hidden sm:grid h-full grid-cols-1 lg:grid-cols-2 grid-rows-[auto_minmax(0,1fr)_minmax(0,1fr)] lg:grid-rows-[auto_minmax(0,1fr)] gap-2 w-60 lg:w-[30rem]">
+                <div className="lg:col-span-2">
+                  <KecamatanPanel
+                    reading={reading}
+                    indicator={highlight.indicator}
+                    source={highlight.source}
+                    kecamatanWithData={highlight.kecamatanWithData}
+                    averageRate={highlight.averageRate}
+                    onClear={clearKecamatan}
+                  />
+                </div>
+                <BreakdownPanel
+                  title="Jenis fasilitas"
+                  kecamatan={selectedKecamatan}
+                  rows={facilityRows}
+                  empty="Belum ada fasilitas tersurvei di sini."
+                />
+                <BreakdownPanel
+                  title="Jenis layanan"
+                  kecamatan={selectedKecamatan}
+                  rows={serviceRows}
+                  empty="Belum ada layanan terklasifikasi di sini."
+                  chart
                 />
               </div>
             </div>
