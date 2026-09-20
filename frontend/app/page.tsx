@@ -17,6 +17,12 @@ import { DevNotice } from '@/components/dev-notice';
 import { PARTNER_LOGOS } from '@/lib/partners';
 import { useServiceStats } from '@/hooks/use-services';
 import { toSentenceCase } from '@/lib/utils/text';
+import {
+  FACILITY_TYPES,
+  FACILITY_OTHER,
+  facilityIndex,
+  facilityLabels,
+} from '@/lib/facility-types';
 import { useSurveyMapPoints } from '@/hooks/use-survey-responses';
 import { useSecondaryChoropleth } from '@/hooks/use-secondary';
 import { HugeiconsIcon } from "@hugeicons/react"
@@ -348,33 +354,6 @@ function desdeBranch(entry: string) {
   return (code.match(/^[A-Za-z]+/)?.[0] ?? code).toUpperCase();
 }
 
-/**
- * Q4's own option order, so the facility breakdown reads down the
- * questionnaire — Rumah Sakit Umum first — rather than by whichever type
- * happens to be commonest today. Each type keeps its colour across kecamatan
- * for the same reason.
- */
-const FACILITY_TYPES: { label: string; color: string }[] = [
-  { label: 'Rumah Sakit Umum', color: '#07579E' },
-  { label: 'Rumah Sakit Jiwa (RSJ)', color: '#5C6BC0' },
-  { label: 'Puskesmas', color: '#00979D' },
-  { label: 'Klinik atau biro psikologi', color: '#4DB6AC' },
-  { label: 'Praktek Dokter Mandiri', color: '#66BB6A' },
-  { label: 'Balai atau Unit Rehabilitasi', color: '#9CCC65' },
-  { label: 'Panti Sosial/Lembaga Rehabilitasi Sosial/Pondok Pesantren', color: '#FFBF47' },
-  { label: 'Organisasi Berbasis Komunitas', color: '#FFA726' },
-  { label: 'Lembaga Swadaya Masyarakat (LSM)', color: '#EF6C60' },
-  { label: 'Lembaga Kesejahteraan Sosial (LKS)', color: '#EC407A' },
-  { label: 'Kader Kesehatan', color: '#9575CD' },
-  { label: 'TKSK (Tenaga kesejahteraan sosial kecamatan)', color: '#8D6E63' },
-];
-
-/** The API returns the authored label; matching ignores case and spacing. */
-const facilityKey = (label: string) => label.trim().toLowerCase().replace(/\s+/g, ' ');
-const FACILITY_INDEX: Record<string, number> = Object.fromEntries(
-  FACILITY_TYPES.map((type, index) => [facilityKey(type.label), index])
-);
-
 type CountRow = { label: string; count: number; color?: string };
 
 /**
@@ -578,18 +557,21 @@ export default function HomePage() {
     // facility can land on more than one row.
     const counts: Record<string, number> = {};
     for (const point of scopedPoints) {
-      for (const label of (point.jenis_fasilitas ?? '').split(',')) {
-        const cleaned = label.trim();
-        if (cleaned) counts[cleaned] = (counts[cleaned] ?? 0) + 1;
+      for (const label of facilityLabels(point.jenis_fasilitas)) {
+        counts[label] = (counts[label] ?? 0) + 1;
       }
     }
     return Object.entries(counts)
       .map(([label, count]) => {
-        const display = toSentenceCase(label);
         // A type the questionnaire has since renamed still gets a row, it just
         // sorts after the ones Q4 knows about.
-        const index = FACILITY_INDEX[facilityKey(display)] ?? FACILITY_TYPES.length;
-        return { label: display, count, color: FACILITY_TYPES[index]?.color ?? '#6B7280', index };
+        const index = facilityIndex(label);
+        return {
+          label: toSentenceCase(label),
+          count,
+          color: FACILITY_TYPES[index]?.color ?? FACILITY_OTHER.color,
+          index,
+        };
       })
       .sort((a, b) => a.index - b.index || a.label.localeCompare(b.label, 'id'));
   }, [scopedPoints]);

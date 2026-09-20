@@ -188,100 +188,98 @@ function Breadcrumb({ location }: { location: SurveyLocationDetail }) {
  */
 function Masthead({ location }: { location: SurveyLocationDetail }) {
   const title = location.service_name ?? location.name ?? 'Tanpa nama';
-  const surveyName = location.name && location.name !== title ? location.name : null;
+  // The cover rides alongside the title; any further photos become a chapter.
+  const cover = location.photos.find((photo) => photo.image_url);
 
   return (
     <div className="pt-8 pb-8">
       <Breadcrumb location={location} />
 
-      <div className="flex flex-wrap items-center gap-2 mt-5">
-        {location.kategori && (
-          <Badge
-            className="text-white border-0"
-            style={{ backgroundColor: KATEGORI_COLOR[location.kategori] ?? '#6B7280' }}
-          >
-            {kategoriLabel(location.kategori)}
-          </Badge>
+      <div className="mt-5 grid gap-6 lg:gap-10 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            {location.kategori && (
+              <Badge
+                className="text-white border-0"
+                style={{ backgroundColor: KATEGORI_COLOR[location.kategori] ?? '#6B7280' }}
+              >
+                {kategoriLabel(location.kategori)}
+              </Badge>
+            )}
+            <Badge variant={statusVariant(location.verification_status)}>
+              {location.status_display}
+            </Badge>
+          </div>
+
+          <h1 className="mt-3 text-[34px] sm:text-[42px] font-semibold tracking-tight leading-[1.08]">
+            {title}
+          </h1>
+
+          {location.jenis_layanan && (
+            // What the place actually does, read straight after its name rather
+            // than found halfway down the record.
+            /*
+              The questionnaire authored these descriptions in caps. Only the
+              all-caps runs are lowered, so ODGJ survives and the parenthetical
+              clarifications stay in the mixed case they were written in.
+            */
+            <p className="mt-4 text-base text-foreground/80 leading-relaxed">
+              {toSentenceCase(location.jenis_layanan)}
+            </p>
+          )}
+        </div>
+
+        {cover && (
+          <figure className="lg:sticky lg:top-6">
+            <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-muted">
+              <Image
+                src={cover.image_url as string}
+                alt={cover.caption || 'Foto fasilitas'}
+                fill
+                priority
+                sizes="(min-width: 1024px) 352px, 100vw"
+                className="object-cover"
+              />
+            </div>
+            {cover.caption && (
+              <figcaption className="mt-2 text-[13px] text-muted-foreground leading-snug">
+                {cover.caption}
+              </figcaption>
+            )}
+          </figure>
         )}
-        <Badge variant={statusVariant(location.verification_status)}>
-          {location.status_display}
-        </Badge>
       </div>
-
-      <h1 className="mt-3 text-[34px] sm:text-[42px] font-semibold tracking-tight leading-[1.08]">
-        {title}
-      </h1>
-
-      {surveyName && (
-        <p className="mt-3 text-base">
-          <span className="text-muted-foreground">Nama menurut survei </span>
-          {surveyName}
-        </p>
-      )}
-
-      {location.jenis_layanan && (
-        // What the place actually does, read straight after its name rather
-        // than found halfway down the record.
-        /*
-          The questionnaire authored these descriptions in caps. Only the
-          all-caps runs are lowered, so ODGJ survives and the parenthetical
-          clarifications stay in the mixed case they were written in.
-        */
-        <p className="mt-4 text-base text-foreground/80 leading-relaxed max-w-[68ch]">
-          {toSentenceCase(location.jenis_layanan)}
-        </p>
-      )}
     </div>
   );
 }
 
-/** Media chapter. Only rendered when the survey actually carries photos. */
+/** The photos the masthead did not take as its cover. */
 function PhotoChapter({ photos }: { photos: SurveyLocationPhoto[] }) {
-  const usable = photos.filter((photo) => photo.image_url);
-  if (usable.length === 0) return null;
-
-  const [cover, ...rest] = usable;
+  const rest = photos.filter((photo) => photo.image_url).slice(1);
+  if (rest.length === 0) return null;
 
   return (
-    <Chapter title={usable.length > 1 ? `Foto fasilitas (${usable.length})` : 'Foto fasilitas'}>
-      <figure>
-        <div className="relative aspect-[16/9] w-full overflow-hidden rounded-lg bg-muted">
-          <Image
-            src={cover.image_url as string}
-            alt={cover.caption || 'Foto fasilitas'}
-            fill
-            priority
-            sizes="(min-width: 1024px) 960px, 100vw"
-            className="object-cover"
-          />
-        </div>
-        {cover.caption && (
-          <figcaption className="mt-2 text-[13px] text-muted-foreground">{cover.caption}</figcaption>
-        )}
-      </figure>
-
-      {rest.length > 0 && (
-        <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 mt-4">
-          {rest.map((photo) => (
-            <figure key={photo.id}>
-              <div className="relative aspect-[4/3] overflow-hidden rounded-md bg-muted">
-                <Image
-                  src={photo.image_url as string}
-                  alt={photo.caption || 'Foto fasilitas'}
-                  fill
-                  sizes="(min-width: 640px) 300px, 45vw"
-                  className="object-cover"
-                />
-              </div>
-              {photo.caption && (
-                <figcaption className="mt-2 text-[13px] text-muted-foreground leading-snug">
-                  {photo.caption}
-                </figcaption>
-              )}
-            </figure>
-          ))}
-        </div>
-      )}
+    <Chapter title={`Foto fasilitas (${rest.length})`}>
+      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3">
+        {rest.map((photo) => (
+          <figure key={photo.id}>
+            <div className="relative aspect-[4/3] overflow-hidden rounded-md bg-muted">
+              <Image
+                src={photo.image_url as string}
+                alt={photo.caption || 'Foto fasilitas'}
+                fill
+                sizes="(min-width: 640px) 300px, 45vw"
+                className="object-cover"
+              />
+            </div>
+            {photo.caption && (
+              <figcaption className="mt-2 text-[13px] text-muted-foreground leading-snug">
+                {photo.caption}
+              </figcaption>
+            )}
+          </figure>
+        ))}
+      </div>
     </Chapter>
   );
 }
