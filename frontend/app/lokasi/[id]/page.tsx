@@ -54,6 +54,60 @@ function splitDesdeCode(entry: string) {
   return { code: entry.slice(0, sep), name: entry.slice(sep + 3) };
 }
 
+/** "SI2.1.1" sorts after "SI1.3": segment by segment, numbers as numbers. */
+function compareDesdeCode(a: string, b: string) {
+  const segmentsA = a.split('.');
+  const segmentsB = b.split('.');
+  for (let i = 0; i < Math.max(segmentsA.length, segmentsB.length); i++) {
+    const left = segmentsA[i] ?? '';
+    const right = segmentsB[i] ?? '';
+    const compared = left.localeCompare(right, 'en', { numeric: true });
+    if (compared !== 0) return compared;
+  }
+  return 0;
+}
+
+/**
+ * The classification arrives flat — the branch ("SA") next to its leaves
+ * ("SA2", "SA4") — and every leaf name repeats its branch name in front of its
+ * own. Grouped here so the branch is written once as a heading and each leaf
+ * keeps only what it adds.
+ */
+type DesdeEntry = { code: string; name: string };
+type DesdeGroup = DesdeEntry & { children: DesdeEntry[] };
+
+function groupDesdeCodes(entries: string[]): DesdeGroup[] {
+  const branchOf = (code: string) => code.match(/^[A-Za-z]+/)?.[0] ?? code;
+  // A plain record, not a `Map`: `Map` in this module is the map component.
+  const groups: Record<string, DesdeGroup> = {};
+
+  for (const entry of entries.map(splitDesdeCode)) {
+    const branch = branchOf(entry.code);
+    const target = (groups[branch] ??= { code: branch, name: '', children: [] });
+    if (entry.code === target.code) target.name = entry.name;
+    else target.children.push(entry);
+  }
+
+  return Object.values(groups)
+    .sort((a, b) => compareDesdeCode(a.code, b.code))
+    .map((group) => {
+      // A branch with no row of its own still gets a heading: its children all
+      // carry the branch name as the first part of theirs.
+      const name = group.name || group.children[0]?.name.split(', ')[0] || '';
+      const prefix = name ? `${name}, ` : '';
+      return {
+        code: group.code,
+        name,
+        children: group.children
+          .sort((a, b) => compareDesdeCode(a.code, b.code))
+          .map((child) => ({
+            code: child.code,
+            name: child.name.startsWith(prefix) ? child.name.slice(prefix.length) : child.name,
+          })),
+      };
+    });
+}
+
 /* ---------------------------------------------------------------- chapters */
 
 /** A chapter: heading, then content. Space does the grouping, not a box. */
@@ -164,6 +218,19 @@ function Masthead({ location }: { location: SurveyLocationDetail }) {
           {surveyName}
         </p>
       )}
+
+      {location.jenis_layanan && (
+        // What the place actually does, read straight after its name rather
+        // than found halfway down the record.
+        /*
+          The questionnaire authored these descriptions in caps. Only the
+          all-caps runs are lowered, so ODGJ survives and the parenthetical
+          clarifications stay in the mixed case they were written in.
+        */
+        <p className="mt-4 text-base text-foreground/80 leading-relaxed max-w-[68ch]">
+          {toSentenceCase(location.jenis_layanan)}
+        </p>
+      )}
     </div>
   );
 }
@@ -267,37 +334,31 @@ function LocationChapter({ location }: { location: SurveyLocationDetail }) {
 }
 
 function ServiceChapter({ location }: { location: SurveyLocationDetail }) {
-  const codes = location.kode_desde_ltc ?? [];
+  const groups = groupDesdeCodes(location.kode_desde_ltc ?? []);
+  if (groups.length === 0) return null;
 
   return (
     <Chapter title="Layanan">
-      {codes.length > 0 && (
-        <dl className="space-y-1.5">
-          {codes.map((entry) => {
-            const { code, name } = splitDesdeCode(entry);
-            return (
-              <div key={entry} className="flex gap-3 text-[15px]">
-                <dt className="w-16 flex-shrink-0 font-medium tabular-nums">{code}</dt>
-                <dd className="text-foreground/80">{name}</dd>
-              </div>
-            );
-          })}
-        </dl>
-      )}
-
-      {location.jenis_layanan && (
-        <div className={codes.length > 0 ? 'mt-6' : undefined}>
-          <h3 className="text-[13px] text-muted-foreground mb-2">Uraian layanan</h3>
-          {/*
-            The questionnaire authored these descriptions in caps. Only the
-            all-caps runs are lowered, so ODGJ survives and the parenthetical
-            clarifications stay in the mixed case they were written in.
-          */}
-          <p className="text-base text-foreground/80 leading-relaxed max-w-[68ch]">
-            {toSentenceCase(location.jenis_layanan)}
-          </p>
-        </div>
-      )}
+      <div className="space-y-5">
+        {groups.map((group) => (
+          <div key={group.code}>
+            <div className="flex gap-3 text-[15px] font-medium">
+              <span className="w-16 flex-shrink-0 tabular-nums">{group.code}</span>
+              <span>{group.name}</span>
+            </div>
+            {group.children.length > 0 && (
+              <ul className="mt-1.5 space-y-1 pl-[4.75rem] list-disc marker:text-muted-foreground">
+                {group.children.map((child) => (
+                  <li key={child.code} className="text-[15px] text-foreground/80">
+                    <span className="font-medium tabular-nums text-foreground">{child.code}</span>{' '}
+                    {child.name}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        ))}
+      </div>
     </Chapter>
   );
 }

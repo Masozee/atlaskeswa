@@ -66,11 +66,14 @@ function formatRate(value: number | null | undefined) {
 /** A survey point whose coordinates already parsed to finite numbers. */
 type PlottedSurvey = SurveyMapPoint & { lat: number; lng: number };
 
-const KATEGORI_COLOR: Record<string, string> = {
+export const KATEGORI_COLOR: Record<string, string> = {
   FASKES: "#00979D",
   "NON FASKES": "#07579E",
 };
 const KATEGORI_UNKNOWN_COLOR = "#6B7280";
+
+/** Marker filter value: a kategori, or every kategori. */
+export type KategoriFilter = "Semua" | "FASKES" | "NON FASKES";
 
 function kategoriColor(kategori: string | null) {
   return (kategori && KATEGORI_COLOR[kategori]) || KATEGORI_UNKNOWN_COLOR;
@@ -98,7 +101,13 @@ type KebumenMapProps = {
   facilityFilter?: string;
   serviceFilter?: string;
   kecamatanFilter?: string;
+  /** "Semua", "FASKES" or "NON FASKES" — filters the markers by kategori. */
+  kategoriFilter?: KategoriFilter;
   onHoverKecamatan?: (name: string | null) => void;
+  /** Clicking a kecamatan polygon reports its name; clicking it again clears. */
+  onSelectKecamatan?: (name: string | null) => void;
+  /** The clicked kecamatan, outlined so the selection is visible on the map. */
+  selectedKecamatan?: string | null;
   center?: [number, number];
   zoom?: number;
   /** Pass null to lift the default Kebumen pan restriction. Applied at map construction only — remount (key) to change. */
@@ -300,7 +309,10 @@ export function KebumenMap({
   facilityFilter = "Semua",
   serviceFilter = "Semua",
   kecamatanFilter = "Semua",
+  kategoriFilter = "Semua",
   onHoverKecamatan,
+  onSelectKecamatan,
+  selectedKecamatan = null,
   center = KEBUMEN_CENTER,
   zoom = 10,
   maxBounds = KEBUMEN_BOUNDS,
@@ -392,11 +404,24 @@ export function KebumenMap({
 
     return plotted.filter(
       (survey) =>
+        // Kategori is a closed vocabulary, so it is matched exactly rather than
+        // by the loose contains used on the free-text answers.
+        (kategoriFilter === "Semua" || survey.kategori === kategoriFilter) &&
         matchesFilter(survey.jenis_fasilitas, facilityFilter) &&
         matchesFilter(survey.jenis_layanan, serviceFilter) &&
         matchesFilter(survey.kecamatan, kecamatanFilter)
     );
-  }, [surveyPoints, facilityFilter, serviceFilter, kecamatanFilter]);
+  }, [surveyPoints, kategoriFilter, facilityFilter, serviceFilter, kecamatanFilter]);
+
+  const selection = useMemo(() => {
+    if (!selectedKecamatan) return null;
+    const matches = ["==", ["downcase", ["get", "nm_kecamatan"]], selectedKecamatan.toLowerCase()];
+    return {
+      strokeColor: ["case", matches, "#00595D", "#007A80"] as unknown[],
+      strokeWidth: ["case", matches, 3, 1.5] as unknown[],
+      strokeOpacity: ["case", matches, 1, 0.55] as unknown[],
+    };
+  }, [selectedKecamatan]);
 
   const highlight = useMemo(() => {
     if (!highlightKecamatan) return null;
@@ -444,6 +469,14 @@ export function KebumenMap({
     { name: string; rate: number | null; x: number; y: number } | null
   >(null);
 
+  const handleFeatureClick = (feature: GeoJSON.Feature) => {
+    const name = (feature.properties?.nm_kecamatan as string | undefined) ?? null;
+    if (!onSelectKecamatan) return;
+    // Clicking the selected kecamatan again clears it: the map is also the way
+    // back out of a selection.
+    onSelectKecamatan(name && name === selectedKecamatan ? null : name);
+  };
+
   const handleFeatureHover = (
     feature: GeoJSON.Feature | null,
     event?: { point?: { x: number; y: number } }
@@ -487,10 +520,11 @@ export function KebumenMap({
           // The choropleth carries its own scale, so it is painted at full
           // strength; the flat fill stays a wash over the basemap.
           fillOpacity={highlight?.fillOpacity ?? (choroplethLayer ? 0.85 : 0.2)}
-          strokeColor={highlight?.strokeColor ?? "#007A80"}
-          strokeWidth={highlight?.strokeWidth ?? 1.5}
-          strokeOpacity={highlight?.strokeOpacity ?? 0.8}
+          strokeColor={highlight?.strokeColor ?? selection?.strokeColor ?? "#007A80"}
+          strokeWidth={highlight?.strokeWidth ?? selection?.strokeWidth ?? 1.5}
+          strokeOpacity={highlight?.strokeOpacity ?? selection?.strokeOpacity ?? 0.8}
           onFeatureHover={handleFeatureHover}
+          {...(onSelectKecamatan ? { onFeatureClick: handleFeatureClick } : {})}
         />
         {showMarkers && filteredSurveys.map((survey) => (
           <SurveyMarker key={survey.id} survey={survey} />

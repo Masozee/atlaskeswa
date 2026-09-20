@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
@@ -10,12 +10,14 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { KebumenMap } from '@/components/kebumen-map';
+import { KebumenMap, KATEGORI_COLOR, type KategoriFilter } from '@/components/kebumen-map';
 import { PublicNav } from '@/components/public-nav';
 import { PublicFooter } from '@/components/public-footer';
 import { DevNotice } from '@/components/dev-notice';
 import { PARTNER_LOGOS } from '@/lib/partners';
 import { useServiceStats } from '@/hooks/use-services';
+import { useSurveyMapPoints } from '@/hooks/use-survey-responses';
+import { useSecondaryChoropleth } from '@/hooks/use-secondary';
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
   Hospital01Icon,
@@ -24,6 +26,7 @@ import {
   ArrowRight01Icon,
   CheckmarkCircle02Icon,
   Alert02Icon,
+  Cancel01Icon,
 } from "@hugeicons/core-free-icons";
 
 // Shape of GET /directory/services/stats/ (fields used here)
@@ -176,6 +179,156 @@ function DistributionPanel({ stats, className }: { stats?: ServiceStats; classNa
   );
 }
 
+const KATEGORI_FILTERS: { value: KategoriFilter; label: string; color?: string }[] = [
+  { value: 'Semua', label: 'Semua' },
+  { value: 'FASKES', label: 'Faskes', color: KATEGORI_COLOR.FASKES },
+  { value: 'NON FASKES', label: 'Non-faskes', color: KATEGORI_COLOR['NON FASKES'] },
+];
+
+/**
+ * Marker filter in the map header. It replaces the old marker legend: the same
+ * two colours are shown, and each swatch is now the control that isolates it.
+ */
+function KategoriFilterBar({
+  value,
+  onChange,
+  counts,
+}: {
+  value: KategoriFilter;
+  onChange: (value: KategoriFilter) => void;
+  counts: Record<KategoriFilter, number>;
+}) {
+  return (
+    <div
+      role="group"
+      aria-label="Saring titik pada peta"
+      className="flex items-center gap-1 rounded-md border bg-background/85 backdrop-blur p-1"
+    >
+      {KATEGORI_FILTERS.map((option) => {
+        const active = option.value === value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onChange(option.value)}
+            className={`flex items-center gap-1.5 rounded px-2 py-1 text-xs transition-colors ${
+              active ? 'bg-primary text-primary-foreground' : 'hover:bg-muted text-foreground/80'
+            }`}
+          >
+            {option.color && (
+              <span
+                className="h-2.5 w-2.5 rounded-full border border-white"
+                style={{ backgroundColor: option.color }}
+              />
+            )}
+            <span>{option.label}</span>
+            <span className="tabular-nums opacity-70">{counts[option.value]}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+type KecamatanReading = {
+  name: string;
+  rate: number | null;
+  value: number | null;
+  population: number | null;
+  services: number;
+};
+
+function formatNumber(value: number | null, fractionDigits = 0) {
+  if (value === null || !Number.isFinite(value)) return '—';
+  return value.toLocaleString('id-ID', { maximumFractionDigits: fractionDigits });
+}
+
+/**
+ * Right side of the map header: the kecamatan under the pointer, read off the
+ * same choropleth the polygon is painted from. With nothing hovered it holds
+ * the Kebumen-wide reading rather than going blank, so the panel never jumps
+ * between two different heights.
+ */
+function KecamatanPanel({
+  reading,
+  indicator,
+  source,
+  kecamatanWithData,
+  averageRate,
+  onClear,
+}: {
+  reading: KecamatanReading | null;
+  indicator: string | null;
+  source: string | null;
+  kecamatanWithData: number;
+  averageRate: number | null;
+  onClear: () => void;
+}) {
+  return (
+    <div className="rounded-md border bg-background/85 backdrop-blur px-3 py-2 text-xs w-60">
+      <div className="flex items-center gap-2">
+        <HugeiconsIcon icon={Location01Icon} size={14} className="text-muted-foreground" />
+        <span className="font-medium flex-1">
+          {reading ? `Kec. ${reading.name}` : 'Kabupaten Kebumen'}
+        </span>
+        {reading && (
+          <button
+            type="button"
+            onClick={onClear}
+            aria-label="Hapus pilihan kecamatan"
+            className="-mr-1 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          >
+            <HugeiconsIcon icon={Cancel01Icon} size={13} />
+          </button>
+        )}
+      </div>
+      <p className="text-muted-foreground mt-0.5">
+        {reading
+          ? 'Kabupaten Kebumen'
+          : `${kecamatanWithData || 26} kecamatan · klik kecamatan pada peta`}
+      </p>
+
+      <div className="mt-2 pt-2 border-t space-y-1">
+        <p className="leading-snug">{indicator ?? 'Gangguan jiwa (gabungan)'}</p>
+        {reading ? (
+          <dl className="space-y-0.5">
+            <div className="flex items-baseline justify-between gap-2">
+              <dt className="text-muted-foreground">Per 10.000</dt>
+              <dd className="tabular-nums font-medium">{formatNumber(reading.rate, 1)}</dd>
+            </div>
+            <div className="flex items-baseline justify-between gap-2">
+              <dt className="text-muted-foreground">Jumlah kasus</dt>
+              <dd className="tabular-nums">{formatNumber(reading.value)}</dd>
+            </div>
+            <div className="flex items-baseline justify-between gap-2">
+              <dt className="text-muted-foreground">Penduduk</dt>
+              <dd className="tabular-nums">{formatNumber(reading.population)}</dd>
+            </div>
+            <div className="flex items-baseline justify-between gap-2">
+              <dt className="text-muted-foreground">Layanan tersurvei</dt>
+              <dd className="tabular-nums">{formatNumber(reading.services)}</dd>
+            </div>
+          </dl>
+        ) : (
+          <p className="text-muted-foreground tabular-nums">
+            Rata-rata {formatNumber(averageRate, 1)} per 10.000 penduduk
+          </p>
+        )}
+        {source && <p className="text-muted-foreground leading-snug pt-0.5">Sumber: {source}</p>}
+      </div>
+
+      <Link
+        href={reading ? `/kecamatan/${encodeURIComponent(reading.name)}` : '/kecamatan'}
+        className="mt-2 pt-2 border-t flex items-center gap-1 font-medium text-primary hover:underline"
+      >
+        {reading ? `Detail Kec. ${reading.name}` : 'Data selengkapnya'}
+        <HugeiconsIcon icon={ArrowRight01Icon} size={12} />
+      </Link>
+    </div>
+  );
+}
+
 function StatsPanel({ stats, className }: { stats?: ServiceStats; className?: string }) {
   const rows = stats
     ? [
@@ -213,6 +366,65 @@ export default function HomePage() {
   const isDesktop = useIsDesktop();
   const { data: serviceStats } = useServiceStats();
   const stats = serviceStats as ServiceStats | undefined;
+  const [kategori, setKategori] = useState<KategoriFilter>('Semua');
+
+  // Same query key as the map's own, so counting the points here costs nothing.
+  const { data: mapPoints } = useSurveyMapPoints();
+  const counts = useMemo(() => {
+    const points = mapPoints ?? [];
+    return {
+      Semua: points.length,
+      FASKES: points.filter((point) => point.kategori === 'FASKES').length,
+      'NON FASKES': points.filter((point) => point.kategori === 'NON FASKES').length,
+    } as Record<KategoriFilter, number>;
+  }, [mapPoints]);
+
+  // The kecamatan clicked on the map, read back from the same layer the
+  // polygons are painted from. Clicked rather than hovered: the reading has to
+  // stay put while it is being read.
+  const [selectedKecamatan, setSelectedKecamatan] = useState<string | null>(null);
+  const handleSelectKecamatan = useCallback((name: string | null) => {
+    setSelectedKecamatan(name);
+  }, []);
+  const clearKecamatan = useCallback(() => setSelectedKecamatan(null), []);
+
+  const { data: choropleth } = useSecondaryChoropleth();
+  const highlight = useMemo(() => {
+    const series = choropleth?.series ?? [];
+    const rates = series
+      .map((row) => row.per_10k)
+      .filter((rate): rate is number => rate !== null);
+    return {
+      indicator: choropleth?.dataset?.name ?? null,
+      source: choropleth?.dataset?.source || null,
+      kecamatanWithData: rates.length,
+      averageRate: rates.length
+        ? rates.reduce((sum, rate) => sum + rate, 0) / rates.length
+        : null,
+    };
+  }, [choropleth]);
+
+  const reading = useMemo<KecamatanReading | null>(() => {
+    if (!selectedKecamatan) return null;
+    const key = selectedKecamatan.trim().toLowerCase();
+    const row = (choropleth?.series ?? []).find(
+      (entry) => entry.kecamatan.trim().toLowerCase() === key
+    );
+    // DRF serializes the decimal columns as strings.
+    const toNumber = (value: string | null | undefined) => {
+      const parsed = Number(value);
+      return value !== null && value !== undefined && Number.isFinite(parsed) ? parsed : null;
+    };
+    return {
+      name: selectedKecamatan,
+      rate: row?.per_10k ?? null,
+      value: toNumber(row?.value),
+      population: toNumber(row?.population),
+      services: (mapPoints ?? []).filter(
+        (point) => (point.kecamatan ?? '').trim().toLowerCase() === key
+      ).length,
+    };
+  }, [selectedKecamatan, choropleth, mapPoints]);
 
   return (
     <div className="font-geist min-h-screen bg-background">
@@ -230,17 +442,35 @@ export default function HomePage() {
             center={isDesktop ? HERO_MAP_CENTER : undefined}
             maxBounds={isDesktop ? HERO_MAP_BOUNDS : undefined}
             cooperativeGestures
-            showLegend
             choropleth
+            kategoriFilter={kategori}
+            onSelectKecamatan={handleSelectKecamatan}
+            selectedKecamatan={selectedKecamatan}
           />
 
-          {/* Location indicator */}
-          <div className="absolute top-4 left-4 lg:top-6 lg:left-1/2 lg:-translate-x-1/2">
-            <div className="flex items-center gap-2 rounded-md border bg-background/85 backdrop-blur px-3 py-1.5">
-              <HugeiconsIcon icon={Location01Icon} size={14} className="text-muted-foreground" />
-              {/* The hovered kecamatan now rides above the pointer on the map
-                  itself, so this chip stays put as the map's title. */}
-              <span className="text-xs">Kabupaten Kebumen, Jawa Tengah</span>
+          {/* Map header: title and marker filter left, highlighted area right */}
+          <div className="absolute inset-x-0 top-0 z-10 pointer-events-none">
+            <div className="flex items-start justify-between gap-3 p-4 lg:p-6">
+              <div className="flex flex-col gap-2 pointer-events-auto">
+                <div className="flex items-center gap-2 self-start rounded-md border bg-background/85 backdrop-blur px-3 py-1.5">
+                  <HugeiconsIcon icon={Location01Icon} size={14} className="text-muted-foreground" />
+                  {/* The hovered kecamatan rides above the pointer on the map
+                      itself, so this chip stays put as the map's title. */}
+                  <span className="text-xs">Kabupaten Kebumen, Jawa Tengah</span>
+                </div>
+                <KategoriFilterBar value={kategori} onChange={setKategori} counts={counts} />
+              </div>
+
+              <div className="pointer-events-auto hidden sm:block">
+                <KecamatanPanel
+                  reading={reading}
+                  indicator={highlight.indicator}
+                  source={highlight.source}
+                  kecamatanWithData={highlight.kecamatanWithData}
+                  averageRate={highlight.averageRate}
+                  onClear={clearKecamatan}
+                />
+              </div>
             </div>
           </div>
 
@@ -253,18 +483,13 @@ export default function HomePage() {
                     Sistem layanan kesehatan jiwa berbasis DESDE-LTC
                   </p>
                   <h2 className="text-3xl lg:text-5xl font-semibold tracking-tight leading-[1.1] text-white">
-                    Pemetaan layanan kesehatan jiwa Indonesia
+                    Atlas layanan kesehatan jiwa Indonesia
                   </h2>
                   <div className="flex items-center gap-3 pt-2">
                     <Button asChild className="gap-2">
-                      <Link href="/dashboard">
-                        Mulai sekarang
-                        <HugeiconsIcon icon={ArrowRight01Icon} size={18} />
-                      </Link>
-                    </Button>
-                    <Button asChild variant="outline">
-                      <Link href="/dashboard/help/user-guide">
+                      <Link href="/tentang-kami">
                         Pelajari lebih lanjut
+                        <HugeiconsIcon icon={ArrowRight01Icon} size={18} />
                       </Link>
                     </Button>
                   </div>
@@ -272,19 +497,13 @@ export default function HomePage() {
               </div>
             </div>
           </div>
-
-          {/* Desktop overlays — charts pinned to the empty corner outside the Kebumen polygon */}
-          <div className="absolute inset-0 pointer-events-none hidden lg:block">
-            <div className="absolute bottom-6 right-6 w-80 space-y-3 pointer-events-auto">
-              <DistributionPanel stats={stats} />
-              <StatsPanel stats={stats} />
-            </div>
-          </div>
         </div>
+      </section>
 
-        {/* Mobile: charts below the map */}
-        <div className="lg:hidden container max-w-7xl mx-auto px-4 py-8">
-          <div className="grid gap-6 sm:grid-cols-2">
+      {/* Charts as their own section below the map, not pinned over it */}
+      <section className="border-b">
+        <div className="container max-w-7xl mx-auto px-4 lg:px-6 py-8 lg:py-10">
+          <div className="grid gap-4 lg:gap-6 sm:grid-cols-2">
             <DistributionPanel stats={stats} />
             <StatsPanel stats={stats} />
           </div>

@@ -232,6 +232,41 @@ export default function KecamatanDetailPage({
               </dl>
             </Chapter>
 
+            <Chapter title="Peta">
+              <div className="h-72 lg:h-96 w-full overflow-hidden rounded-lg border">
+                <KebumenMap
+                  height="h-full"
+                  showControls
+                  choropleth
+                  highlightKecamatan={title}
+                  kecamatanFilter={title}
+                  // The camera frames this kecamatan, so the Kebumen-wide pan
+                  // restriction would fight it.
+                  maxBounds={null}
+                  cooperativeGestures
+                />
+              </div>
+              <p className="text-[13px] text-muted-foreground mt-2">
+                Kecamatan ini disorot; warna menunjukkan angka gangguan jiwa per 10.000 penduduk.
+              </p>
+            </Chapter>
+
+            <Chapter title="Data sekunder">
+              {isLoading ? (
+                <p className="text-[15px] text-muted-foreground">Memuat data…</p>
+              ) : data && data.datasets.length > 0 ? (
+                <div className="space-y-12">
+                  {data.datasets.map((entry) => (
+                    <DatasetTable key={entry.dataset.slug} entry={entry} />
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[15px] text-muted-foreground max-w-[60ch]">
+                  Belum ada data sekunder yang dipublikasikan untuk kecamatan ini.
+                </p>
+              )}
+            </Chapter>
+
             <Chapter title={`Layanan kesehatan jiwa (${surveyCount})`}>
               {services.length > 0 ? (
                 <div className="-mx-4">
@@ -253,41 +288,6 @@ export default function KecamatanDetailPage({
                   tidak tampil di halaman publik.
                 </p>
               )}
-            </Chapter>
-
-            <Chapter title="Data sekunder">
-              {isLoading ? (
-                <p className="text-[15px] text-muted-foreground">Memuat data…</p>
-              ) : data && data.datasets.length > 0 ? (
-                <div className="space-y-12">
-                  {data.datasets.map((entry) => (
-                    <DatasetTable key={entry.dataset.slug} entry={entry} />
-                  ))}
-                </div>
-              ) : (
-                <p className="text-[15px] text-muted-foreground max-w-[60ch]">
-                  Belum ada data sekunder yang dipublikasikan untuk kecamatan ini.
-                </p>
-              )}
-            </Chapter>
-
-            <Chapter title="Peta">
-              <div className="h-72 lg:h-96 w-full overflow-hidden rounded-lg border">
-                <KebumenMap
-                  height="h-full"
-                  showControls
-                  choropleth
-                  highlightKecamatan={title}
-                  kecamatanFilter={title}
-                  // The camera frames this kecamatan, so the Kebumen-wide pan
-                  // restriction would fight it.
-                  maxBounds={null}
-                  cooperativeGestures
-                />
-              </div>
-              <p className="text-[13px] text-muted-foreground mt-2">
-                Kecamatan ini disorot; warna menunjukkan angka gangguan jiwa per 10.000 penduduk.
-              </p>
             </Chapter>
           </div>
         )}
