@@ -317,6 +317,8 @@ export interface SurveyLocationServiceDetail {
 export interface SurveyLocationDetail extends SurveyMapPoint {
   status_badan_hukum: string | null;
   service_city: string | null;
+  /** Q3 — the sector the facility works in, which `kategori` reduces. */
+  bidang_utama: string | null;
   photos: SurveyLocationPhoto[];
   service_details: SurveyLocationServiceDetail[];
 }

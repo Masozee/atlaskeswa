@@ -151,7 +151,6 @@ function BranchStack({ family }: { family: Family }) {
               <div key={answer.question_code}>
                 <dt className="text-[14px] leading-snug text-muted-foreground">
                   {toSentenceCase(answer.question_text)}
-                  <span className="text-foreground/55"> ({answer.question_code})</span>
                 </dt>
                 <dd className="text-[15px] mt-0.5 break-words">{answerContent(answer)}</dd>
               </div>
@@ -198,9 +197,6 @@ function FamilyMatrix({ family }: { family: Family }) {
               <tr key={row.code} className="align-top even:bg-foreground/[0.03]">
                 <th scope="row" className="py-2.5 pr-4 text-left text-[14px] font-normal leading-snug text-muted-foreground">
                   {toSentenceCase(row.text)}
-                  {/* The code is a real identifier people cite, not chrome, so it
-                      sits a rung above the metadata band the zebra wash eats into. */}
-                  <span className="text-foreground/55"> ({row.code})</span>
                 </th>
                 {family.branches.map((branch) => {
                   const answer = branch.answers.find((item) => item.question_code === row.code);

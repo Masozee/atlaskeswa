@@ -11,13 +11,22 @@ import { PUBLIC_CONTAINER } from '@/lib/public-layout';
 import { PublicFooter } from '@/components/public-footer';
 import { DevNotice } from '@/components/dev-notice';
 import { Map, MapControls, MapGeoJSON, MapMarker, MarkerContent } from '@/components/ui/map';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from '@/components/ui/carousel';
+import { FACILITY_TYPES, facilityIndex, facilityLabels } from '@/lib/facility-types';
 import {
   useSurveyLocation,
   type SurveyLocationDetail,
   type SurveyLocationPhoto,
 } from '@/hooks/use-survey-responses';
 import { ServiceDetailMatrix } from '@/components/service-detail-matrix';
-import { kategoriLabel, toSentenceCase } from '@/lib/utils/text';
+import { toSentenceCase } from '@/lib/utils/text';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { ArrowLeft01Icon, ArrowRight01Icon } from '@hugeicons/core-free-icons';
 
@@ -38,13 +47,6 @@ function formatSurveyDate(value: string | null) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return EMPTY;
   return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-}
-
-function statusVariant(status: string) {
-  if (status === 'VERIFIED') return 'default' as const;
-  if (status === 'SUBMITTED') return 'secondary' as const;
-  if (status === 'REJECTED') return 'destructive' as const;
-  return 'outline' as const;
 }
 
 /** Splits "SA2 — Layanan …" into its code and its name. */
@@ -128,25 +130,17 @@ function Chapter({
   );
 }
 
-/**
- * One field. The Q-code stays on the label rather than getting a rung of its
- * own — a third text rung here would land below 4.5:1 on white.
- */
+/** One field: label over value, no questionnaire codes. */
 function Field({
   label,
-  code,
   value,
 }: {
   label: string;
-  code?: string;
   value: string | null | undefined;
 }) {
   return (
     <div>
-      <dt className="text-[13px] text-muted-foreground">
-        {label}
-        {code && <span> ({code})</span>}
-      </dt>
+      <dt className="text-[13px] text-muted-foreground">{label}</dt>
       <dd className="text-base mt-1 break-words">{value || EMPTY}</dd>
     </div>
   );
@@ -188,8 +182,12 @@ function Breadcrumb({ location }: { location: SurveyLocationDetail }) {
  */
 function Masthead({ location }: { location: SurveyLocationDetail }) {
   const title = location.service_name ?? location.name ?? 'Tanpa nama';
-  // The cover rides alongside the title; any further photos become a chapter.
-  const cover = location.photos.find((photo) => photo.image_url);
+  const photos = location.photos.filter((photo) => photo.image_url);
+  // Q4 is multi-select, so a place can wear more than one type.
+  const types = facilityLabels(location.jenis_fasilitas).map((label) => ({
+    label: toSentenceCase(label),
+    color: FACILITY_TYPES[facilityIndex(label)]?.color ?? '#6B7280',
+  }));
 
   return (
     <div className="pt-8 pb-8">
@@ -197,19 +195,19 @@ function Masthead({ location }: { location: SurveyLocationDetail }) {
 
       <div className="mt-5 grid gap-6 lg:gap-10 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
         <div>
-          <div className="flex flex-wrap items-center gap-2">
-            {location.kategori && (
-              <Badge
-                className="text-white border-0"
-                style={{ backgroundColor: KATEGORI_COLOR[location.kategori] ?? '#6B7280' }}
-              >
-                {kategoriLabel(location.kategori)}
-              </Badge>
-            )}
-            <Badge variant={statusVariant(location.verification_status)}>
-              {location.status_display}
-            </Badge>
-          </div>
+          {types.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              {types.map((type) => (
+                <Badge
+                  key={type.label}
+                  className="text-white border-0"
+                  style={{ backgroundColor: type.color }}
+                >
+                  {type.label}
+                </Badge>
+              ))}
+            </div>
+          )}
 
           <h1 className="mt-3 text-[34px] sm:text-[42px] font-semibold tracking-tight leading-[1.08]">
             {title}
@@ -229,58 +227,71 @@ function Masthead({ location }: { location: SurveyLocationDetail }) {
           )}
         </div>
 
-        {cover && (
-          <figure className="lg:sticky lg:top-6">
-            <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-muted">
-              <Image
-                src={cover.image_url as string}
-                alt={cover.caption || 'Foto fasilitas'}
-                fill
-                priority
-                sizes="(min-width: 1024px) 352px, 100vw"
-                className="object-cover"
-              />
-            </div>
-            {cover.caption && (
-              <figcaption className="mt-2 text-[13px] text-muted-foreground leading-snug">
-                {cover.caption}
-              </figcaption>
-            )}
-          </figure>
+        {photos.length > 0 && (
+          <div className="lg:sticky lg:top-6">
+            <PhotoMedia photos={photos} />
+          </div>
         )}
       </div>
     </div>
   );
 }
 
-/** The photos the masthead did not take as its cover. */
-function PhotoChapter({ photos }: { photos: SurveyLocationPhoto[] }) {
-  const rest = photos.filter((photo) => photo.image_url).slice(1);
-  if (rest.length === 0) return null;
+/** One photo stands still; several become a carousel rather than a grid. */
+function PhotoMedia({ photos }: { photos: SurveyLocationPhoto[] }) {
+  const frame = 'relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-muted';
+
+  if (photos.length === 1) {
+    const [only] = photos;
+    return (
+      <figure>
+        <div className={frame}>
+          <Image
+            src={only.image_url as string}
+            alt={only.caption || 'Foto fasilitas'}
+            fill
+            priority
+            sizes="(min-width: 1024px) 352px, 100vw"
+            className="object-cover"
+          />
+        </div>
+        {only.caption && (
+          <figcaption className="mt-2 text-[13px] text-muted-foreground leading-snug">
+            {only.caption}
+          </figcaption>
+        )}
+      </figure>
+    );
+  }
 
   return (
-    <Chapter title={`Foto fasilitas (${rest.length})`}>
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3">
-        {rest.map((photo) => (
-          <figure key={photo.id}>
-            <div className="relative aspect-[4/3] overflow-hidden rounded-md bg-muted">
-              <Image
-                src={photo.image_url as string}
-                alt={photo.caption || 'Foto fasilitas'}
-                fill
-                sizes="(min-width: 640px) 300px, 45vw"
-                className="object-cover"
-              />
-            </div>
-            {photo.caption && (
+    <Carousel className="w-full" opts={{ loop: true }}>
+      <CarouselContent>
+        {photos.map((photo, index) => (
+          <CarouselItem key={photo.id}>
+            <figure>
+              <div className={frame}>
+                <Image
+                  src={photo.image_url as string}
+                  alt={photo.caption || `Foto fasilitas ${index + 1}`}
+                  fill
+                  // Only the first slide is worth pre-loading; the rest arrive
+                  // as the reader asks for them.
+                  priority={index === 0}
+                  sizes="(min-width: 1024px) 352px, 100vw"
+                  className="object-cover"
+                />
+              </div>
               <figcaption className="mt-2 text-[13px] text-muted-foreground leading-snug">
-                {photo.caption}
+                {photo.caption || `Foto ${index + 1} dari ${photos.length}`}
               </figcaption>
-            )}
-          </figure>
+            </figure>
+          </CarouselItem>
         ))}
-      </div>
-    </Chapter>
+      </CarouselContent>
+      <CarouselPrevious className="left-2" />
+      <CarouselNext className="right-2" />
+    </Carousel>
   );
 }
 
@@ -421,33 +432,40 @@ export default function LocationDetailPage({ params }: { params: Promise<{ id: s
           <div className="border-t" />
 
           <div className="space-y-10 lg:space-y-12 pt-8 lg:pt-10">
-            <PhotoChapter photos={location.photos} />
+            {/* The record and its per-branch detail are two readings of the
+                same survey, so they share one surface rather than stacking. */}
+            <Tabs defaultValue="profil">
+              <TabsList>
+                <TabsTrigger value="profil">Profil</TabsTrigger>
+                {location.service_details?.length > 0 && (
+                  <TabsTrigger value="rincian">Rincian layanan</TabsTrigger>
+                )}
+              </TabsList>
 
-            <Chapter title="Profil">
-              <dl className="grid gap-x-10 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
-                <Field
-                  label="Jenis fasilitas"
-                  code="Q4"
-                  value={location.jenis_fasilitas && toSentenceCase(location.jenis_fasilitas)}
-                />
-                <Field
-                  label="Status badan hukum"
-                  code="Q13"
-                  value={location.status_badan_hukum && toSentenceCase(location.status_badan_hukum)}
-                />
-                <Field label="Tanggal survei" value={formatSurveyDate(location.survey_date)} />
-              </dl>
-            </Chapter>
+              <TabsContent value="profil" className="pt-6 space-y-10 lg:space-y-12">
+                <dl className="grid gap-x-10 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
+                  <Field
+                    label="Bidang utama"
+                    value={location.bidang_utama && toSentenceCase(location.bidang_utama)}
+                  />
+                  <Field
+                    label="Status badan hukum"
+                    value={location.status_badan_hukum && toSentenceCase(location.status_badan_hukum)}
+                  />
+                  <Field label="Tanggal survei" value={formatSurveyDate(location.survey_date)} />
+                </dl>
 
-            <LocationChapter location={location} />
+                <LocationChapter location={location} />
 
-            <ServiceChapter location={location} />
+                <ServiceChapter location={location} />
+              </TabsContent>
 
-            {location.service_details?.length > 0 && (
-              <Chapter title="Rincian layanan">
-                <ServiceDetailMatrix details={location.service_details} />
-              </Chapter>
-            )}
+              {location.service_details?.length > 0 && (
+                <TabsContent value="rincian" className="pt-6">
+                  <ServiceDetailMatrix details={location.service_details} />
+                </TabsContent>
+              )}
+            </Tabs>
           </div>
 
           <div className="border-t mt-12 pt-6">

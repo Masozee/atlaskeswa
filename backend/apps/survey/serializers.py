@@ -479,11 +479,18 @@ class SurveyLocationDetailSerializer(SurveyMapPointSerializer):
 
     photos = SurveyLocationPhotoSerializer(many=True, read_only=True)
     service_details = serializers.SerializerMethodField()
+    bidang_utama = serializers.SerializerMethodField()
 
     class Meta(SurveyMapPointSerializer.Meta):
         fields = SurveyMapPointSerializer.Meta.fields + [
-            'status_badan_hukum', 'service_city', 'photos', 'service_details',
+            'status_badan_hukum', 'service_city', 'bidang_utama', 'photos', 'service_details',
         ]
+
+    def get_bidang_utama(self, obj):
+        """Q3 — the sector the facility works in, which `kategori` reduces to
+        faskes/non-faskes. The profile shows the answer itself."""
+        labels = self._choice_labels(obj, {'Q3'})
+        return ', '.join(labels) if labels else None
 
     def get_service_details(self, obj):
         """The per-service detail blocks, one per branch the survey answered.
