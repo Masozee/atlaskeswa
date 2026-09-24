@@ -301,7 +301,7 @@ export default function KecamatanDetailPage({
             <HugeiconsIcon icon={ArrowRight01Icon} size={16} />
           </Link>
           <Link
-            href="/layanan-kesehatan"
+            href="/penyedia-layanan"
             className="inline-flex items-center gap-2 py-1 -my-1 text-base text-muted-foreground hover:text-foreground transition-colors"
           >
             Seluruh layanan di Kebumen

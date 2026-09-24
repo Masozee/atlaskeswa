@@ -88,7 +88,7 @@ export default function TentangKamiPage() {
             </div>
             <div className="flex flex-wrap gap-3 mt-8">
               <Button asChild variant="outline" className="rounded-sm shadow-none gap-2">
-                <Link href="/layanan-kesehatan">
+                <Link href="/penyedia-layanan">
                   Lihat daftar layanan
                   <HugeiconsIcon icon={ArrowRight01Icon} size={16} />
                 </Link>

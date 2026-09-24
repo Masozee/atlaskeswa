@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 import { PUBLIC_CONTAINER } from '@/lib/public-layout';
 
 const NAV_LINKS = [
-  { href: '/layanan-kesehatan', label: 'Layanan kesehatan' },
+  { href: '/penyedia-layanan', label: 'Penyedia layanan' },
   { href: '/kecamatan', label: 'Kecamatan' },
   { href: '/tentang-kami', label: 'Tentang kami' },
   { href: '/hubungi-kami', label: 'Hubungi kami' },

@@ -9,6 +9,11 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: path.resolve(__dirname),
   },
+  // The atlas page was renamed "Penyedia layanan"; keep old links and the
+  // `?kecamatan=` deep-link working (query strings carry over).
+  async redirects() {
+    return [{ source: "/layanan-kesehatan", destination: "/penyedia-layanan", permanent: true }];
+  },
   images: {
     // Hosts allowed for next/image. Survey photos are served from the
     // Django media host (absolute URLs like https://api.atlaskeswa.id/media/...).

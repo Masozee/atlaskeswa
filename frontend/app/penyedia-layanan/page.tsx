@@ -7,6 +7,7 @@ import { PublicNav } from '@/components/public-nav';
 import { PUBLIC_CONTAINER } from '@/lib/public-layout';
 import { PublicFooter } from '@/components/public-footer';
 import { DevNotice } from '@/components/dev-notice';
+import { ServiceOverview } from '@/components/penyedia-layanan/service-overview';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -75,7 +76,7 @@ function Filters({
         placeholder="Cari nama, wilayah, atau jenis fasilitas"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        aria-label="Cari layanan kesehatan"
+        aria-label="Cari penyedia layanan"
         className={cn('sm:w-80', CONTROL)}
       />
       <div className="flex flex-col gap-2 sm:flex-row">
@@ -142,7 +143,7 @@ function ListSkeleton() {
   );
 }
 
-function LayananKesehatanContent() {
+function PenyediaLayananContent() {
   const { data, isLoading, isError } = useSurveyMapPoints();
   const searchParams = useSearchParams();
   const [search, setSearch] = useState('');
@@ -208,7 +209,7 @@ function LayananKesehatanContent() {
       <main className={cn(PUBLIC_CONTAINER, 'pb-24')}>
         <div className="pt-10 pb-12">
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-tight leading-[1.08]">
-            Layanan kesehatan
+            Penyedia layanan kesehatan jiwa
           </h1>
           <p className="mt-4 text-[15px] text-foreground/80 max-w-[62ch]">
             Seluruh layanan kesehatan jiwa yang sudah disurvei di Kabupaten Kebumen, dipetakan
@@ -218,7 +219,23 @@ function LayananKesehatanContent() {
 
         <div className="border-t" />
 
-        <div className="pt-10 space-y-6">
+        <section className="pt-10 pb-14" aria-label="Ringkasan jenis layanan">
+          <ServiceOverview />
+        </section>
+
+        <div className="border-t" />
+
+        <section className="pt-10 space-y-6" aria-labelledby="daftar-penyedia">
+          <div>
+            <h2 id="daftar-penyedia" className="text-lg font-semibold">
+              Daftar penyedia layanan kesehatan jiwa
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Setiap layanan yang sudah disurvei. Cari atau saring menurut kecamatan dan jenis
+              fasilitas.
+            </p>
+          </div>
+
           <Filters
             search={search}
             setSearch={onFilterChange(setSearch)}
@@ -302,7 +319,7 @@ function LayananKesehatanContent() {
               )}
             </>
           )}
-        </div>
+        </section>
       </main>
 
       <PublicFooter />
@@ -310,11 +327,11 @@ function LayananKesehatanContent() {
   );
 }
 
-export default function LayananKesehatanPage() {
+export default function PenyediaLayananPage() {
   // useSearchParams opts the tree into a Suspense boundary at prerender time.
   return (
     <Suspense fallback={null}>
-      <LayananKesehatanContent />
+      <PenyediaLayananContent />
     </Suspense>
   );
 }

@@ -94,7 +94,7 @@ export default function HubungiKamiPage() {
             <ul className="space-y-3">
               {[
                 { href: '/tentang-kami', label: 'Tentang OMMHA dan DESDE-LTC' },
-                { href: '/layanan-kesehatan', label: 'Daftar layanan kesehatan jiwa' },
+                { href: '/penyedia-layanan', label: 'Daftar penyedia layanan kesehatan jiwa' },
                 { href: '/kecamatan', label: 'Sebaran layanan per kecamatan' },
               ].map((link) => (
                 <li key={link.href}>

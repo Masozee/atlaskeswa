@@ -44,6 +44,7 @@ from apps.accounts.permissions import (
     CanModifySurveyStatus
 )
 from apps.accounts.mixins import SurveyorFilterMixin
+from .penyedia_layanan import facility_from_response, summarize
 from apps.logs.utils import (
     log_create, log_update, log_delete,
     log_soft_delete, log_bulk_soft_delete, log_restore,
@@ -1346,7 +1347,7 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
             return [IsVerifierOrAdmin()]
         if self.action == 'import_data':
             return [IsAdmin()]
-        if self.action in ['map', 'public_detail']:
+        if self.action in ['map', 'public_detail', 'penyedia_layanan']:
             # Survey locations for the public landing-page map and the location
             # profile pages it links to. Both actions below hold back drafts
             # and serialize no surveyor identity.
@@ -1385,6 +1386,17 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
             responses, many=True, context=self.get_serializer_context()
         )
         return Response(serializer.data)
+
+    @action(detail=False, methods=['get'], url_path='penyedia-layanan')
+    def penyedia_layanan(self, request):
+        """Published facilities counted by provider bucket and service type.
+
+        Feeds the public "Penyedia layanan" page: the chart plus one table per
+        DESDE-LTC service type. Reads the same published set as `map`, and
+        returns counts and facility names only — no surveyor identity.
+        """
+        responses = self.queryset.filter(is_published=True)
+        return Response(summarize(facility_from_response(r) for r in responses))
 
     @action(detail=True, methods=['get'], url_path='public')
     def public_detail(self, request, pk=None):
