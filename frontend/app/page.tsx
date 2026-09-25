@@ -10,12 +10,18 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { KebumenMap, KATEGORI_COLOR, type KategoriFilter } from '@/components/kebumen-map';
+import { KebumenMap, desdeBranch } from '@/components/kebumen-map';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { PublicNav } from '@/components/public-nav';
 import { PublicFooter } from '@/components/public-footer';
 import { DevNotice } from '@/components/dev-notice';
 import { PARTNER_LOGOS } from '@/lib/partners';
-import { useServiceStats } from '@/hooks/use-services';
 import { toSentenceCase } from '@/lib/utils/text';
 import {
   FACILITY_TYPES,
@@ -23,57 +29,16 @@ import {
   facilityIndex,
   facilityLabels,
 } from '@/lib/facility-types';
-import { useSurveyMapPoints } from '@/hooks/use-survey-responses';
+import { useSurveyMapPoints, type SurveyMapPoint } from '@/hooks/use-survey-responses';
 import { useSecondaryChoropleth } from '@/hooks/use-secondary';
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
-  Hospital01Icon,
-  Analytics01Icon,
   Location01Icon,
   ArrowRight01Icon,
-  CheckmarkCircle02Icon,
-  Alert02Icon,
   Cancel01Icon,
 } from "@hugeicons/core-free-icons";
 
-// Shape of GET /directory/services/stats/ (fields used here)
-type ServiceStats = {
-  total_services: number;
-  verified_services: number;
-  unverified_services: number;
-  type_distribution: { service_type__name: string | null; count: number }[];
-};
-
-const CHART_COLORS = ['#07579E', '#4DB6AC', '#FFBF47', '#9575CD'];
 const DONUT_CIRCUMFERENCE = 251.33; // 2 * PI * r, r=40
-
-function typeLabel(name: string | null) {
-  if (!name) return 'Tidak diketahui';
-  if (name === 'To Be Determined') return 'Belum ditentukan';
-  return name;
-}
-
-function buildDonutSegments(distribution: ServiceStats['type_distribution']) {
-  const total = distribution.reduce((sum, d) => sum + d.count, 0);
-  const top = distribution.slice(0, 3).map((d) => ({ label: typeLabel(d.service_type__name), count: d.count }));
-  const restCount = distribution.slice(3).reduce((sum, d) => sum + d.count, 0);
-  const items = restCount > 0 ? [...top, { label: 'Lainnya', count: restCount }] : top;
-
-  let acc = 0;
-  const segments = items.map((item, i) => {
-    const dash = total > 0 ? (item.count / total) * DONUT_CIRCUMFERENCE : 0;
-    const segment = {
-      ...item,
-      color: CHART_COLORS[i % CHART_COLORS.length],
-      dash,
-      offset: -acc,
-      pct: total > 0 ? Math.round((item.count / total) * 100) : 0,
-    };
-    acc += dash;
-    return segment;
-  });
-  return { total, segments };
-}
 
 const publications = [
   {
@@ -127,113 +92,47 @@ function useIsDesktop() {
   return isDesktop;
 }
 
-function PanelSkeleton() {
-  return (
-    <div className="space-y-2 animate-pulse py-1" aria-hidden>
-      <div className="h-3 w-3/4 rounded bg-muted" />
-      <div className="h-3 w-1/2 rounded bg-muted" />
-      <div className="h-3 w-2/3 rounded bg-muted" />
-    </div>
-  );
-}
-
-function DistributionPanel({ stats, className }: { stats?: ServiceStats; className?: string }) {
-  const donut = stats ? buildDonutSegments(stats.type_distribution) : null;
-
-  return (
-    <div className={`rounded-lg border bg-background/90 backdrop-blur p-4 ${className ?? ''}`}>
-      <h3 className="text-sm font-medium">Distribusi layanan</h3>
-      <p className="text-xs text-muted-foreground mt-0.5">Berdasarkan jenis layanan</p>
-      {!donut ? (
-        <div className="mt-3"><PanelSkeleton /></div>
-      ) : (
-        <div className="flex items-center gap-4 mt-3">
-          <div className="relative flex-shrink-0">
-            <svg viewBox="0 0 100 100" className="w-24 h-24 -rotate-90">
-              {donut.segments.map((seg) => (
-                <circle
-                  key={seg.label}
-                  cx="50" cy="50" r="40"
-                  fill="none"
-                  stroke={seg.color}
-                  strokeWidth="12"
-                  strokeDasharray={`${seg.dash} ${DONUT_CIRCUMFERENCE}`}
-                  strokeDashoffset={seg.offset}
-                />
-              ))}
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-lg font-semibold leading-none">{donut.total}</span>
-              <span className="text-[10px] text-muted-foreground">Total</span>
-            </div>
-          </div>
-          <div className="space-y-1.5 text-xs min-w-0">
-            {donut.segments.map((seg) => (
-              <div key={seg.label} className="flex items-center gap-2">
-                <div
-                  className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: seg.color }}
-                />
-                <span className="text-muted-foreground leading-tight">
-                  {seg.label}: {seg.count} ({seg.pct}%)
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-const KATEGORI_FILTERS: { value: KategoriFilter; label: string; color?: string }[] = [
-  { value: 'Semua', label: 'Semua' },
-  { value: 'FASKES', label: 'Faskes', color: KATEGORI_COLOR.FASKES },
-  { value: 'NON FASKES', label: 'Non-faskes', color: KATEGORI_COLOR['NON FASKES'] },
-];
+const ALL_LAYANAN = 'Semua';
+const UNCLASSIFIED_COLOR = '#9CA3AF';
 
 /**
- * Marker filter in the map header. It replaces the old marker legend: the same
- * two colours are shown, and each swatch is now the control that isolates it.
+ * Marker filter in the map header: one DESDE-LTC service type at a time, the
+ * same five groups the "Jenis layanan" panel counts. The markers take the
+ * chosen type's colour (or, unfiltered, a wedge per type they offer), so the
+ * swatches here and in the panel are their key.
  */
-function KategoriFilterBar({
+function LayananFilter({
   value,
   onChange,
   counts,
 }: {
-  value: KategoriFilter;
-  onChange: (value: KategoriFilter) => void;
-  counts: Record<KategoriFilter, number>;
+  value: string;
+  onChange: (value: string) => void;
+  counts: Record<string, number>;
 }) {
   return (
-    <div
-      role="group"
-      aria-label="Saring titik pada peta"
-      className="flex items-center gap-1 rounded-md border bg-background/85 backdrop-blur p-1"
-    >
-      {KATEGORI_FILTERS.map((option) => {
-        const active = option.value === value;
-        return (
-          <button
-            key={option.value}
-            type="button"
-            aria-pressed={active}
-            onClick={() => onChange(option.value)}
-            className={`flex items-center gap-1.5 rounded px-2 py-1 text-xs transition-colors ${
-              active ? 'bg-primary text-primary-foreground' : 'hover:bg-muted text-foreground/80'
-            }`}
-          >
-            {option.color && (
-              <span
-                className="h-2.5 w-2.5 rounded-full border border-white"
-                style={{ backgroundColor: option.color }}
-              />
-            )}
-            <span>{option.label}</span>
-            <span className="tabular-nums opacity-70">{counts[option.value]}</span>
-          </button>
-        );
-      })}
+    // No taller than the button bar it replaced: the map pins its choropleth
+    // legend just below this header at a fixed offset.
+    <div className="self-start rounded-md border bg-background/85 backdrop-blur p-1">
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger
+          aria-label="Saring titik menurut jenis layanan"
+          className="w-52 !h-7 rounded-sm shadow-none bg-background text-xs"
+        >
+          <SelectValue placeholder="Jenis layanan" />
+        </SelectTrigger>
+        <SelectContent position="popper" className="w-[var(--radix-select-trigger-width)] rounded-sm">
+          {[{ label: ALL_LAYANAN, color: undefined }, ...SERVICE_GROUPS].map((option) => (
+            <SelectItem key={option.label} value={option.label} className="text-xs">
+              {option.color && (
+                <span className="h-2 w-2 rounded-[2px]" style={{ backgroundColor: option.color }} aria-hidden />
+              )}
+              <span>{option.label === ALL_LAYANAN ? 'Semua jenis layanan' : option.label}</span>
+              <span className="tabular-nums text-muted-foreground">{counts[option.label] ?? 0}</span>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }
@@ -348,11 +247,11 @@ const SERVICE_GROUPS: { label: string; branches: string[]; color: string }[] = [
   { label: 'Informasi', branches: ['I', 'SI'], color: '#00979D' },
 ];
 
-/** "SA2 — Layanan …" classifies under branch SA. */
-function desdeBranch(entry: string) {
-  const code = entry.split(' — ')[0];
-  return (code.match(/^[A-Za-z]+/)?.[0] ?? code).toUpperCase();
+/** Whether any of a survey's DESDE-LTC entries classifies under one of `branches`. */
+function offersAny(entries: string[] | null, branches: string[]) {
+  return (entries ?? []).some((entry) => branches.includes(desdeBranch(entry)));
 }
+
 
 type CountRow = { label: string; count: number; color?: string };
 
@@ -371,7 +270,20 @@ function breakdownSegments(rows: CountRow[], total: number) {
   });
 }
 
-function BreakdownDonut({ rows }: { rows: CountRow[] }) {
+/**
+ * Slices are services, so they can add up past the facility count: one
+ * facility offering three types is in three slices. The centre therefore
+ * counts facilities, the thing the map is plotting.
+ */
+function BreakdownDonut({
+  rows,
+  facilities,
+  highlight,
+}: {
+  rows: CountRow[];
+  facilities: number;
+  highlight: string | null;
+}) {
   const total = rows.reduce((sum, row) => sum + row.count, 0);
   if (total === 0) return null;
   const segments = breakdownSegments(rows, total);
@@ -388,12 +300,15 @@ function BreakdownDonut({ rows }: { rows: CountRow[] }) {
             strokeWidth="16"
             strokeDasharray={`${segment.dash} ${DONUT_CIRCUMFERENCE}`}
             strokeDashoffset={segment.offset}
+            opacity={highlight && segment.label !== highlight ? 0.3 : 1}
           />
         ))}
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-lg font-semibold leading-none tabular-nums">{total}</span>
-        <span className="text-[10px] text-muted-foreground mt-0.5">Layanan</span>
+        <span className="text-lg font-semibold leading-none tabular-nums">
+          {facilities.toLocaleString('id-ID')}
+        </span>
+        <span className="text-[10px] text-muted-foreground mt-0.5">Fasilitas</span>
       </div>
     </div>
   );
@@ -409,12 +324,18 @@ function BreakdownPanel({
   rows,
   empty,
   chart = false,
+  facilities = 0,
+  highlight = null,
 }: {
   title: string;
   kecamatan: string | null;
   rows: CountRow[];
   empty: string;
   chart?: boolean;
+  /** Facilities in scope, for the donut's centre. */
+  facilities?: number;
+  /** The row the map is filtered to; the others fade behind it. */
+  highlight?: string | null;
 }) {
   const max = rows.reduce((highest, row) => Math.max(highest, row.count), 0);
 
@@ -430,12 +351,14 @@ function BreakdownPanel({
         <p className="text-muted-foreground mt-2 pt-2 border-t leading-snug">{empty}</p>
       ) : (
         <div className="mt-2 pt-2 border-t">
-          {chart && <BreakdownDonut rows={rows} />}
+          {chart && <BreakdownDonut rows={rows} facilities={facilities} highlight={highlight} />}
           <dl className="space-y-0.5">
             {rows.map((row) => (
               <div
                 key={row.label}
-                className="relative flex items-baseline justify-between gap-2 px-1 py-1"
+                className={`relative flex items-baseline justify-between gap-2 px-1 py-1 transition-opacity ${
+                  highlight && row.label !== highlight ? 'opacity-50' : ''
+                }`}
               >
                 {/* The bar is the row's background, scaled against the largest
                     count in this panel, so the shape reads without a second
@@ -470,54 +393,34 @@ function BreakdownPanel({
   );
 }
 
-function StatsPanel({ stats, className }: { stats?: ServiceStats; className?: string }) {
-  const rows = stats
-    ? [
-        { icon: Hospital01Icon, label: 'Total fasilitas', value: stats.total_services },
-        { icon: CheckmarkCircle02Icon, label: 'Terverifikasi', value: stats.verified_services },
-        { icon: Alert02Icon, label: 'Belum terverifikasi', value: stats.unverified_services },
-        { icon: Analytics01Icon, label: 'Jenis layanan', value: stats.type_distribution.length },
-      ]
-    : null;
-
-  return (
-    <div className={`rounded-lg border bg-background/90 backdrop-blur p-4 ${className ?? ''}`}>
-      <h3 className="text-sm font-medium">Fasilitas kesehatan jiwa</h3>
-      <p className="text-xs text-muted-foreground mt-0.5 mb-3">Data Kabupaten Kebumen</p>
-      {!rows ? (
-        <PanelSkeleton />
-      ) : (
-        <div className="space-y-2.5">
-          {rows.map((stat) => (
-            <div key={stat.label} className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <HugeiconsIcon icon={stat.icon} size={15} className="text-muted-foreground" />
-                <span className="text-sm">{stat.label}</span>
-              </div>
-              <span className="text-lg font-semibold tabular-nums leading-none">{stat.value}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 export default function HomePage() {
   const isDesktop = useIsDesktop();
-  const { data: serviceStats } = useServiceStats();
-  const stats = serviceStats as ServiceStats | undefined;
-  const [kategori, setKategori] = useState<KategoriFilter>('Semua');
+  const [layanan, setLayanan] = useState(ALL_LAYANAN);
+  const group = SERVICE_GROUPS.find((entry) => entry.label === layanan);
+  const branches = group?.branches ?? null;
+  const markerColors = useCallback(
+    (point: SurveyMapPoint) => {
+      if (group) return [group.color];
+      const colors = SERVICE_GROUPS.filter((entry) =>
+        offersAny(point.kode_desde_ltc, entry.branches)
+      ).map((entry) => entry.color);
+      // Not yet classified under any type: grey, not a colour that means one.
+      return colors.length ? colors : [UNCLASSIFIED_COLOR];
+    },
+    [group]
+  );
 
   // Same query key as the map's own, so counting the points here costs nothing.
   const { data: mapPoints } = useSurveyMapPoints();
   const counts = useMemo(() => {
     const points = mapPoints ?? [];
-    return {
-      Semua: points.length,
-      FASKES: points.filter((point) => point.kategori === 'FASKES').length,
-      'NON FASKES': points.filter((point) => point.kategori === 'NON FASKES').length,
-    } as Record<KategoriFilter, number>;
+    return Object.fromEntries([
+      [ALL_LAYANAN, points.length],
+      ...SERVICE_GROUPS.map((group) => [
+        group.label,
+        points.filter((point) => offersAny(point.kode_desde_ltc, group.branches)).length,
+      ]),
+    ]) as Record<string, number>;
   }, [mapPoints]);
 
   // The kecamatan clicked on the map, read back from the same layer the
@@ -530,24 +433,22 @@ export default function HomePage() {
   const clearKecamatan = useCallback(() => setSelectedKecamatan(null), []);
 
   // Both breakdowns describe exactly what the map is showing: the same
-  // kategori filter, narrowed to the clicked kecamatan when there is one.
+  // jenis layanan filter, narrowed to the clicked kecamatan when there is one.
   const scopedPoints = useMemo(() => {
     const key = selectedKecamatan?.trim().toLowerCase();
     return (mapPoints ?? []).filter(
       (point) =>
-        (kategori === 'Semua' || point.kategori === kategori) &&
+        (!branches || offersAny(point.kode_desde_ltc, branches)) &&
         (!key || (point.kecamatan ?? '').trim().toLowerCase() === key)
     );
-  }, [mapPoints, kategori, selectedKecamatan]);
+  }, [mapPoints, branches, selectedKecamatan]);
 
   const serviceRows = useMemo<CountRow[]>(
     () =>
       SERVICE_GROUPS.map((group) => ({
         label: group.label,
         color: group.color,
-        count: scopedPoints.filter((point) =>
-          (point.kode_desde_ltc ?? []).some((entry) => group.branches.includes(desdeBranch(entry)))
-        ).length,
+        count: scopedPoints.filter((point) => offersAny(point.kode_desde_ltc, group.branches)).length,
       })).filter((row) => row.count > 0),
     [scopedPoints]
   );
@@ -631,7 +532,8 @@ export default function HomePage() {
             maxBounds={isDesktop ? HERO_MAP_BOUNDS : undefined}
             cooperativeGestures
             choropleth
-            kategoriFilter={kategori}
+            desdeBranches={branches}
+            markerColors={markerColors}
             onSelectKecamatan={handleSelectKecamatan}
             selectedKecamatan={selectedKecamatan}
           />
@@ -646,7 +548,7 @@ export default function HomePage() {
                       itself, so this chip stays put as the map's title. */}
                   <span className="text-xs">Kabupaten Kebumen, Jawa Tengah</span>
                 </div>
-                <KategoriFilterBar value={kategori} onChange={setKategori} counts={counts} />
+                <LayananFilter value={layanan} onChange={setLayanan} counts={counts} />
               </div>
 
               {/* Bento: the reading spans the top, the two breakdowns share
@@ -674,6 +576,8 @@ export default function HomePage() {
                   rows={serviceRows}
                   empty="Belum ada layanan terklasifikasi di sini."
                   chart
+                  facilities={scopedPoints.length}
+                  highlight={layanan === ALL_LAYANAN ? null : layanan}
                 />
               </div>
             </div>
@@ -701,16 +605,6 @@ export default function HomePage() {
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Charts as their own section below the map, not pinned over it */}
-      <section className="border-b">
-        <div className="container max-w-7xl mx-auto px-4 lg:px-6 py-8 lg:py-10">
-          <div className="grid gap-4 lg:gap-6 sm:grid-cols-2">
-            <DistributionPanel stats={stats} />
-            <StatsPanel stats={stats} />
           </div>
         </div>
       </section>

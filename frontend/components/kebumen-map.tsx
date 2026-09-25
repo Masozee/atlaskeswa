@@ -92,6 +92,12 @@ function matchesFilter(value: string | null, filter: string) {
   return value.toLowerCase().includes(filter.toLowerCase());
 }
 
+/** "SA2 — Layanan …" classifies under branch SA. */
+export function desdeBranch(entry: string) {
+  const code = entry.split(" — ")[0];
+  return (code.match(/^[A-Za-z]+/)?.[0] ?? code).toUpperCase();
+}
+
 type KebumenMapProps = {
   className?: string;
   showControls?: boolean;
@@ -103,6 +109,16 @@ type KebumenMapProps = {
   kecamatanFilter?: string;
   /** "Semua", "FASKES" or "NON FASKES" — filters the markers by kategori. */
   kategoriFilter?: KategoriFilter;
+  /**
+   * DESDE-LTC branches (e.g. ["R", "SR"]) a survey must be classified under at
+   * least one of to show; null shows every survey.
+   */
+  desdeBranches?: string[] | null;
+  /**
+   * The colours a marker is painted in, split into equal wedges when there is
+   * more than one; unset (or an empty list) colours it by its kategori.
+   */
+  markerColors?: (survey: SurveyMapPoint) => string[];
   onHoverKecamatan?: (name: string | null) => void;
   /** Clicking a kecamatan polygon reports its name; clicking it again clears. */
   onSelectKecamatan?: (name: string | null) => void;
@@ -128,7 +144,15 @@ type KebumenMapProps = {
   highlightKecamatan?: string;
 };
 
-function SurveyMarker({ survey }: { survey: PlottedSurvey }) {
+/** Equal wedges, one per colour: a facility offering three types shows all three. */
+function markerFill(colors: string[]) {
+  if (colors.length === 1) return colors[0];
+  const step = 360 / colors.length;
+  const stops = colors.map((color, i) => `${color} ${i * step}deg ${(i + 1) * step}deg`);
+  return `conic-gradient(${stops.join(", ")})`;
+}
+
+function SurveyMarker({ survey, colors }: { survey: PlottedSurvey; colors: string[] | null }) {
   const codes = survey.kode_desde_ltc ?? [];
   const shownCodes = codes.slice(0, 4);
   const surveyDate = formatSurveyDate(survey.survey_date);
@@ -139,7 +163,7 @@ function SurveyMarker({ survey }: { survey: PlottedSurvey }) {
       <MarkerContent>
         <div
           className="w-3.5 h-3.5 rounded-full border-2 border-white shadow-md cursor-pointer transition-transform hover:scale-150"
-          style={{ backgroundColor: kategoriColor(survey.kategori) }}
+          style={{ background: colors?.length ? markerFill(colors) : kategoriColor(survey.kategori) }}
         />
       </MarkerContent>
       <MarkerPopup closeButton className="w-72 p-0 overflow-hidden">
@@ -281,7 +305,7 @@ function ChoroplethLegend({
     // Stacked under the marker legend at top-left: the bottom-right corner is
     // where the landing page pins its charts, and the bottom edge carries the
     // hero copy.
-    <div className="absolute left-4 top-44 lg:top-32 z-10 rounded-md border bg-background/85 backdrop-blur px-3 py-2 text-xs max-w-[210px]">
+    <div className="absolute left-4 lg:left-6 top-44 lg:top-32 z-10 rounded-md border bg-background/85 backdrop-blur px-3 py-2 text-xs max-w-[210px]">
       <p className="font-medium leading-snug">{label}</p>
       <p className="text-muted-foreground mb-1.5">per 10.000 penduduk</p>
       <div className="space-y-1">
@@ -310,6 +334,8 @@ export function KebumenMap({
   serviceFilter = "Semua",
   kecamatanFilter = "Semua",
   kategoriFilter = "Semua",
+  desdeBranches = null,
+  markerColors,
   onHoverKecamatan,
   onSelectKecamatan,
   selectedKecamatan = null,
@@ -409,9 +435,11 @@ export function KebumenMap({
         (kategoriFilter === "Semua" || survey.kategori === kategoriFilter) &&
         matchesFilter(survey.jenis_fasilitas, facilityFilter) &&
         matchesFilter(survey.jenis_layanan, serviceFilter) &&
-        matchesFilter(survey.kecamatan, kecamatanFilter)
+        matchesFilter(survey.kecamatan, kecamatanFilter) &&
+        (!desdeBranches ||
+          (survey.kode_desde_ltc ?? []).some((entry) => desdeBranches.includes(desdeBranch(entry))))
     );
-  }, [surveyPoints, kategoriFilter, facilityFilter, serviceFilter, kecamatanFilter]);
+  }, [surveyPoints, kategoriFilter, facilityFilter, serviceFilter, kecamatanFilter, desdeBranches]);
 
   const selection = useMemo(() => {
     if (!selectedKecamatan) return null;
@@ -527,7 +555,7 @@ export function KebumenMap({
           {...(onSelectKecamatan ? { onFeatureClick: handleFeatureClick } : {})}
         />
         {showMarkers && filteredSurveys.map((survey) => (
-          <SurveyMarker key={survey.id} survey={survey} />
+          <SurveyMarker key={survey.id} survey={survey} colors={markerColors?.(survey) ?? null} />
         ))}
         {showControls && (
           <MapControls position="top-right" showZoom showFullscreen />
