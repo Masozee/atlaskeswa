@@ -44,7 +44,7 @@ from apps.accounts.permissions import (
     CanModifySurveyStatus
 )
 from apps.accounts.mixins import SurveyorFilterMixin
-from .penyedia_layanan import facility_from_response, summarize
+from .penyedia_layanan import load_facilities, summarize
 from apps.logs.utils import (
     log_create, log_update, log_delete,
     log_soft_delete, log_bulk_soft_delete, log_restore,
@@ -1395,8 +1395,8 @@ class DynamicSurveyResponseViewSet(SurveyorFilterMixin, viewsets.ModelViewSet):
         DESDE-LTC service type. Reads the same published set as `map`, and
         returns counts and facility names only — no surveyor identity.
         """
-        responses = self.queryset.filter(is_published=True)
-        return Response(summarize(facility_from_response(r) for r in responses))
+        responses = DynamicSurveyResponse.objects.filter(is_published=True)
+        return Response(summarize(load_facilities(responses)))
 
     @action(detail=True, methods=['get'], url_path='public')
     def public_detail(self, request, pk=None):

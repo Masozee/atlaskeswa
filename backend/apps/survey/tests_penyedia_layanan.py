@@ -68,9 +68,9 @@ class SummarizeTests(SimpleTestCase):
             Facility(1, 'RS A', facility_types=['Rumah Sakit Umum', 'Puskesmas'],
                      services={'O4.1': 30}),
         ])
-        chart = {c['provider']: c for c in summary['chart']}
-        self.assertEqual(chart['rs']['O'], 1)
-        self.assertEqual(chart['puskesmas']['O'], 1)
+        chart = {c['facility_type']: c for c in summary['chart']}
+        self.assertEqual(chart['Rumah Sakit Umum']['O'], 1)
+        self.assertEqual(chart['Puskesmas']['O'], 1)
         self.assertEqual(row(summary['rawat_jalan'], 'rs')['akut_fasilitas'], {'fasilitas': 1, 'jumlah': 30})
         # Each bucket's row counts it, so the total counts it twice.
         self.assertEqual(summary['rawat_jalan']['total']['akut_fasilitas']['fasilitas'], 2)
@@ -80,8 +80,35 @@ class SummarizeTests(SimpleTestCase):
             Facility(1, 'Puskesmas A', facility_types=['Puskesmas'],
                      services={'O4.1': 10, 'O10.1': 5, 'SO2.3.1': 2}),
         ])
-        chart = {c['provider']: c for c in summary['chart']}
-        self.assertEqual(chart['puskesmas']['O'], 1)
+        chart = {c['facility_type']: c for c in summary['chart']}
+        self.assertEqual(chart['Puskesmas']['O'], 1)
+
+    def test_chart_keeps_q4_types_apart_where_buckets_merge_them(self):
+        summary = summarize([
+            Facility(1, 'RSU A', facility_types=['Rumah Sakit Umum'], services={'R1': 1}),
+            Facility(2, 'RSJ B', facility_types=['Rumah Sakit Jiwa (RSJ)'], services={'R1': 1}),
+            Facility(3, 'Pusk C', facility_types=['PUSKESMAS'], services={'O4.1': 1}),
+            Facility(4, 'Pusk D', facility_types=['Puskesmas'], services={'O4.1': 1}),
+            Facility(5, 'Tanpa jenis', services={'A2': 1}),
+        ])
+        chart = {c['facility_type']: c for c in summary['chart']}
+        # No Q4 answer, no type to count under — as on the landing page.
+        self.assertEqual(set(chart), {'Rumah Sakit Umum', 'Rumah Sakit Jiwa (RSJ)', 'PUSKESMAS'})
+        self.assertEqual(chart['PUSKESMAS']['O'], 2)
+        self.assertEqual(chart['PUSKESMAS']['total'], 2)
+
+    def test_chart_counts_every_survey_while_tables_count_the_latest(self):
+        early = datetime(2026, 7, 6, tzinfo=dt_timezone.utc)
+        late = datetime(2026, 7, 28, tzinfo=dt_timezone.utc)
+        summary = summarize([
+            Facility(1, 'RSUD Prembun', early, ['Rumah Sakit Umum'], {'R1': 10}),
+            Facility(2, 'RSUD Prembun', late, ['Rumah Sakit Umum'], {'R1': 10}),
+        ])
+        (row,) = summary['chart']
+        self.assertEqual((row['total'], row['R']), (2, 2))
+        self.assertEqual(summary['total_surveys'], 2)
+        self.assertEqual(summary['total_facilities'], 1)
+        self.assertEqual(len(summary['rawat_inap']), 1)
 
     def test_unreported_volume_is_zero(self):
         summary = summarize([

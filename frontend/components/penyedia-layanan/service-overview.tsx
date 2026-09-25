@@ -125,9 +125,10 @@ export function ServiceOverview() {
       </Tabs>
 
       <p className="text-sm text-muted-foreground max-w-[70ch]">
-        Dihitung dari {summary.total_facilities} fasilitas; fasilitas yang disurvei lebih dari
-        sekali dihitung dari survei terakhirnya. Satu fasilitas dapat masuk ke lebih dari satu
-        kelompok penyedia.
+        Grafik menghitung seluruh {summary.total_surveys} survei, sama seperti beranda. Tabel
+        menghitung {summary.total_facilities} fasilitas: fasilitas yang disurvei lebih dari sekali
+        dihitung dari survei terakhirnya. Satu fasilitas dapat masuk ke lebih dari satu kelompok
+        penyedia.
       </p>
     </div>
   );

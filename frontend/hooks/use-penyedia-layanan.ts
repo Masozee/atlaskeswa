@@ -64,7 +64,13 @@ export interface PenyediaLayananSummary {
   total_facilities: number;
   providers: { key: string; label: string }[];
   service_types: { key: ServiceTypeKey; label: string }[];
-  chart: ({ provider: string } & Record<ServiceTypeKey, number>)[];
+  /** Every published survey, as the chart counts them (the tables count facilities). */
+  total_surveys: number;
+  /**
+   * Per Q4 facility type as answered (casing varies), over every survey: its
+   * total and how many of those offer each service type.
+   */
+  chart: ({ facility_type: string; total: number } & Record<ServiceTypeKey, number>)[];
   rawat_inap: RawatInapRow[];
   perawatan_harian: PerawatanHarianRow[];
   rawat_jalan: BucketTable<RawatJalanColumn>;

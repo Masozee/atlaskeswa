@@ -8,7 +8,7 @@ renders the payload as-is.
 
 `summarize` works on plain `Facility` records rather than model instances, so
 the counting rules can be tested without building whole surveys;
-`facility_from_response` is the one place that reads a survey.
+`load_facilities` is the one place that reads surveys.
 
 A facility is often surveyed more than once — per unit on the day, then again
 in a later consolidation pass — so only its latest survey is counted.
@@ -16,6 +16,8 @@ in a later consolidation pass — so only its latest survey is counted.
 
 import re
 from dataclasses import dataclass, field
+
+from django.db.models import Q
 
 # Provider buckets in report order. A facility with no Q4 type we recognise
 # lands in "Lainnya" rather than dropping out of the totals.
@@ -131,35 +133,58 @@ class Facility:
     services: dict = field(default_factory=dict)
 
 
-def facility_from_response(response):
-    """A published survey as a `Facility`, read from its prefetched answers."""
-    name = None
-    facility_types = []
-    services = {}
-    for answer in response.answers.all():
-        code = answer.question.code
-        if code == 'Q1':
-            name = (answer.text_value or '').strip() or None
-        elif code == 'Q4':
-            facility_types += [c.label.strip() for c in answer.selected_choices.all() if c.label]
-        # Detail answers carry their branch's code; the choices that open a
-        # branch name it too, which catches a branch whose block has no number.
-        for choice in answer.selected_choices.all():
-            if choice.kode_desde_ltc:
-                services.setdefault(choice.kode_desde_ltc.replace(' ', ''), 0)
-        if answer.context_key:
-            services.setdefault(answer.context_key, 0)
-            if code in VOLUME_QUESTIONS and answer.number_value is not None:
-                services[answer.context_key] += int(answer.number_value)
-    if not name and response.service_id:
-        name = response.service.name
-    return Facility(
-        id=response.id,
-        name=name or 'Tanpa nama',
-        surveyed_at=response.survey_date,
-        facility_types=facility_types,
-        services=services,
+def load_facilities(responses):
+    """Every survey in `responses` as a `Facility`, in three flat queries.
+
+    Reads plain values rather than model instances: the page needs a handful
+    of fields from ~14k answers, and building ORM objects for all of them (as
+    the viewset's shared prefetch does) was most of the request time.
+    """
+    from .models import QuestionAnswer
+
+    facilities = {
+        row['id']: Facility(
+            id=row['id'],
+            name=(row['service__name'] or '').strip(),
+            surveyed_at=row['survey_date'],
+        )
+        for row in responses.values('id', 'survey_date', 'service__name')
+    }
+
+    answers = QuestionAnswer.objects.filter(response_id__in=facilities).filter(
+        Q(question__code='Q1') | ~Q(context_key='')
     )
+    for row in answers.values('response_id', 'question__code', 'context_key', 'text_value', 'number_value'):
+        facility = facilities[row['response_id']]
+        if row['question__code'] == 'Q1':
+            # The name as the surveyor typed it wins over the linked service's.
+            facility.name = (row['text_value'] or '').strip() or facility.name
+            continue
+        # Detail answers carry their branch's code.
+        ctx = row['context_key']
+        facility.services.setdefault(ctx, 0)
+        if row['question__code'] in VOLUME_QUESTIONS and row['number_value'] is not None:
+            facility.services[ctx] += int(row['number_value'])
+
+    choices = QuestionAnswer.selected_choices.through.objects.filter(
+        questionanswer__response_id__in=facilities
+    ).filter(Q(questionanswer__question__code='Q4') | ~Q(questionchoice__kode_desde_ltc=''))
+    for row in choices.values(
+        'questionanswer__response_id', 'questionanswer__question__code',
+        'questionchoice__label', 'questionchoice__kode_desde_ltc',
+    ):
+        facility = facilities[row['questionanswer__response_id']]
+        label = (row['questionchoice__label'] or '').strip()
+        if row['questionanswer__question__code'] == 'Q4' and label:
+            facility.facility_types.append(label)
+        # The choices that open a branch name it too, which catches a branch
+        # whose block has no number.
+        if row['questionchoice__kode_desde_ltc']:
+            facility.services.setdefault(row['questionchoice__kode_desde_ltc'].replace(' ', ''), 0)
+
+    for facility in facilities.values():
+        facility.name = facility.name or 'Tanpa nama'
+    return list(facilities.values())
 
 
 def facility_key(name):
@@ -205,9 +230,33 @@ def _bucket_table(rows_by_bucket, bucket_order, column_names):
     return {'rows': rows, 'total': total}
 
 
-def summarize(facilities):
+def facility_type_chart(surveys):
+    """Surveys per Q4 facility type, and how many of them offer each service type.
+
+    Counts every survey, like the landing page's "Jenis fasilitas" panel, so
+    the two agree; the tables below it count each facility's latest survey.
+    Q4 is multi-select, so a survey counts under each type it ticked; one with
+    no Q4 answer has no type to count under and is left out, as it is there.
+    """
+    # normalised label -> row, keeping the label as first answered
+    rows = {}
+    for survey in surveys:
+        offered = {service_type for service_type, _column in _columns(survey)}
+        for label in dict.fromkeys(survey.facility_types):
+            row = rows.setdefault(
+                ' '.join(label.lower().split()),
+                {'facility_type': label, 'total': 0, **{t: 0 for t, _l in SERVICE_TYPES}},
+            )
+            row['total'] += 1
+            for service_type in offered:
+                row[service_type] += 1
+    return list(rows.values())
+
+
+def summarize(surveys):
     """The whole page payload: chart series plus the five service tabs."""
-    facilities = sorted(latest_per_facility(facilities), key=lambda f: f.name.lower())
+    surveys = list(surveys)
+    facilities = sorted(latest_per_facility(surveys), key=lambda f: f.name.lower())
     all_buckets = [(key, label) for key, label, _types in BUCKETS] + [OTHER_BUCKET]
 
     tables = {
@@ -220,7 +269,6 @@ def summarize(facilities):
         name: {key: {c: _cell() for c in cols} for key, _label in all_buckets}
         for name, cols in tables.items()
     }
-    chart = {key: {t: 0 for t, _label in SERVICE_TYPES} for key, _label in all_buckets}
     used_buckets = set()
     rawat_inap, perawatan_harian = [], []
 
@@ -231,8 +279,6 @@ def summarize(facilities):
         offered_types = {service_type for service_type, _column in columns}
 
         for key in buckets:
-            for service_type in offered_types:
-                chart[key][service_type] += 1
             for (service_type, column), volume in columns.items():
                 table = service_type
                 if service_type == 'I':
@@ -276,7 +322,8 @@ def summarize(facilities):
         'total_facilities': len(facilities),
         'providers': [{'key': key, 'label': label} for key, label in all_buckets if key in bucket_order],
         'service_types': [{'key': key, 'label': label} for key, label in SERVICE_TYPES],
-        'chart': [{'provider': key, **chart[key]} for key in bucket_order],
+        'total_surveys': len(surveys),
+        'chart': facility_type_chart(surveys),
         'rawat_inap': rawat_inap,
         'perawatan_harian': perawatan_harian,
         'rawat_jalan': _bucket_table(per_bucket['O'], bucket_order, tables['O']),

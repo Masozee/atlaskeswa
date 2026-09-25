@@ -6,6 +6,7 @@ import {
   CartesianGrid,
   LabelList,
   ResponsiveContainer,
+  Text,
   Tooltip,
   XAxis,
   YAxis,
@@ -13,13 +14,15 @@ import {
 } from 'recharts';
 import type { NameType, ValueType } from 'recharts/types/component/DefaultTooltipContent';
 import type { PenyediaLayananSummary } from '@/hooks/use-penyedia-layanan';
+import { facilityIndex } from '@/lib/facility-types';
+import { toSentenceCase } from '@/lib/utils/text';
 import { SERVICE_TYPES, formatNumber } from './service-types';
 
-function ChartTooltip({ active, payload, label }: TooltipContentProps<ValueType, NameType>) {
+function ChartTooltip({ active, payload }: TooltipContentProps<ValueType, NameType>) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-sm border bg-background px-3 py-2 text-xs shadow-sm">
-      <p className="font-medium mb-1">{label}</p>
+    <div className="max-w-64 rounded-sm border bg-background px-3 py-2 text-xs shadow-sm">
+      <p className="font-medium mb-1">{payload[0].payload.label}</p>
       <ul className="space-y-0.5">
         {payload.map((entry) => (
           <li key={String(entry.dataKey)} className="flex items-center gap-2">
@@ -33,13 +36,56 @@ function ChartTooltip({ active, payload, label }: TooltipContentProps<ValueType,
   );
 }
 
+/** Two lines under each group: the type as the landing page names it, and its total. */
+function FacilityTick({
+  x,
+  y,
+  payload,
+  totals,
+}: {
+  x?: number;
+  y?: number;
+  payload?: { value: string };
+  totals: Record<string, number>;
+}) {
+  const label = payload?.value ?? '';
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <Text
+        width={116}
+        y={6}
+        textAnchor="middle"
+        verticalAnchor="start"
+        fontSize={11}
+        fill="#374151"
+        lineHeight={13}
+      >
+        {/* Text wraps only at spaces; Q4 joins "Panti sosial/lembaga …" with
+            slashes, so give it room to break after each one. */}
+        {label.replace(/\//g, '/ ')}
+      </Text>
+      <text y={98} textAnchor="middle" fontSize={11} fill="#6B7280">
+        {formatNumber(totals[label] ?? 0)} survei
+      </text>
+    </g>
+  );
+}
+
 /**
- * Facilities per provider bucket offering each service type. A facility that
- * offers several codes of one type counts once in that bar.
+ * Surveys per Q4 facility type offering each service type — the same rows,
+ * labels, order and totals as the landing page's "Jenis fasilitas" panel. A
+ * survey that ticked two types counts under both; one that offers several
+ * codes of a service type counts once there.
  */
 export function ServiceChart({ summary }: { summary: PenyediaLayananSummary }) {
-  const labels = Object.fromEntries(summary.providers.map((p) => [p.key, p.label]));
-  const data = summary.chart.map((row) => ({ ...row, label: labels[row.provider] ?? row.provider }));
+  const data = summary.chart
+    .map((row) => ({
+      ...row,
+      index: facilityIndex(row.facility_type),
+      label: toSentenceCase(row.facility_type),
+    }))
+    .sort((a, b) => a.index - b.index || a.label.localeCompare(b.label, 'id'));
+  const totals = Object.fromEntries(data.map((row) => [row.label, row.total]));
 
   return (
     <figure>
@@ -47,7 +93,8 @@ export function ServiceChart({ summary }: { summary: PenyediaLayananSummary }) {
         Jenis layanan kesehatan jiwa berdasarkan penyedia layanan
       </figcaption>
       <p className="mt-1 text-sm text-muted-foreground">
-        Jumlah fasilitas di setiap kelompok penyedia yang menyediakan tiap jenis layanan.
+        Jumlah survei per jenis fasilitas yang menyediakan tiap jenis layanan, dihitung sama
+        seperti panel Jenis fasilitas di beranda.
       </p>
 
       <ul className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm" aria-label="Keterangan">
@@ -62,7 +109,7 @@ export function ServiceChart({ summary }: { summary: PenyediaLayananSummary }) {
       {/* 40 bars need room; on a phone the chart scrolls inside its own box
           rather than squeezing bars below a readable width. */}
       <div className="mt-4 -mx-4 overflow-x-auto px-4">
-        <div className="h-80 min-w-[46rem]">
+        <div className="h-[26rem] min-w-[64rem]">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data} barGap={2} barCategoryGap="18%" margin={{ top: 20, right: 0, left: -20, bottom: 0 }}>
               <CartesianGrid vertical={false} stroke="#E5E7EB" />
@@ -71,7 +118,8 @@ export function ServiceChart({ summary }: { summary: PenyediaLayananSummary }) {
                 tickLine={false}
                 axisLine={{ stroke: '#E5E7EB' }}
                 interval={0}
-                tick={{ fontSize: 12, fill: '#374151' }}
+                height={112}
+                tick={<FacilityTick totals={totals} />}
               />
               <YAxis
                 allowDecimals={false}
