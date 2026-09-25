@@ -32,9 +32,19 @@ export const FACILITY_TYPES: FacilityType[] = [
 /** Answers come back in the casing the questionnaire used; match loosely. */
 export const facilityKey = (label: string) => label.trim().toLowerCase().replace(/\s+/g, ' ');
 
-const INDEX: Record<string, number> = Object.fromEntries(
-  FACILITY_TYPES.map((type, index) => [facilityKey(type.label), index])
-);
+/** Earlier or later Q4 labels for the same type, so they sort and colour as one. */
+const ALIASES: Record<string, string> = {
+  // Q4 later folded "Rumah Sakit Umum" into plain "Rumah Sakit"; both are live.
+  'rumah sakit': 'Rumah Sakit Umum',
+};
+
+const INDEX: Record<string, number> = Object.fromEntries([
+  ...FACILITY_TYPES.map((type, index) => [facilityKey(type.label), index] as const),
+  ...Object.entries(ALIASES).map(
+    ([alias, label]) =>
+      [alias, FACILITY_TYPES.findIndex((type) => type.label === label)] as const
+  ),
+]);
 
 /** Index into `FACILITY_TYPES`, or its length for a type Q4 no longer names. */
 export function facilityIndex(label: string) {

@@ -22,7 +22,8 @@ from django.db.models import Q
 # Provider buckets in report order. A facility with no Q4 type we recognise
 # lands in "Lainnya" rather than dropping out of the totals.
 BUCKETS = [
-    ('rs', 'RS', ['rumah sakit umum', 'rumah sakit jiwa (rsj)']),
+    # Q4 later folded "Rumah Sakit Umum" into plain "Rumah Sakit"; both are live.
+    ('rs', 'RS', ['rumah sakit', 'rumah sakit umum', 'rumah sakit jiwa (rsj)']),
     ('puskesmas', 'Puskesmas', ['puskesmas']),
     ('biro_psikologi', 'Biro psikologi', ['klinik atau biro psikologi']),
     ('praktek_dokter', 'Praktek dokter mandiri', ['praktek dokter mandiri']),

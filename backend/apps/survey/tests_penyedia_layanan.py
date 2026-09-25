@@ -54,6 +54,7 @@ class ClassifyTests(SimpleTestCase):
 class BucketTests(SimpleTestCase):
     def test_types_map_to_report_buckets_loosely(self):
         self.assertEqual(bucket_keys(['Rumah Sakit Umum', 'Rumah Sakit Jiwa (RSJ)']), ['rs'])
+        self.assertEqual(bucket_keys(['Rumah Sakit']), ['rs'])
         self.assertEqual(bucket_keys(['KLINIK ATAU BIRO PSIKOLOGI']), ['biro_psikologi'])
         self.assertEqual(bucket_keys(['Organisasi Berbasis Komunitas']), ['kader'])
 
