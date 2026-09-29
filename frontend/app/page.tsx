@@ -592,7 +592,7 @@ export default function HomePage() {
                     Sistem layanan kesehatan jiwa berbasis DESDE-LTC
                   </p>
                   <h2 className="text-3xl lg:text-5xl font-semibold tracking-tight leading-[1.1] text-white">
-                    Atlas layanan kesehatan jiwa Indonesia
+                    Atlas layanan kesehatan jiwa Kabupaten Kebumen
                   </h2>
                   <div className="flex items-center gap-3 pt-2">
                     <Button asChild className="gap-2">
