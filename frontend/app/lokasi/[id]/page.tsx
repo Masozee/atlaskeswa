@@ -26,6 +26,7 @@ import {
   type SurveyLocationPhoto,
 } from '@/hooks/use-survey-responses';
 import { ServiceDetailMatrix } from '@/components/service-detail-matrix';
+import { ServiceSummary } from '@/components/service-summary-table';
 import { toSentenceCase } from '@/lib/utils/text';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { ArrowLeft01Icon, ArrowRight01Icon } from '@hugeicons/core-free-icons';
@@ -76,6 +77,18 @@ function compareDesdeCode(a: string, b: string) {
  * keeps only what it adds.
  */
 type DesdeEntry = { code: string; name: string };
+
+/**
+ * Branches read from the most intensive care outwards — rawat inap, rawat
+ * jalan, perawatan harian, aksesibilitas, informasi — health before social,
+ * rather than alphabetically. Anything unlisted follows in code order.
+ */
+const BRANCH_ORDER = ['R', 'O', 'D', 'A', 'I', 'SR', 'SO', 'SD', 'SA', 'SI'];
+
+function branchRank(code: string) {
+  const rank = BRANCH_ORDER.indexOf(code);
+  return rank < 0 ? BRANCH_ORDER.length : rank;
+}
 type DesdeGroup = DesdeEntry & { children: DesdeEntry[] };
 
 function groupDesdeCodes(entries: string[]): DesdeGroup[] {
@@ -91,7 +104,7 @@ function groupDesdeCodes(entries: string[]): DesdeGroup[] {
   }
 
   return Object.values(groups)
-    .sort((a, b) => compareDesdeCode(a.code, b.code))
+    .sort((a, b) => branchRank(a.code) - branchRank(b.code) || compareDesdeCode(a.code, b.code))
     .map((group) => {
       // A branch with no row of its own still gets a heading: its children all
       // carry the branch name as the first part of theirs.
@@ -346,29 +359,39 @@ function ServiceChapter({ location }: { location: SurveyLocationDetail }) {
   const groups = groupDesdeCodes(location.kode_desde_ltc ?? []);
   if (groups.length === 0) return null;
 
+  const details = location.service_details ?? [];
+  const branchOf = (code: string) => code.match(/^[A-Za-z]+/)?.[0] ?? code;
+
   return (
-    <Chapter title="Layanan">
-      <div className="space-y-5">
+    // The branch letters in the gutter head each block, so the chapter needs
+    // no visible title of its own.
+    <section aria-labelledby="layanan-heading">
+      <h2 id="layanan-heading" className="sr-only">Layanan</h2>
+      <div className="space-y-10">
         {groups.map((group) => (
-          <div key={group.code}>
-            <div className="flex gap-3 text-[15px] font-medium">
-              <span className="w-16 flex-shrink-0 tabular-nums">{group.code}</span>
-              <span>{group.name}</span>
+          <div key={group.code} className="grid grid-cols-[3rem_minmax(0,1fr)] sm:grid-cols-[5rem_minmax(0,1fr)]">
+            <span className="text-[15px] font-medium tabular-nums">{group.code}</span>
+            <div>
+              <p className="text-[15px] font-medium">{group.name}</p>
+              {group.children.length > 0 && (
+                <ul className="mt-1.5 space-y-1 pl-4 list-disc marker:text-muted-foreground">
+                  {group.children.map((child) => (
+                    <li key={child.code} className="text-[15px] text-foreground/80">
+                      <span className="font-medium tabular-nums text-foreground">{child.code}</span>{' '}
+                      {child.name}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <ServiceSummary
+                name={group.name}
+                details={details.filter((detail) => branchOf(detail.code) === group.code)}
+              />
             </div>
-            {group.children.length > 0 && (
-              <ul className="mt-1.5 space-y-1 pl-[4.75rem] list-disc marker:text-muted-foreground">
-                {group.children.map((child) => (
-                  <li key={child.code} className="text-[15px] text-foreground/80">
-                    <span className="font-medium tabular-nums text-foreground">{child.code}</span>{' '}
-                    {child.name}
-                  </li>
-                ))}
-              </ul>
-            )}
           </div>
         ))}
       </div>
-    </Chapter>
+    </section>
   );
 }
 

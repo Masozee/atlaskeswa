@@ -10,7 +10,7 @@
  * answers use the rest, so the set is shared.
  */
 const ACRONYMS = new Set([
-  'ODGJ', 'ODMK', 'BPJS', 'RS', 'RSJ', 'RSU', 'PKU', 'IGD', 'UGD',
+  'ODGJ', 'ODMK', 'BPJS', 'JKN', 'RS', 'RSJ', 'RSU', 'PKU', 'IGD', 'UGD',
   'TKSK', 'LSM', 'LKS', 'KKSJ', 'PT', 'CV', 'KTP', 'NIK', 'SK',
   'DESDE', 'LTC', 'WHO', 'RI',
 ]);
