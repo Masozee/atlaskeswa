@@ -384,6 +384,7 @@ function ServiceChapter({ location }: { location: SurveyLocationDetail }) {
                 </ul>
               )}
               <ServiceSummary
+                code={group.code}
                 name={group.name}
                 details={details.filter((detail) => branchOf(detail.code) === group.code)}
               />
