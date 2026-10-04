@@ -1,7 +1,6 @@
 /**
  * OMMHA's own publications — press releases and research reports — written out
- * as content blocks so the detail page can typeset them, plus the external
- * references the landing page has always listed.
+ * as content blocks so the detail page can typeset them.
  *
  * A plain module rather than a CMS: there are a handful of these and they
  * change with the research milestones, not daily.
@@ -187,37 +186,3 @@ export function formatPublicationDate(iso: string): string {
     year: 'numeric',
   });
 }
-
-/**
- * Outside reading the landing page has listed since launch. These link out;
- * they have no page of their own.
- */
-export const REFERENCES = [
-  {
-    type: 'Jurnal',
-    year: '2024',
-    publisher: 'World Health Organization',
-    title: 'Mental Health Atlas 2020: WHO Global Report on Mental Health Services',
-    description:
-      'Laporan komprehensif WHO tentang status layanan kesehatan jiwa global, termasuk ketersediaan sumber daya dan kebijakan di berbagai negara.',
-    href: 'https://www.who.int/publications/i/item/9789240036703',
-  },
-  {
-    type: 'Artikel',
-    year: '2023',
-    publisher: 'European Journal of Psychiatry',
-    title: 'DESDE-LTC: A Standardized Tool for Mental Health Service Mapping',
-    description:
-      'Penjelasan lengkap tentang metodologi DESDE-LTC dan penerapannya dalam pemetaan layanan kesehatan jiwa di berbagai negara Eropa.',
-    href: 'https://pubmed.ncbi.nlm.nih.gov/',
-  },
-  {
-    type: 'Laporan',
-    year: '2023',
-    publisher: 'Kementerian Kesehatan RI',
-    title: 'Situasi Kesehatan Jiwa di Indonesia: Data dan Tantangan',
-    description:
-      'Analisis situasi kesehatan jiwa di Indonesia berdasarkan data Riskesdas dan tantangan dalam penyediaan layanan kesehatan jiwa.',
-    href: 'https://www.kemkes.go.id',
-  },
-];

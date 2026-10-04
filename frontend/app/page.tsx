@@ -22,7 +22,7 @@ import { PublicNav } from '@/components/public-nav';
 import { PublicFooter } from '@/components/public-footer';
 import { DevNotice } from '@/components/dev-notice';
 import { PARTNER_LOGOS } from '@/lib/partners';
-import { REFERENCES, sortedPublications } from '@/lib/publications';
+import { sortedPublications } from '@/lib/publications';
 import { PublicationCard } from '@/components/publication-card';
 import { toSentenceCase } from '@/lib/utils/text';
 import {
@@ -634,9 +634,9 @@ export default function HomePage() {
         <div className="container max-w-7xl mx-auto px-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between mb-10">
             <div className="max-w-2xl">
-              <h2 className="text-3xl font-semibold tracking-tight mb-3">Publikasi & referensi</h2>
+              <h2 className="text-3xl font-semibold tracking-tight mb-3">Publikasi</h2>
               <p className="text-muted-foreground text-lg">
-                Siaran pers dan laporan penelitian OMMHA, serta referensi tentang kesehatan jiwa dan DESDE-LTC
+                Siaran pers dan laporan penelitian OMMHA tentang layanan kesehatan jiwa di Kabupaten Kebumen
               </p>
             </div>
             <Link
@@ -649,33 +649,9 @@ export default function HomePage() {
           </div>
 
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {sortedPublications().slice(0, 2).map((publication) => (
+            {sortedPublications().slice(0, 3).map((publication) => (
               <PublicationCard key={publication.slug} publication={publication} />
             ))}
-
-            {/* Outside reading sits beside OMMHA's own work, as a list rather
-                than cards: these link away and have no cover to show. */}
-            <div className="sm:col-span-2 lg:col-span-1">
-              <p className="text-sm font-medium mb-1">Referensi</p>
-              <ul className="divide-y">
-                {REFERENCES.map((reference) => (
-                  <li key={reference.title} className="py-4">
-                    <p className="text-xs text-muted-foreground mb-1">
-                      {reference.type} · {reference.year} · {reference.publisher}
-                    </p>
-                    <Link
-                      href={reference.href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[15px] font-medium leading-snug hover:underline underline-offset-4"
-                    >
-                      {reference.title}
-                      <span className="sr-only"> (membuka situs lain)</span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
           </div>
         </div>
       </section>
