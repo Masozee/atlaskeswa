@@ -10,6 +10,7 @@ import { PUBLIC_CONTAINER } from '@/lib/public-layout';
 const NAV_LINKS = [
   { href: '/penyedia-layanan', label: 'Penyedia layanan' },
   { href: '/kecamatan', label: 'Kecamatan' },
+  { href: '/publikasi', label: 'Publikasi' },
   { href: '/tentang-kami', label: 'Tentang kami' },
   { href: '/hubungi-kami', label: 'Hubungi kami' },
 ];
@@ -43,7 +44,7 @@ export function PublicNav({ brandAsHeading = false }: { brandAsHeading?: boolean
         <div className="flex items-center gap-6">
           <div className="hidden lg:flex items-center gap-5">
             {NAV_LINKS.map((link) => {
-              const isCurrent = pathname === link.href;
+              const isCurrent = pathname === link.href || pathname.startsWith(`${link.href}/`);
               return (
                 <Link
                   key={link.href}

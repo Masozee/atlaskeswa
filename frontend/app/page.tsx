@@ -22,6 +22,8 @@ import { PublicNav } from '@/components/public-nav';
 import { PublicFooter } from '@/components/public-footer';
 import { DevNotice } from '@/components/dev-notice';
 import { PARTNER_LOGOS } from '@/lib/partners';
+import { REFERENCES, sortedPublications } from '@/lib/publications';
+import { PublicationCard } from '@/components/publication-card';
 import { toSentenceCase } from '@/lib/utils/text';
 import {
   FACILITY_TYPES,
@@ -39,36 +41,6 @@ import {
 } from "@hugeicons/core-free-icons";
 
 const DONUT_CIRCUMFERENCE = 251.33; // 2 * PI * r, r=40
-
-const publications = [
-  {
-    type: 'Jurnal',
-    year: '2024',
-    publisher: 'World Health Organization',
-    title: 'Mental Health Atlas 2020: WHO Global Report on Mental Health Services',
-    description:
-      'Laporan komprehensif WHO tentang status layanan kesehatan jiwa global, termasuk ketersediaan sumber daya dan kebijakan di berbagai negara.',
-    href: 'https://www.who.int/publications/i/item/9789240036703',
-  },
-  {
-    type: 'Artikel',
-    year: '2023',
-    publisher: 'European Journal of Psychiatry',
-    title: 'DESDE-LTC: A Standardized Tool for Mental Health Service Mapping',
-    description:
-      'Penjelasan lengkap tentang metodologi DESDE-LTC dan penerapannya dalam pemetaan layanan kesehatan jiwa di berbagai negara Eropa.',
-    href: 'https://pubmed.ncbi.nlm.nih.gov/',
-  },
-  {
-    type: 'Laporan',
-    year: '2023',
-    publisher: 'Kementerian Kesehatan RI',
-    title: 'Situasi Kesehatan Jiwa di Indonesia: Data dan Tantangan',
-    description:
-      'Analisis situasi kesehatan jiwa di Indonesia berdasarkan data Riskesdas dan tantangan dalam penyediaan layanan kesehatan jiwa.',
-    href: 'https://www.kemkes.go.id',
-  },
-];
 
 // Desktop hero view: Kebumen shifted into the free strip between the overlay
 // columns (copy/filters left, charts right); wide bounds so the camera is not
@@ -660,38 +632,50 @@ export default function HomePage() {
       {/* Publications Section */}
       <section className="bg-muted/30 py-24">
         <div className="container max-w-7xl mx-auto px-4">
-          <div className="max-w-2xl mb-10">
-            <h2 className="text-3xl font-semibold tracking-tight mb-3">Publikasi & referensi</h2>
-            <p className="text-muted-foreground text-lg">
-              Jurnal dan artikel ilmiah terkait kesehatan jiwa dan sistem DESDE-LTC
-            </p>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between mb-10">
+            <div className="max-w-2xl">
+              <h2 className="text-3xl font-semibold tracking-tight mb-3">Publikasi & referensi</h2>
+              <p className="text-muted-foreground text-lg">
+                Siaran pers dan laporan penelitian OMMHA, serta referensi tentang kesehatan jiwa dan DESDE-LTC
+              </p>
+            </div>
+            <Link
+              href="/publikasi"
+              className="inline-flex items-center gap-1.5 text-sm font-medium hover:underline underline-offset-4 shrink-0"
+            >
+              Lihat semua publikasi
+              <HugeiconsIcon icon={ArrowRight01Icon} size={14} />
+            </Link>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {publications.map((pub) => (
-              <article
-                key={pub.title}
-                className="flex flex-col rounded-md border border-border/60 bg-background p-5 transition-colors hover:border-border"
-              >
-                <p className="text-xs text-muted-foreground mb-2">
-                  {pub.type} · {pub.year} · {pub.publisher}
-                </p>
-                <h3 className="text-base font-medium leading-snug mb-1.5">
-                  {pub.title}
-                </h3>
-                <p className="text-sm text-muted-foreground leading-relaxed mb-4">
-                  {pub.description}
-                </p>
-                <Link
-                  href={pub.href}
-                  target="_blank"
-                  className="mt-auto inline-flex items-center gap-1.5 text-sm font-medium hover:underline underline-offset-4"
-                >
-                  Baca selengkapnya
-                  <HugeiconsIcon icon={ArrowRight01Icon} size={14} />
-                </Link>
-              </article>
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {sortedPublications().slice(0, 2).map((publication) => (
+              <PublicationCard key={publication.slug} publication={publication} />
             ))}
+
+            {/* Outside reading sits beside OMMHA's own work, as a list rather
+                than cards: these link away and have no cover to show. */}
+            <div className="sm:col-span-2 lg:col-span-1">
+              <p className="text-sm font-medium mb-1">Referensi</p>
+              <ul className="divide-y">
+                {REFERENCES.map((reference) => (
+                  <li key={reference.title} className="py-4">
+                    <p className="text-xs text-muted-foreground mb-1">
+                      {reference.type} · {reference.year} · {reference.publisher}
+                    </p>
+                    <Link
+                      href={reference.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[15px] font-medium leading-snug hover:underline underline-offset-4"
+                    >
+                      {reference.title}
+                      <span className="sr-only"> (membuka situs lain)</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
         </div>
       </section>
