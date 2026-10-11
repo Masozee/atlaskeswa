@@ -27,6 +27,8 @@ import {
 } from '@/hooks/use-survey-responses';
 import { ServiceDetailMatrix } from '@/components/service-detail-matrix';
 import { ServiceSummary } from '@/components/service-summary-table';
+import { LocationReportDownloads } from '@/components/location-report-downloads';
+import { buildLocationReport } from '@/lib/location-report';
 import { toSentenceCase } from '@/lib/utils/text';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { ArrowLeft01Icon, ArrowRight01Icon } from '@hugeicons/core-free-icons';
@@ -48,79 +50,6 @@ function formatSurveyDate(value: string | null) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return EMPTY;
   return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-}
-
-/** Splits "SA2 — Layanan …" into its code and its name. */
-function splitDesdeCode(entry: string) {
-  const sep = entry.indexOf(' — ');
-  if (sep < 0) return { code: entry, name: '' };
-  return { code: entry.slice(0, sep), name: entry.slice(sep + 3) };
-}
-
-/** "SI2.1.1" sorts after "SI1.3": segment by segment, numbers as numbers. */
-function compareDesdeCode(a: string, b: string) {
-  const segmentsA = a.split('.');
-  const segmentsB = b.split('.');
-  for (let i = 0; i < Math.max(segmentsA.length, segmentsB.length); i++) {
-    const left = segmentsA[i] ?? '';
-    const right = segmentsB[i] ?? '';
-    const compared = left.localeCompare(right, 'en', { numeric: true });
-    if (compared !== 0) return compared;
-  }
-  return 0;
-}
-
-/**
- * The classification arrives flat — the branch ("SA") next to its leaves
- * ("SA2", "SA4") — and every leaf name repeats its branch name in front of its
- * own. Grouped here so the branch is written once as a heading and each leaf
- * keeps only what it adds.
- */
-type DesdeEntry = { code: string; name: string };
-
-/**
- * Branches read from the most intensive care outwards — rawat inap, rawat
- * jalan, perawatan harian, aksesibilitas, informasi — health before social,
- * rather than alphabetically. Anything unlisted follows in code order.
- */
-const BRANCH_ORDER = ['R', 'O', 'D', 'A', 'I', 'SR', 'SO', 'SD', 'SA', 'SI'];
-
-function branchRank(code: string) {
-  const rank = BRANCH_ORDER.indexOf(code);
-  return rank < 0 ? BRANCH_ORDER.length : rank;
-}
-type DesdeGroup = DesdeEntry & { children: DesdeEntry[] };
-
-function groupDesdeCodes(entries: string[]): DesdeGroup[] {
-  const branchOf = (code: string) => code.match(/^[A-Za-z]+/)?.[0] ?? code;
-  // A plain record, not a `Map`: `Map` in this module is the map component.
-  const groups: Record<string, DesdeGroup> = {};
-
-  for (const entry of entries.map(splitDesdeCode)) {
-    const branch = branchOf(entry.code);
-    const target = (groups[branch] ??= { code: branch, name: '', children: [] });
-    if (entry.code === target.code) target.name = entry.name;
-    else target.children.push(entry);
-  }
-
-  return Object.values(groups)
-    .sort((a, b) => branchRank(a.code) - branchRank(b.code) || compareDesdeCode(a.code, b.code))
-    .map((group) => {
-      // A branch with no row of its own still gets a heading: its children all
-      // carry the branch name as the first part of theirs.
-      const name = group.name || group.children[0]?.name.split(', ')[0] || '';
-      const prefix = name ? `${name}, ` : '';
-      return {
-        code: group.code,
-        name,
-        children: group.children
-          .sort((a, b) => compareDesdeCode(a.code, b.code))
-          .map((child) => ({
-            code: child.code,
-            name: child.name.startsWith(prefix) ? child.name.slice(prefix.length) : child.name,
-          })),
-      };
-    });
 }
 
 /* ---------------------------------------------------------------- chapters */
@@ -238,6 +167,10 @@ function Masthead({ location }: { location: SurveyLocationDetail }) {
               {toSentenceCase(location.jenis_layanan)}
             </p>
           )}
+
+          <div className="mt-6">
+            <LocationReportDownloads location={location} />
+          </div>
         </div>
 
         {photos.length > 0 && (
@@ -356,11 +289,8 @@ function LocationChapter({ location }: { location: SurveyLocationDetail }) {
 }
 
 function ServiceChapter({ location }: { location: SurveyLocationDetail }) {
-  const groups = groupDesdeCodes(location.kode_desde_ltc ?? []);
-  if (groups.length === 0) return null;
-
-  const details = location.service_details ?? [];
-  const branchOf = (code: string) => code.match(/^[A-Za-z]+/)?.[0] ?? code;
+  const { branches } = buildLocationReport(location);
+  if (branches.length === 0) return null;
 
   return (
     // The branch letters in the gutter head each block, so the chapter needs
@@ -368,14 +298,14 @@ function ServiceChapter({ location }: { location: SurveyLocationDetail }) {
     <section aria-labelledby="layanan-heading">
       <h2 id="layanan-heading" className="sr-only">Layanan</h2>
       <div className="space-y-10">
-        {groups.map((group) => (
-          <div key={group.code} className="grid grid-cols-[3rem_minmax(0,1fr)] sm:grid-cols-[5rem_minmax(0,1fr)]">
-            <span className="text-[15px] font-medium tabular-nums">{group.code}</span>
+        {branches.map((branch) => (
+          <div key={branch.code} className="grid grid-cols-[3rem_minmax(0,1fr)] sm:grid-cols-[5rem_minmax(0,1fr)]">
+            <span className="text-[15px] font-medium tabular-nums">{branch.code}</span>
             <div>
-              <p className="text-[15px] font-medium">{group.name}</p>
-              {group.children.length > 0 && (
+              <p className="text-[15px] font-medium">{branch.name}</p>
+              {branch.children.length > 0 && (
                 <ul className="mt-1.5 space-y-1 pl-4 list-disc marker:text-muted-foreground">
-                  {group.children.map((child) => (
+                  {branch.children.map((child) => (
                     <li key={child.code} className="text-[15px] text-foreground/80">
                       <span className="font-medium tabular-nums text-foreground">{child.code}</span>{' '}
                       {child.name}
@@ -383,11 +313,7 @@ function ServiceChapter({ location }: { location: SurveyLocationDetail }) {
                   ))}
                 </ul>
               )}
-              <ServiceSummary
-                code={group.code}
-                name={group.name}
-                details={details.filter((detail) => branchOf(detail.code) === group.code)}
-              />
+              <ServiceSummary title={branch.title} tables={branch.tables} />
             </div>
           </div>
         ))}
