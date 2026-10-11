@@ -560,9 +560,6 @@ export default function HomePage() {
             <div className="bg-gradient-to-t from-black/70 via-black/35 to-transparent pt-28 pb-8 lg:pb-10">
               <div className="container max-w-7xl mx-auto px-4 lg:px-6">
                 <div className="max-w-2xl space-y-3 pointer-events-auto">
-                  <p className="text-sm font-medium text-white/80">
-                    Sistem layanan kesehatan jiwa berbasis DESDE-LTC
-                  </p>
                   <h2 className="text-3xl lg:text-5xl font-semibold tracking-tight leading-[1.1] text-white">
                     Atlas layanan kesehatan jiwa Kabupaten Kebumen
                   </h2>
