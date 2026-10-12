@@ -96,19 +96,22 @@ export class ApiClient {
             headers,
           });
           return this.handleResponse<T>(retryResponse);
-        } else {
-          // Token refresh failed - clear tokens and redirect to login
-          this.clearTokensFromStorage();
-          if (typeof window !== 'undefined') {
-            window.location.href = '/login';
-          }
-          throw new Error('Session expired. Please login again.');
         }
       }
 
-      // Handle 401 without refresh token - redirect to login
+      // Session is dead. A stale token makes DRF reject even AllowAny
+      // endpoints, so drop it and retry anonymously before sending the
+      // visitor to the login page — public pages must keep working.
       if (response.status === 401) {
+        const hadToken = !!this.accessToken;
         this.clearTokensFromStorage();
+        if (hadToken) {
+          delete headers['Authorization'];
+          const anonResponse = await fetch(url, { ...options, headers });
+          if (anonResponse.status !== 401) {
+            return this.handleResponse<T>(anonResponse);
+          }
+        }
         if (typeof window !== 'undefined') {
           window.location.href = '/login';
         }
@@ -213,8 +216,15 @@ export class ApiClient {
         headers.set('Authorization', `Bearer ${this.accessToken}`);
         return fetch(url, { ...options, headers });
       }
+    }
+    if (response.status === 401 && headers.has('Authorization')) {
+      // Stale token: retry anonymously so public downloads still work.
       this.clearTokensFromStorage();
+      headers.delete('Authorization');
+      const anonResponse = await fetch(url, { ...options, headers });
+      if (anonResponse.status !== 401) return anonResponse;
       if (typeof window !== 'undefined') window.location.href = '/login';
+      return anonResponse;
     }
     return response;
   }
