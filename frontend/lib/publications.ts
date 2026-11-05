@@ -130,9 +130,8 @@ export const PUBLICATIONS: Publication[] = [
     author: 'Tim Peneliti OMMHA',
     period: 'Oktober 2025 – Agustus 2026',
     cover: {
-      src: '/publikasi/laporan-perkembangan-cover.jpg',
-      alt: 'Grafik garis yang digambar tangan di atas kertas, dengan penggaris dan pena',
-      credit: 'Foto: Isaac Smith / Unsplash',
+      src: '/publikasi/laporan-perkembangan-diskusi.jpg',
+      alt: 'Diskusi tim peneliti OMMHA bersama para pemangku kepentingan di sekeliling meja rapat',
     },
     file: {
       href: '/publikasi/laporan-perkembangan-penelitian-ommha-2026.pdf',
