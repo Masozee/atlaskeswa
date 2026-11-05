@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { ArrowDown01Icon } from '@hugeicons/core-free-icons';
 import { cn } from '@/lib/utils';
@@ -186,14 +187,36 @@ function Group({ title, branches, tone }: { title: string; branches: Branch[]; t
   );
 }
 
-/** Gambar 2: the full OMMHA classification tree, one panel per provider kind. */
+const TREE_IMAGE = { src: '/klasifikasi/bagan-klasifikasi-ommha.png', width: 2672, height: 972 };
+
+/**
+ * Gambar 2: the full OMMHA classification tree. The original chart comes
+ * first, wider than the text column so its labels stay legible; at phone
+ * width it is too small to read, so it opens full size, and the panels below
+ * spell the same tree out one provider kind at a time.
+ */
 export function OmmhaClassificationDiagram() {
   return (
     <div>
-      <div className={cn('mx-auto w-fit rounded-lg px-5 py-2.5 text-center text-[15px] font-semibold', DARK)}>
-        Layanan Kesehatan Jiwa
-      </div>
-      <div className="mt-4 grid gap-4">
+      <a
+        href={TREE_IMAGE.src}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block w-[min(78rem,calc(100vw-2rem))] rounded-lg border bg-white p-2 sm:p-4"
+      >
+        <Image
+          src={TREE_IMAGE.src}
+          alt="Bagan Klasifikasi OMMHA: layanan kesehatan jiwa dibagi menjadi fasilitas kesehatan dan non-fasilitas kesehatan, masing-masing dengan layanan rawat inap, perawatan harian, rawat jalan, aksesibilitas, dan informasi beserta sub-jenisnya"
+          width={TREE_IMAGE.width}
+          height={TREE_IMAGE.height}
+          sizes="(min-width: 1280px) 1248px, 100vw"
+          className="h-auto w-full"
+        />
+        <span className="mt-2 block text-center text-[12px] text-muted-foreground sm:hidden">
+          Ketuk untuk memperbesar
+        </span>
+      </a>
+      <div className="mt-6 grid gap-4">
         <Group title="Fasilitas Kesehatan" branches={FACILITY_BRANCHES} tone={FACILITY} />
         <Group title="Non-Fasilitas Kesehatan" branches={NON_FACILITY_BRANCHES} tone={NON_FACILITY} />
       </div>

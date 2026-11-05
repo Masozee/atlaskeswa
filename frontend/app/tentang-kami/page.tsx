@@ -66,31 +66,6 @@ export default function TentangKamiPage() {
             </Button>
           </Chapter>
 
-          <Chapter title="Kabupaten Kebumen">
-            <div className="space-y-4 text-[15px] text-foreground/80 leading-relaxed max-w-[68ch]">
-              <p>
-                Kabupaten Kebumen menjadi salah satu daerah percontohan implementasi sistem
-                DESDE-LTC di Indonesia. Pemetaan layanan kesehatan jiwa dilakukan secara
-                komprehensif di 26 kecamatan untuk mendukung perencanaan dan pengembangan layanan
-                yang lebih baik.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-3 mt-8">
-              <Button asChild variant="outline" className="rounded-sm shadow-none gap-2">
-                <Link href="/penyedia-layanan">
-                  Lihat daftar layanan
-                  <HugeiconsIcon icon={ArrowRight01Icon} size={16} />
-                </Link>
-              </Button>
-              <Button asChild variant="outline" className="rounded-sm shadow-none gap-2">
-                <Link href="/kecamatan">
-                  Jelajahi per kecamatan
-                  <HugeiconsIcon icon={ArrowRight01Icon} size={16} />
-                </Link>
-              </Button>
-            </div>
-          </Chapter>
-
           <Chapter title="Mitra Kolaborasi">
             <p className="text-[15px] text-foreground/80 leading-relaxed max-w-[68ch] mb-8">
               <InlineText text={MITRA_TEXT} />

@@ -600,13 +600,10 @@ export default function HomePage() {
             <h2 className="text-3xl font-semibold tracking-tight text-balance">
               {KLASIFIKASI_OMMHA.title}
             </h2>
-            <div className="space-y-4 text-muted-foreground leading-relaxed">
-              {KLASIFIKASI_INTRO.map((text) => (
-                <p key={text.slice(0, 24)}>
-                  <InlineText text={text} />
-                </p>
-              ))}
-            </div>
+            {/* Only the opening paragraph; the article carries the rest. */}
+            <p className="text-muted-foreground leading-relaxed">
+              <InlineText text={KLASIFIKASI_INTRO[0]} />
+            </p>
             <Button asChild size="lg" className="gap-2">
               <Link href="/klasifikasi-ommha">
                 Selengkapnya
