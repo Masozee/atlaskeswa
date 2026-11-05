@@ -6,16 +6,18 @@ import { DevNotice } from '@/components/dev-notice';
 import { Button } from '@/components/ui/button';
 import { PUBLIC_CONTAINER } from '@/lib/public-layout';
 import { PARTNER_LOGOS } from '@/lib/partners';
+import { MITRA_TEXT, OMMHA_INTRO } from '@/lib/articles';
+import { InlineText } from '@/components/inline-text';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { ArrowRight01Icon } from '@hugeicons/core-free-icons';
 
 export const metadata = {
   title: 'Tentang kami — OMMHA',
   description:
-    'OMMHA memetakan layanan kesehatan jiwa di Kabupaten Kebumen menggunakan standar DESDE-LTC.',
+    'OMMHA merupakan studi percontohan untuk mengembangkan Atlas Layanan Kesehatan Jiwa: sistem informasi geospasial yang memetakan layanan kesehatan jiwa secara komprehensif dan terstandar.',
 };
 
-function Chapter({ title, children }: { title: string; children: React.ReactNode }) {
+function Chapter({ title, children }: { title: React.ReactNode; children: React.ReactNode }) {
   return (
     <section>
       {/* Larger than the data pages' chapter labels: here the heading sits over
@@ -38,43 +40,30 @@ export default function TentangKamiPage() {
             Tentang kami
           </h1>
           <p className="mt-4 text-[15px] text-foreground/80 max-w-[62ch]">
-            OMMHA — One Map for Mental Health Atlas — adalah platform digital untuk memetakan,
-            memverifikasi, dan membuka data layanan kesehatan jiwa di Indonesia.
+            OMMHA (<em>One Map for Mental Health Atlas</em>) merupakan studi percontohan untuk
+            mengembangkan Atlas Layanan Kesehatan Jiwa, yaitu sistem informasi geospasial yang
+            memetakan keberadaan, persebaran, dan jenis-jenis layanan kesehatan jiwa secara
+            komprehensif dan terstandar.
           </p>
         </div>
 
         <div className="border-t" />
 
         <div className="space-y-16 lg:space-y-20 pt-12 lg:pt-16">
-          <Chapter title="Apa yang kami kerjakan">
+          <Chapter title={<><em>One Map for Mental Health Atlas</em> (OMMHA)</>}>
             <div className="space-y-4 text-[15px] text-foreground/80 leading-relaxed max-w-[68ch]">
-              <p>
-                Atlas Keswa hadir sebagai platform digital yang memfasilitasi pengumpulan data,
-                verifikasi informasi, dan visualisasi hasil pemetaan layanan kesehatan jiwa
-                menggunakan standar DESDE-LTC.
-              </p>
-              <p>
-                Data dikumpulkan oleh enumerator di lapangan, diverifikasi oleh tim verifikator,
-                lalu dipublikasikan sebagai peta dan direktori yang dapat digunakan oleh Dinas
-                Kesehatan, pengelola fasilitas, peneliti, dan pembuat kebijakan.
-              </p>
+              {OMMHA_INTRO.map((text) => (
+                <p key={text.slice(0, 24)}>
+                  <InlineText text={text} />
+                </p>
+              ))}
             </div>
-          </Chapter>
-
-          <Chapter title="DESDE-LTC">
-            <div className="space-y-4 text-[15px] text-foreground/80 leading-relaxed max-w-[68ch]">
-              <p>
-                DESDE-LTC (Description and Evaluation of Services and DirectoriEs for Long-Term
-                Care) adalah sistem klasifikasi internasional yang dikembangkan untuk memetakan dan
-                mengevaluasi layanan kesehatan jangka panjang, termasuk layanan kesehatan jiwa.
-              </p>
-              <p>
-                Sistem ini menggunakan kode MTC (Main Type of Care) dan BSIC (Basic Service
-                Identification Code) untuk mengklasifikasikan berbagai jenis layanan secara standar
-                dan terstruktur, sehingga layanan di satu daerah dapat dibandingkan dengan daerah
-                lain.
-              </p>
-            </div>
+            <Button asChild variant="outline" className="rounded-sm shadow-none gap-2 mt-6">
+              <Link href="/tentang-kami/ommha">
+                Selengkapnya
+                <HugeiconsIcon icon={ArrowRight01Icon} size={16} />
+              </Link>
+            </Button>
           </Chapter>
 
           <Chapter title="Kabupaten Kebumen">
@@ -102,10 +91,9 @@ export default function TentangKamiPage() {
             </div>
           </Chapter>
 
-          <Chapter title="Mitra">
+          <Chapter title="Mitra Kolaborasi">
             <p className="text-[15px] text-foreground/80 leading-relaxed max-w-[68ch] mb-8">
-              Pemetaan ini merupakan kolaborasi antara YAKKUM, Pemerintah Kabupaten Kebumen, BRIN,
-              Kementerian Kesehatan, Universitas Katolik Indonesia Atma Jaya, dan jaringan KONEKSI.
+              <InlineText text={MITRA_TEXT} />
             </p>
             {/* Partner marks go monochrome: they are evidence of support, not the
                 identity of this page. */}

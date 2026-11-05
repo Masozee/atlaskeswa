@@ -2,6 +2,11 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { formatPublicationDate, type Publication } from '@/lib/publications';
+import { HugeiconsIcon } from '@hugeicons/react';
+import { ArrowUpRight01Icon } from '@hugeicons/core-free-icons';
+
+const LINK_CLASS =
+  'after:absolute after:inset-0 focus-visible:outline-none group-has-[:focus-visible]:underline underline-offset-4';
 
 /**
  * One publication as a card: cover, kind and date, title, a two-line excerpt.
@@ -36,14 +41,29 @@ export function PublicationCard({
           {publication.type} · <time dateTime={publication.date}>{formatPublicationDate(publication.date)}</time>
         </p>
         <h3 className="text-base font-medium leading-snug mb-1.5">
-          <Link
-            href={`/publikasi/${publication.slug}`}
-            className="after:absolute after:inset-0 focus-visible:outline-none group-has-[:focus-visible]:underline underline-offset-4"
-          >
-            {publication.title}
-          </Link>
+          {publication.externalUrl ? (
+            <a
+              href={publication.externalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={LINK_CLASS}
+            >
+              {publication.title}
+              <span className="sr-only"> (membuka pryakkum.org di tab baru)</span>
+            </a>
+          ) : (
+            <Link href={`/publikasi/${publication.slug}`} className={LINK_CLASS}>
+              {publication.title}
+            </Link>
+          )}
         </h3>
         <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3">{publication.excerpt}</p>
+        {publication.externalUrl && (
+          <p className="mt-auto pt-4 inline-flex items-center gap-1.5 text-sm font-medium text-foreground">
+            Selengkapnya di pryakkum.org
+            <HugeiconsIcon icon={ArrowUpRight01Icon} size={14} />
+          </p>
+        )}
       </div>
     </article>
   );

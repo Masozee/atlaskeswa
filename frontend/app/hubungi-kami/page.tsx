@@ -45,8 +45,7 @@ export default function HubungiKamiPage() {
             Hubungi kami
           </h1>
           <p className="mt-4 text-[15px] text-foreground/80 max-w-[62ch]">
-            Pertanyaan tentang data layanan, permintaan akses, atau koreksi informasi dapat
-            dikirimkan melalui email di bawah ini.
+            Ingin mengajukan pertanyaan seputar Penelitian OMMHA?
           </p>
         </div>
 
@@ -72,28 +71,13 @@ export default function HubungiKamiPage() {
             </dl>
           </Chapter>
 
-          <Chapter title="Mendaftar sebagai pengguna">
-            <p className="text-[15px] text-foreground/80 leading-relaxed max-w-[68ch]">
-              Akses ke dasbor survei dan verifikasi diberikan oleh administrator sistem. Kirimkan
-              email ke{' '}
-              <a
-                href={`mailto:${SUPPORT_EMAIL}`}
-                className="text-primary hover:underline underline-offset-4"
-              >
-                {SUPPORT_EMAIL}
-              </a>{' '}
-              dengan identitas dan afiliasi Anda. Tim kami akan memverifikasi dan memberikan akses
-              sesuai peran yang dibutuhkan.
-            </p>
-          </Chapter>
-
           <Chapter title="Sebelum menghubungi">
             <p className="text-[15px] text-foreground/80 leading-relaxed max-w-[68ch] mb-6">
               Sebagian pertanyaan sudah terjawab di halaman berikut.
             </p>
             <ul className="space-y-3">
               {[
-                { href: '/tentang-kami', label: 'Tentang OMMHA dan DESDE-LTC' },
+                { href: '/tentang-kami', label: 'Tentang Penelitian OMMHA' },
                 { href: '/penyedia-layanan', label: 'Daftar penyedia layanan kesehatan jiwa' },
                 { href: '/kecamatan', label: 'Sebaran layanan per kecamatan' },
               ].map((link) => (

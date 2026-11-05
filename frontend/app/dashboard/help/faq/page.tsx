@@ -13,8 +13,12 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Search01Icon } from "@hugeicons/core-free-icons";
 import { Separator } from '@/components/ui/separator';
+import { InlineText } from '@/components/inline-text';
+import { PUBLIC_FAQ } from '@/lib/faq';
 
 const faqs = [
+  // The landing page's questions lead, so "Lihat semua FAQ" opens on them.
+  ...PUBLIC_FAQ.map((faq, index) => ({ id: 100 + index, category: 'OMMHA', ...faq })),
   {
     id: 1,
     category: 'Umum',
@@ -154,7 +158,9 @@ export default function FAQPage() {
             {filteredFAQs.map((faq) => (
               <AccordionItem key={faq.id} value={`faq-${faq.id}`}>
                 <AccordionTrigger className="text-left">
-                  <span>{faq.question}</span>
+                  <span>
+                    <InlineText text={faq.question} />
+                  </span>
                 </AccordionTrigger>
                 <AccordionContent>
                   <div className="pt-2 space-y-2">
@@ -162,7 +168,7 @@ export default function FAQPage() {
                       {faq.category}
                     </Badge>
                     <div className="text-sm text-muted-foreground whitespace-pre-line">
-                      {faq.answer}
+                      <InlineText text={faq.answer} />
                     </div>
                   </div>
                 </AccordionContent>

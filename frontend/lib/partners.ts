@@ -3,10 +3,11 @@
  * page. One list so the two cannot fall out of step.
  */
 export const PARTNER_LOGOS = [
-  { src: '/yakkum.png', alt: 'Yakkum' },
-  { src: '/kebumen.png', alt: 'Kebumen' },
-  { src: '/koneksi.png', alt: 'Koneksi' },
-  { src: '/brin.png', alt: 'BRIN' },
-  { src: '/kemenkes.png', alt: 'Kemenkes' },
-  { src: '/atmajaya.png', alt: 'Atma Jaya' },
+  { src: '/pryakkum.png', alt: 'Pusat Rehabilitasi YAKKUM' },
+  { src: '/kebumen.png', alt: 'Pemerintah Kabupaten Kebumen' },
+  { src: '/brin.png', alt: 'Badan Riset dan Inovasi Nasional (BRIN)' },
+  { src: '/kemenkes.png', alt: 'Kementerian Kesehatan Republik Indonesia' },
+  { src: '/atmajaya.png', alt: 'Universitas Katolik Indonesia Atma Jaya' },
+  { src: '/usyd.png', alt: 'The University of Sydney' },
+  { src: '/koneksi.png', alt: 'KONEKSI' },
 ];

@@ -6,10 +6,13 @@
  * change with the research milestones, not daily.
  */
 
-export type PublicationType = 'Siaran pers' | 'Laporan';
+export type PublicationType = 'Siaran pers' | 'Laporan' | 'Artikel';
 
 export type Block =
+  /** Prose; accepts `*italic*`, `**bold**` and `[label](href)`. */
   | { type: 'p'; text: string }
+  /** One of the OMMHA figures drawn as markup (see `ommha-diagrams.tsx`). */
+  | { type: 'diagram'; diagram: 'desde-adaptation' | 'ommha-classification'; caption: string }
   | { type: 'h2'; text: string }
   | { type: 'quote'; text: string; cite: string }
   | { type: 'list'; ordered?: boolean; items: string[] }
@@ -36,6 +39,11 @@ export interface Publication {
   period?: string;
   /** A downloadable original, served from /public. */
   file?: { href: string; label: string; size: string };
+  /**
+   * Published elsewhere (pryakkum.org): the card links straight out and no
+   * detail page is built, so `body` stays empty.
+   */
+  externalUrl?: string;
   body: Block[];
 }
 
@@ -168,6 +176,56 @@ export const PUBLICATIONS: Publication[] = [
       },
     ],
   },
+  {
+    slug: 'masalah-kesehatan-jiwa-di-indonesia-bukan-hanya-kurangnya-layanan',
+    type: 'Artikel',
+    date: '2026-07-22',
+    title: 'Masalah Kesehatan Jiwa di Indonesia Bukan Hanya Kurangnya Layanan, Tapi…',
+    excerpt:
+      'Indonesia masih menghadapi tantangan besar dalam menyediakan layanan kesehatan jiwa yang mudah diakses oleh seluruh masyarakat. Di banyak daerah, jumlah tenaga kesehatan masih terbatas, kapasitas puskesmas belum merata, dan akses terhadap layanan spesialis seperti psikolog dan psikiater masih menjadi tantangan. Data Kementerian Kesehatan menunjukkan, belum semua puskesmas memiliki kapasitas yang memadai untuk memberikan layanan kesehatan jiwa, baik dari sisi tenaga kesehatan terlatih maupun ketersediaan obat. Dari total Puskesmas di Indonesia, baru 58,25% atau sekitar 6.000 Puskesmas yang mampu memberikan layanan kesehatan jiwa.',
+    author: 'Pusat Rehabilitasi YAKKUM',
+    cover: {
+      src: '/publikasi/artikel-masalah-kesehatan-jiwa.jpg',
+      alt: 'Ilustrasi artikel masalah kesehatan jiwa di Indonesia',
+    },
+    externalUrl:
+      'https://pryakkum.org/read/150/masalah-kesehatan-jiwa-di-indonesia-bukan-hanya-kurangnya-layanan-tapi.......html',
+    body: [],
+  },
+  {
+    slug: 'layanan-kesehatan-jiwa-belum-terintegrasi',
+    type: 'Artikel',
+    date: '2026-04-08',
+    title:
+      'Layanan Kesehatan Jiwa Belum Terintegrasi, PRYAKKUM Gandeng Pemerintah Kembangkan Peta Layanan Berbasis Digital',
+    excerpt:
+      'Jakarta, 8 April 2026 – Pusat Rehabilitasi YAKKUM (PRYAKKUM) berkolaborasi dengan Badan Riset dan Inovasi Nasional (BRIN), Kementerian Kesehatan RI, Universitas Katolik Atma Jaya Jakarta, dan University of Sydney dengan dukungan dari KONEKSI menyelenggarakan Kick-Off Meeting Program One Map for Mental Health Atlas (OMMHA) di tingkat Nasional. Kegiatan ini dihadiri oleh dr. Imran Pambudi, MPHM, Direktur Pelayanan Kesehatan Kelompok Rentan, Kementerian Kesehatan RI, Dr. Wahyu Pudji Nugraheni, Kepala Pusat Riset Kesehatan Masyarakat dan Gizi, Badan Riset dan Inovasi Nasional, dan perwakilan peserta sekaligus penanggap dari Komisi Nasional Disabilitas, REMISI, dan KPSI.',
+    author: 'Pusat Rehabilitasi YAKKUM',
+    cover: {
+      src: '/publikasi/artikel-kick-off-nasional.jpg',
+      alt: 'Kick-Off Meeting nasional Program One Map for Mental Health Atlas di Jakarta',
+    },
+    externalUrl:
+      'https://pryakkum.org/read/138/layanan-kesehatan-jiwa-belum-terintegrasi-pryakkum-gandeng-pemerintah-kembangkan-peta-layanan-berbasis-digital-.html',
+    body: [],
+  },
+  {
+    slug: 'kolaborasi-multi-pihak-layanan-kesehatan-jiwa-kebumen',
+    type: 'Artikel',
+    date: '2025-12-30',
+    title:
+      'Kolaborasi Multi Pihak untuk Mengurangi Ketidaktahuan dan Menguatkan Layanan Kesehatan Jiwa di Kebumen',
+    excerpt:
+      'Kebumen, 30 Desember 2025 – Pusat Rehabilitasi YAKKUM (PRYAKKUM) Yogyakarta menyelenggarakan Kick Off kegiatan Pembangunan One Map for Mental Health Atlas (OMMHA) atau Peta Layanan Kesehatan Mental Kabupaten Kebumen. Acara ini dihadiri oleh Kepala BAPERIDA Kabupaten Kebumen, Bahrun Munawir, S.STP., M.Si. yang mewakili Bupati Kebumen, Kepala Dinas Kesehatan, Pengendalian Penduduk dan Keluarga Berencana, dr. Iwan Danardono, Sp.Rad., jajaran Pemerintah Daerah Kabupaten Kebumen, dan organisasi masyarakat serta komunitas pegiat isu kesehatan jiwa. Kegiatan ini bertujuan untuk menandai dimulainya penelitian One Map for Mental Health sekaligus memastikan dukungan jajaran Pemerintah Daerah dalam pelaksanaannya.',
+    author: 'Pusat Rehabilitasi YAKKUM',
+    cover: {
+      src: '/publikasi/artikel-kick-off-kebumen.jpg',
+      alt: 'Foto bersama peserta Kick Off Meeting Penelitian OMMHA di Kebumen, 30 Desember 2025',
+    },
+    externalUrl:
+      'https://pryakkum.org/read/129/kolaborasi-multi-pihak-untuk-mengurangi-ketidaktahuan-dan-menguatkan-layanan-kesehatan-jiwa-di-kebumen-.html',
+    body: [],
+  },
 ];
 
 /** Newest first. */
@@ -175,8 +233,13 @@ export function sortedPublications(): Publication[] {
   return [...PUBLICATIONS].sort((a, b) => b.date.localeCompare(a.date));
 }
 
+/** Publications that get a page on this site (external articles do not). */
+export function hostedPublications(): Publication[] {
+  return PUBLICATIONS.filter((publication) => !publication.externalUrl);
+}
+
 export function getPublication(slug: string): Publication | undefined {
-  return PUBLICATIONS.find((publication) => publication.slug === slug);
+  return hostedPublications().find((publication) => publication.slug === slug);
 }
 
 export function formatPublicationDate(iso: string): string {

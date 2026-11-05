@@ -125,10 +125,9 @@ export function ServiceOverview() {
       </Tabs>
 
       <p className="text-sm text-muted-foreground max-w-[70ch]">
-        Grafik menghitung seluruh {summary.total_surveys} survei, sama seperti beranda. Tabel
-        menghitung {summary.total_facilities} fasilitas: fasilitas yang disurvei lebih dari sekali
-        dihitung dari survei terakhirnya. Satu fasilitas dapat masuk ke lebih dari satu kelompok
-        penyedia.
+        Grafik dan tabel menampilkan seluruh penyedia layanan yang telah dipetakan. Satu penyedia
+        layanan dapat tampil beberapa kali sesuai jenis layanan apa saja yang disediakan di
+        penyedia layanan tersebut.
       </p>
     </div>
   );

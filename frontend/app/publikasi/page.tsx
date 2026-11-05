@@ -8,7 +8,7 @@ import { sortedPublications } from '@/lib/publications';
 export const metadata = {
   title: 'Publikasi — OMMHA',
   description:
-    'Siaran pers dan laporan dari penelitian One Map for Mental Health Atlas (OMMHA) di Kabupaten Kebumen.',
+    'Arsip, laporan penelitian, serta siaran pers terkait kegiatan dan perkembangan Penelitian One Map for Mental Health Atlas (OMMHA).',
 };
 
 export default function PublikasiPage() {
@@ -25,8 +25,8 @@ export default function PublikasiPage() {
             Publikasi
           </h1>
           <p className="mt-4 text-[15px] text-foreground/80 max-w-[62ch]">
-            Siaran pers dan laporan perkembangan penelitian OMMHA tentang pemetaan layanan
-            kesehatan jiwa di Kabupaten Kebumen.
+            Halaman ini memuat berbagai arsip, laporan penelitian, serta siaran pers terkait
+            kegiatan dan perkembangan Penelitian OMMHA.
           </p>
         </div>
 

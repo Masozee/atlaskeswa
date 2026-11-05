@@ -78,6 +78,13 @@ export default function KecamatanPage() {
   const attributed = useMemo(() => rows.reduce((sum, row) => sum + row.total, 0), [rows]);
   const unattributed = services.length - attributed;
 
+  // A provider surveyed twice is still one provider: count by the directory
+  // record, falling back to the survey itself when none is linked.
+  const providers = useMemo(
+    () => new Set(services.map((service) => service.service ?? `survey-${service.id}`)).size,
+    [services]
+  );
+
   // Columns follow the data, so a kecamatan search never reshapes the table.
   const columns = useMemo(() => usedColumns(rows), [rows]);
   const columnTemplate = useMemo(
@@ -102,8 +109,17 @@ export default function KecamatanPage() {
             Kecamatan
           </h1>
           <p className="mt-4 text-[15px] text-foreground/80 max-w-[62ch]">
-            Sebaran layanan kesehatan jiwa yang sudah disurvei di setiap kecamatan di Kabupaten
-            Kebumen. Pilih satu kecamatan untuk melihat data sekunder dan layanannya.
+            {data ? (
+              <>
+                Pada bagian ini menyajikan tabel daftar kecamatan yang mencakup total{' '}
+                {rows.length} kecamatan dan {providers} penyedia layanan hasil pemetaan OMMHA.
+              </>
+            ) : (
+              <>
+                Pada bagian ini menyajikan tabel daftar kecamatan beserta penyedia layanan hasil
+                pemetaan OMMHA.
+              </>
+            )}
           </p>
         </div>
 

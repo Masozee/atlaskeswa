@@ -209,11 +209,11 @@ function PenyediaLayananContent() {
       <main className={cn(PUBLIC_CONTAINER, 'pb-24')}>
         <div className="pt-10 pb-12">
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-tight leading-[1.08]">
-            Penyedia layanan kesehatan jiwa
+            Penyedia Layanan Kesehatan Jiwa di Kabupaten Kebumen
           </h1>
           <p className="mt-4 text-[15px] text-foreground/80 max-w-[62ch]">
-            Seluruh layanan kesehatan jiwa yang sudah disurvei di Kabupaten Kebumen, dipetakan
-            menurut standar DESDE-LTC.
+            Berikut ini adalah penyedia layanan kesehatan jiwa di Kabupaten Kebumen hasil survei
+            pemetaan dengan menggunakan Klasifikasi OMMHA.
           </p>
         </div>
 
@@ -228,11 +228,11 @@ function PenyediaLayananContent() {
         <section className="pt-10 space-y-6" aria-labelledby="daftar-penyedia">
           <div>
             <h2 id="daftar-penyedia" className="text-lg font-semibold">
-              Daftar penyedia layanan kesehatan jiwa
+              Daftar Penyedia Layanan Kesehatan Jiwa di Kabupaten Kebumen
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Setiap layanan yang sudah disurvei. Cari atau saring menurut kecamatan dan jenis
-              fasilitas.
+              Daftar penyedia layanan kesehatan jiwa ini merupakan hasil dari pemetaan layanan
+              kesehatan jiwa di Kabupaten Kebumen dengan menggunakan Klasifikasi OMMHA.
             </p>
           </div>
 

@@ -90,11 +90,10 @@ export function ServiceChart({ summary }: { summary: PenyediaLayananSummary }) {
   return (
     <figure>
       <figcaption className="text-lg font-semibold">
-        Jenis layanan kesehatan jiwa berdasarkan penyedia layanan
+        Jenis-jenis layanan kesehatan jiwa berdasarkan penyedia layanan di Kabupaten Kebumen
       </figcaption>
       <p className="mt-1 text-sm text-muted-foreground">
-        Jumlah survei per jenis fasilitas yang menyediakan tiap jenis layanan, dihitung sama
-        seperti panel Jenis fasilitas di beranda.
+        Penyedia layanan dikategorikan berdasarkan kategori penyedia layanan.
       </p>
 
       <ul className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm" aria-label="Keterangan">

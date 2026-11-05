@@ -3,7 +3,6 @@ import Image from 'next/image';
 import { PUBLIC_CONTAINER } from '@/lib/public-layout';
 
 const FOOTER_LINKS = [
-  { href: '/dashboard/help/user-guide', label: 'Panduan pengguna' },
   { href: '/dashboard/help/faq', label: 'FAQ' },
   { href: '/dashboard/help/support', label: 'Dukungan' },
 ];

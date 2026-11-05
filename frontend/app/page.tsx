@@ -24,6 +24,9 @@ import { DevNotice } from '@/components/dev-notice';
 import { PARTNER_LOGOS } from '@/lib/partners';
 import { sortedPublications } from '@/lib/publications';
 import { PublicationCard } from '@/components/publication-card';
+import { InlineText } from '@/components/inline-text';
+import { KLASIFIKASI_INTRO, KLASIFIKASI_OMMHA } from '@/lib/articles';
+import { PUBLIC_FAQ } from '@/lib/faq';
 import { toSentenceCase } from '@/lib/utils/text';
 import {
   FACILITY_TYPES,
@@ -578,14 +581,14 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* DESDE-LTC Kebumen Section */}
+      {/* Klasifikasi OMMHA Section */}
       <section className="container max-w-7xl mx-auto px-4 py-24">
         <div className="grid gap-12 lg:grid-cols-2 items-center">
           {/* Dominant image */}
           <div className="relative aspect-[4/3] rounded-lg overflow-hidden">
             <Image
-              src="/priscilla-du-preez-aPa843frIzI-unsplash.jpg"
-              alt="Kolaborasi Tim Kesehatan"
+              src={KLASIFIKASI_OMMHA.cover!.src}
+              alt={KLASIFIKASI_OMMHA.cover!.alt}
               fill
               sizes="(min-width: 1024px) 600px, 100vw"
               className="object-cover"
@@ -594,31 +597,19 @@ export default function HomePage() {
 
           {/* Narrative Content */}
           <div className="space-y-6">
-            <p className="text-sm font-medium text-muted-foreground">Kabupaten Kebumen</p>
-            <h2 className="text-3xl font-semibold tracking-tight">
-              Implementasi DESDE-LTC di Kabupaten Kebumen
+            <h2 className="text-3xl font-semibold tracking-tight text-balance">
+              {KLASIFIKASI_OMMHA.title}
             </h2>
             <div className="space-y-4 text-muted-foreground leading-relaxed">
-              <p>
-                DESDE-LTC (Description and Evaluation of Services and DirectoriEs for Long-Term Care)
-                adalah sistem klasifikasi internasional yang dikembangkan untuk memetakan dan mengevaluasi
-                layanan kesehatan jangka panjang, termasuk layanan kesehatan jiwa.
-              </p>
-              <p>
-                Kabupaten Kebumen menjadi salah satu daerah percontohan implementasi sistem DESDE-LTC
-                di Indonesia. Melalui kolaborasi antara YAKKUM, Pemerintah Kabupaten Kebumen, BRIN,
-                Kementerian Kesehatan, dan jaringan KONEKSI, pemetaan layanan kesehatan jiwa dilakukan
-                secara komprehensif untuk mendukung perencanaan dan pengembangan layanan yang lebih baik.
-              </p>
-              <p>
-                Atlas Keswa hadir sebagai platform digital yang memfasilitasi pengumpulan data,
-                verifikasi informasi, dan visualisasi hasil pemetaan layanan kesehatan jiwa
-                menggunakan standar DESDE-LTC.
-              </p>
+              {KLASIFIKASI_INTRO.map((text) => (
+                <p key={text.slice(0, 24)}>
+                  <InlineText text={text} />
+                </p>
+              ))}
             </div>
             <Button asChild size="lg" className="gap-2">
-              <Link href="/dashboard/help/user-guide">
-                Pelajari DESDE-LTC
+              <Link href="/klasifikasi-ommha">
+                Selengkapnya
                 <HugeiconsIcon icon={ArrowRight01Icon} size={20} />
               </Link>
             </Button>
@@ -633,7 +624,7 @@ export default function HomePage() {
             <div className="max-w-2xl">
               <h2 className="text-3xl font-semibold tracking-tight mb-3">Publikasi</h2>
               <p className="text-muted-foreground text-lg">
-                Siaran pers dan laporan penelitian OMMHA tentang layanan kesehatan jiwa di Kabupaten Kebumen
+                Siaran pers, laporan, dan artikel Penelitian OMMHA tentang layanan kesehatan jiwa di Kabupaten Kebumen
               </p>
             </div>
             <Link
@@ -692,68 +683,24 @@ export default function HomePage() {
             <div className="mb-10">
               <h2 className="text-3xl font-semibold tracking-tight mb-3">Pertanyaan yang sering diajukan</h2>
               <p className="text-muted-foreground text-lg">
-                Temukan jawaban untuk pertanyaan umum tentang Atlas Keswa dan DESDE-LTC
+                Temukan jawaban untuk pertanyaan umum tentang Atlas Keswa (OMMHA) dan pemetaan layanan
+                kesehatan jiwa di Kabupaten Kebumen.
               </p>
             </div>
 
             <Accordion type="single" collapsible className="w-full">
-              <AccordionItem value="item-1">
-                <AccordionTrigger className="text-left">
-                  Apa itu DESDE-LTC?
-                </AccordionTrigger>
-                <AccordionContent className="text-muted-foreground">
-                  DESDE-LTC (Description and Evaluation of Services and DirectoriEs for Long-Term Care)
-                  adalah sistem klasifikasi internasional yang dikembangkan untuk memetakan dan mengevaluasi
-                  layanan kesehatan jangka panjang. Sistem ini menggunakan kode MTC (Main Type of Care) dan
-                  BSIC (Basic Service Identification Code) untuk mengklasifikasikan berbagai jenis layanan
-                  kesehatan jiwa secara standar dan terstruktur.
-                </AccordionContent>
-              </AccordionItem>
-
-              <AccordionItem value="item-2">
-                <AccordionTrigger className="text-left">
-                  Siapa yang dapat menggunakan Atlas Keswa?
-                </AccordionTrigger>
-                <AccordionContent className="text-muted-foreground">
-                  Atlas Keswa dapat digunakan oleh berbagai pemangku kepentingan termasuk: petugas Dinas Kesehatan,
-                  pengelola fasilitas kesehatan jiwa, peneliti, pembuat kebijakan, dan enumerator lapangan.
-                  Setiap pengguna memiliki peran dan akses yang berbeda sesuai dengan kebutuhan dan tanggung jawabnya.
-                </AccordionContent>
-              </AccordionItem>
-
-              <AccordionItem value="item-3">
-                <AccordionTrigger className="text-left">
-                  Bagaimana cara mendaftar sebagai pengguna?
-                </AccordionTrigger>
-                <AccordionContent className="text-muted-foreground">
-                  Untuk mendaftar sebagai pengguna Atlas Keswa, Anda perlu menghubungi administrator sistem
-                  melalui email di support@atlaskeswa.id. Tim kami akan memverifikasi identitas dan afiliasi
-                  Anda, kemudian memberikan akses sesuai dengan peran yang dibutuhkan.
-                </AccordionContent>
-              </AccordionItem>
-
-              <AccordionItem value="item-4">
-                <AccordionTrigger className="text-left">
-                  Apa saja jenis layanan yang dipetakan?
-                </AccordionTrigger>
-                <AccordionContent className="text-muted-foreground">
-                  Atlas Keswa memetakan berbagai jenis layanan kesehatan jiwa berdasarkan klasifikasi DESDE-LTC,
-                  meliputi: layanan residensial (R), layanan harian (D), layanan rawat jalan (O), layanan
-                  aksesibilitas (A), layanan informasi (I), layanan kerja/pelatihan (W), dan layanan swadaya (S).
-                  Setiap kategori memiliki sub-klasifikasi yang lebih detail.
-                </AccordionContent>
-              </AccordionItem>
-
-              <AccordionItem value="item-5">
-                <AccordionTrigger className="text-left">
-                  Bagaimana data dijaga kerahasiaannya?
-                </AccordionTrigger>
-                <AccordionContent className="text-muted-foreground">
-                  Atlas Keswa menerapkan standar keamanan data yang ketat. Semua data dienkripsi, akses dibatasi
-                  berdasarkan peran pengguna, dan setiap aktivitas tercatat dalam log audit. Data pribadi pasien
-                  tidak dikumpulkan dalam sistem ini - hanya data tentang layanan dan fasilitas kesehatan jiwa.
-                </AccordionContent>
-              </AccordionItem>
+              {PUBLIC_FAQ.map((item, index) => (
+                <AccordionItem key={item.question} value={`item-${index + 1}`}>
+                  <AccordionTrigger className="text-left">
+                    <span>
+                      <InlineText text={item.question} />
+                    </span>
+                  </AccordionTrigger>
+                  <AccordionContent className="text-muted-foreground leading-relaxed">
+                    <InlineText text={item.answer} />
+                  </AccordionContent>
+                </AccordionItem>
+              ))}
             </Accordion>
 
             <div className="mt-8">
@@ -769,11 +716,11 @@ export default function HomePage() {
           {/* Sticky companion image — stays in view while the accordion grows */}
           <div className="relative hidden lg:block lg:sticky lg:top-24 aspect-[4/5] rounded-md overflow-hidden">
             <Image
-              src="/tim-mossholder-8R-mXppeakM-unsplash.jpg"
-              alt="Balon senyum kuning"
+              src="/beranda/faq.jpg"
+              alt="Peserta lokakarya OMMHA menempelkan catatan pada papan kontrak belajar"
               fill
               sizes="(min-width: 1024px) 26rem, 100vw"
-              className="object-cover"
+              className="object-cover object-[45%_50%]"
             />
           </div>
         </div>
