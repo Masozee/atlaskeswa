@@ -18,7 +18,8 @@ yakkum/
 │   │   ├── directory/    # Directory functionality
 │   │   ├── survey/       # Survey features
 │   │   ├── logs/         # Activity and audit logs
-│   │   └── help/         # Help articles and support
+│   │   ├── help/         # Help articles and support
+│   │   └── publications/ # Public /publikasi CMS (press releases, reports, articles)
 │   ├── docs/         # Documentation files
 │   ├── seed/         # Database seed scripts
 │   ├── media/        # User-uploaded files
@@ -105,6 +106,7 @@ Navigate to the frontend directory first: `cd frontend`
   - `survey`: Survey creation and response handling with verification workflow
   - `logs`: Activity logs, audit logs, error logs, change logs
   - `help`: Help articles, FAQs, support tickets
+  - `publications`: CMS for the public `/publikasi` pages (block-based body, admin-only writes, uploads); managed at `/dashboard/publikasi`
 - `docs/` directory contains all project documentation:
   - `API_INTEGRATION.md`: API integration guide
   - `BACKEND_API.md`: Backend API documentation

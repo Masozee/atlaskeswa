@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'apps.help',
     'apps.secondary',
     'apps.settings',
+    'apps.publications',
 ]
 
 MIDDLEWARE = [

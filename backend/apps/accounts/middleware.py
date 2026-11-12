@@ -71,6 +71,13 @@ class RBACValidationMiddleware(MiddlewareMixin):
             'PATCH': ['ADMIN', 'SURVEYOR'],
             'DELETE': ['ADMIN'],  # Only admin can delete
         },
+        r'^/v1/publications/': {
+            'GET': ['ADMIN', 'SURVEYOR', 'VERIFIER', 'VIEWER'],  # Published rows; drafts filtered in get_queryset
+            'POST': ['ADMIN'],  # CMS: create + upload
+            'PUT': ['ADMIN'],
+            'PATCH': ['ADMIN'],
+            'DELETE': ['ADMIN'],
+        },
         r'^/v1/analytics/': {
             'GET': ['ADMIN', 'VERIFIER', 'VIEWER'],  # Analytics accessible to viewers+
         },
