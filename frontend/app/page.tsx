@@ -22,7 +22,7 @@ import { PublicNav } from '@/components/public-nav';
 import { PublicFooter } from '@/components/public-footer';
 import { DevNotice } from '@/components/dev-notice';
 import { PARTNER_LOGOS } from '@/lib/partners';
-import { sortedPublications } from '@/lib/publications';
+import { usePublicPublications } from '@/hooks/use-publications';
 import { PublicationCard } from '@/components/publication-card';
 import { InlineText } from '@/components/inline-text';
 import { KLASIFIKASI_INTRO, KLASIFIKASI_OMMHA } from '@/lib/articles';
@@ -370,6 +370,9 @@ function BreakdownPanel({
 
 export default function HomePage() {
   const isDesktop = useIsDesktop();
+  const publicationsQuery = usePublicPublications();
+  // Skeletons while loading; an API failure just leaves the grid empty.
+  const publications = publicationsQuery.data ?? (publicationsQuery.isError ? [] : undefined);
   const [layanan, setLayanan] = useState(ALL_LAYANAN);
   const group = SERVICE_GROUPS.find((entry) => entry.label === layanan);
   const branches = group?.branches ?? null;
@@ -634,9 +637,13 @@ export default function HomePage() {
           </div>
 
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {sortedPublications().slice(0, 3).map((publication) => (
-              <PublicationCard key={publication.slug} publication={publication} />
-            ))}
+            {publications
+              ? publications.slice(0, 3).map((publication) => (
+                  <PublicationCard key={publication.slug} publication={publication} />
+                ))
+              : Array.from({ length: 3 }, (_, index) => (
+                  <div key={index} className="aspect-[4/5] rounded-lg border border-border/60 bg-muted/60 animate-pulse" />
+                ))}
           </div>
         </div>
       </section>

@@ -191,3 +191,43 @@
 .font-geist :is(button, input, select, textarea, optgroup) {
   font-family: inherit;
 }
+
+/* Publication WYSIWYG editor: mirrors the public article typesetting
+   (components/article-blocks.tsx) so what admins see is what readers get. */
+@layer components {
+  .publication-prose {
+    @apply max-w-[68ch] text-[16px] leading-[1.75] text-foreground/85;
+  }
+  .publication-prose > * + * {
+    @apply mt-5;
+  }
+  .publication-prose h2 {
+    @apply pt-6 text-xl font-semibold tracking-tight text-foreground;
+  }
+  .publication-prose strong {
+    @apply font-semibold text-foreground;
+  }
+  .publication-prose a {
+    @apply text-primary underline underline-offset-4;
+  }
+  .publication-prose ul,
+  .publication-prose ol {
+    @apply space-y-2 pl-5 marker:text-muted-foreground;
+  }
+  .publication-prose ul {
+    @apply list-disc;
+  }
+  .publication-prose ol {
+    @apply list-decimal;
+  }
+  .publication-prose li {
+    @apply pl-1;
+  }
+  .publication-prose li > p + p {
+    @apply mt-2;
+  }
+  .publication-prose p.is-editor-empty:first-child::before {
+    content: attr(data-placeholder);
+    @apply pointer-events-none float-left h-0 text-muted-foreground/60;
+  }
+}

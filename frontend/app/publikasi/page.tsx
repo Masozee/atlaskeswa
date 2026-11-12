@@ -3,7 +3,10 @@ import { PublicFooter } from '@/components/public-footer';
 import { DevNotice } from '@/components/dev-notice';
 import { PublicationCard } from '@/components/publication-card';
 import { PUBLIC_CONTAINER } from '@/lib/public-layout';
-import { sortedPublications } from '@/lib/publications';
+import { fetchPublications } from '@/lib/publications';
+
+// Content comes from the CMS; render per request so edits show at once.
+export const dynamic = 'force-dynamic';
 
 export const metadata = {
   title: 'Publikasi — OMMHA',
@@ -11,8 +14,8 @@ export const metadata = {
     'Arsip, laporan penelitian, serta siaran pers terkait kegiatan dan perkembangan Penelitian One Map for Mental Health Atlas (OMMHA).',
 };
 
-export default function PublikasiPage() {
-  const publications = sortedPublications();
+export default async function PublikasiPage() {
+  const publications = await fetchPublications();
 
   return (
     <div className="font-geist min-h-screen bg-background">
@@ -32,11 +35,15 @@ export default function PublikasiPage() {
 
         <div className="border-t" />
 
-        <div className="grid gap-6 pt-12 sm:grid-cols-2 lg:grid-cols-3">
-          {publications.map((publication) => (
-            <PublicationCard key={publication.slug} publication={publication} />
-          ))}
-        </div>
+        {publications.length > 0 ? (
+          <div className="grid gap-6 pt-12 sm:grid-cols-2 lg:grid-cols-3">
+            {publications.map((publication) => (
+              <PublicationCard key={publication.slug} publication={publication} />
+            ))}
+          </div>
+        ) : (
+          <p className="pt-12 text-[15px] text-muted-foreground">Belum ada publikasi.</p>
+        )}
       </main>
 
       <PublicFooter />

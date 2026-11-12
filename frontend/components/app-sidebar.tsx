@@ -58,6 +58,7 @@ import {
   Briefcase01Icon,
   // Konfigurasi Sistem submenus
   Settings02Icon,
+  News01Icon,
   Edit01Icon,
   // Log & Pemantauan submenus
   SecurityCheckIcon,
@@ -181,6 +182,16 @@ const data = {
       ],
     },
     {
+      title: "Konten Publik",
+      url: "/dashboard/publikasi",
+      icon: News01Icon,
+      isActive: false,
+      submenus: [
+        { title: "Semua Publikasi", url: "/dashboard/publikasi", icon: News01Icon },
+        { title: "Tambah Publikasi", url: "/dashboard/publikasi/new", icon: AddCircleIcon },
+      ],
+    },
+    {
       title: "Sistem",
       url: "/dashboard/settings",
       icon: Settings01Icon,
@@ -237,6 +248,11 @@ function filterMenuByRole(menuItems: typeof data.navMain, userRole?: string) {
   return menuItems.filter(item => {
     // User Management - ADMIN only
     if (item.title === 'Pengguna & Enumerator') {
+      return userRole === 'ADMIN'
+    }
+
+    // Public-site CMS (publications) - ADMIN only
+    if (item.title === 'Konten Publik') {
       return userRole === 'ADMIN'
     }
 

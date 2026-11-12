@@ -11,28 +11,23 @@ import { Button } from '@/components/ui/button';
 import { PUBLIC_CONTAINER } from '@/lib/public-layout';
 import { BlockView, Caption, headingId } from '@/components/article-blocks';
 import {
+  fetchPublication,
+  fetchPublications,
   formatPublicationDate,
-  getPublication,
-  hostedPublications,
-  sortedPublications,
   type Publication,
 } from '@/lib/publications';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { ArrowRight01Icon, Download04Icon } from '@hugeicons/core-free-icons';
 
-// Every publication is known at build time; anything else is a 404.
-export const dynamicParams = false;
-
-export function generateStaticParams() {
-  return hostedPublications().map((publication) => ({ slug: publication.slug }));
-}
+// Content comes from the CMS; render per request so edits show at once.
+export const dynamic = 'force-dynamic';
 
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
-  const publication = getPublication((await params).slug);
+  const publication = await fetchPublication((await params).slug);
   if (!publication) return {};
   return {
     title: `${publication.title} — OMMHA`,
@@ -103,10 +98,11 @@ function Sidebar({ publication }: { publication: Publication }) {
 /* -------------------------------------------------------------------- page */
 
 export default async function PublicationPage({ params }: { params: Promise<{ slug: string }> }) {
-  const publication = getPublication((await params).slug);
+  const { slug } = await params;
+  const [publication, all] = await Promise.all([fetchPublication(slug), fetchPublications()]);
   if (!publication) notFound();
 
-  const others = sortedPublications().filter((item) => item.slug !== publication.slug);
+  const others = all.filter((item) => item.slug !== publication.slug);
 
   return (
     <div className="font-geist min-h-screen bg-background">
@@ -168,7 +164,9 @@ export default async function PublicationPage({ params }: { params: Promise<{ sl
             {publication.file && (
               <div className="mt-8 flex flex-col gap-4 rounded-lg border bg-muted/30 p-5 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-[15px] leading-snug text-foreground">
-                  Hasil pemetaan dan rencana tindak lanjut selengkapnya ada di laporan lengkap.
+                  {publication.type === 'Laporan'
+                    ? 'Hasil pemetaan dan rencana tindak lanjut selengkapnya ada di laporan lengkap.'
+                    : 'Dokumen lengkap tersedia untuk diunduh.'}
                 </p>
                 <Button asChild variant="outline" className="gap-2 shrink-0">
                   <a href={publication.file.href} download>
